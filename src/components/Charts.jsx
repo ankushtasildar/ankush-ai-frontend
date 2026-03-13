@@ -5,7 +5,7 @@ import {
   ReferenceLine, ComposedChart, Cell
 } from 'recharts'
 
-// ââ Shared tooltip ââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Shared tooltip Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 export const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
@@ -31,7 +31,7 @@ export const ChartTooltip = ({ active, payload, label }) => {
   )
 }
 
-// ── PriceChart ──────────────────────────────────────────────
+// ââ PriceChart ââââââââââââââââââââââââââââââââââââââââââââââ
 export const PriceChart = ({ data = [], height = 220, showEMA = false, entryPrice = null }) => {
   const fmt = useMemo(() => data.map(d => ({
     ...d,
@@ -59,7 +59,7 @@ export const PriceChart = ({ data = [], height = 220, showEMA = false, entryPric
   )
 }
 
-// ── RSIChart ────────────────────────────────────────────────
+// ââ RSIChart ââââââââââââââââââââââââââââââââââââââââââââââââ
 export const RSIChart = ({ data = [], height = 80 }) => {
   const fmt = useMemo(() => data.map(d => ({
     ...d,
@@ -87,7 +87,7 @@ export const RSIChart = ({ data = [], height = 80 }) => {
   )
 }
 
-// ── PnLBarChart ─────────────────────────────────────────────
+// ââ PnLBarChart âââââââââââââââââââââââââââââââââââââââââââââ
 export const PnLBarChart = ({ positions = [], height = 200 }) => {
   const data = useMemo(() => positions.map(p => ({
     name: p.symbol || p.name || '?',
@@ -117,3 +117,49 @@ export const PnLBarChart = ({ positions = [], height = 200 }) => {
     </ResponsiveContainer>
   )
 }
+
+
+// ── ScoreHistogram ──────────────────────────────────────────
+export const ScoreHistogram = ({ signals = [], height = 160 }) => {
+  const data = useMemo(() => {
+    const buckets = [
+      { label: '≤-0.8', min: -1, max: -0.8 },
+      { label: '-0.8', min: -0.8, max: -0.6 },
+      { label: '-0.6', min: -0.6, max: -0.4 },
+      { label: '-0.4', min: -0.4, max: -0.2 },
+      { label: '-0.2', min: -0.2, max: 0 },
+      { label: '0', min: 0, max: 0.2 },
+      { label: '0.2', min: 0.2, max: 0.4 },
+      { label: '0.4', min: 0.4, max: 0.6 },
+      { label: '0.6', min: 0.6, max: 0.8 },
+      { label: '≥0.8', min: 0.8, max: 1 },
+    ];
+    return buckets.map(b => ({
+      label: b.label,
+      count: signals.filter(s => (s.score ?? s.sentiment_score ?? 0) >= b.min && (s.score ?? s.sentiment_score ?? 0) < b.max).length,
+      positive: b.min >= 0,
+    }));
+  }, [signals]);
+
+  if (!signals.length) return (
+    <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+      No signal data
+    </div>
+  );
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={24} allowDecimals={false} />
+        <Tooltip content={<ChartTooltip />} />
+        <Bar dataKey="count" name="Signals" radius={[2, 2, 0, 0]}>
+          {data.map((entry, i) => (
+            <Cell key={i} fill={entry.positive ? 'var(--green)' : 'var(--red)'} fillOpacity={0.75} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+};
