@@ -3,8 +3,7 @@ import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
 
-const BASE_URL = import.meta.env.VITE_SITE_URL || 'https://www.ankushai.org'
-const CALLBACK_URL = BASE_URL + '/auth/callback'
+const CALLBACK_URL = window.location.origin + '/auth/callback'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
