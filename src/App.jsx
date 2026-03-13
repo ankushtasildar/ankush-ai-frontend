@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/auth'
 import ProtectedRoute from './components/ProtectedRoute'
 import LiveTicker from './components/LiveTicker'
@@ -10,6 +10,7 @@ import Sentiment from './pages/Sentiment'
 import Backtest from './pages/Backtest'
 import LandingPage from './pages/LandingPage'
 import AuthCallback from './pages/AuthCallback'
+import Admin from './pages/Admin'
 import { Journal, Calendar } from './pages/index'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
@@ -26,6 +27,7 @@ const NAV = [
 
 function AppShell() {
   const { user, signOut } = useAuth()
+  const isAdmin = user?.email === 'ankushtasildar2@gmail.com'
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#080c14', color:'#f0f4ff' }}>
@@ -50,6 +52,11 @@ function AppShell() {
             </NavLink>
           ))}
           <div style={{ flex:1 }} />
+          {isAdmin && (
+            <NavLink to="/admin" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 20px', fontFamily:'DM Mono,monospace', fontSize:11, letterSpacing:'.08em', color:'#f59e0b', textDecoration:'none' }}>
+              ◆ Admin
+            </NavLink>
+          )}
           <div style={{ padding:'12px 20px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ fontFamily:'DM Mono,monospace', fontSize:10, color:'#4a5c7a', marginBottom:8, letterSpacing:'.08em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {user?.email}
@@ -85,11 +92,8 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/app/*" element={
-            <ProtectedRoute>
-              <AppShell />
-            </ProtectedRoute>
-          } />
+          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+          <Route path="/app/*" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
