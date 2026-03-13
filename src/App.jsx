@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
-import { supabase } from './lib/supabase'
 import { AuthProvider, useAuth } from './lib/auth'
 import ProtectedRoute from './components/ProtectedRoute'
 import LiveTicker from './components/LiveTicker'
@@ -10,156 +8,95 @@ import Portfolio from './pages/Portfolio'
 import Signals from './pages/Signals'
 import Sentiment from './pages/Sentiment'
 import Backtest from './pages/Backtest'
+import LandingPage from './pages/LandingPage'
 import { Journal, Calendar } from './pages/index'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
 const NAV = [
-  { path: '/',          label: 'Overview',   icon: '◈' },
-  { path: '/portfolio', label: 'Portfolio',  icon: '◉' },
-  { path: '/signals',   label: 'Signals',    icon: '◆' },
-  { path: '/sentiment', label: 'Sentiment',  icon: '◎' },
-  { path: '/backtest',  label: 'Backtest',   icon: '◐' },
-  { path: '/journal',   label: 'Journal',    icon: '◇' },
-  { path: '/calendar',  label: 'Calendar',   icon: '○' },
+  { path: '/app',           label: 'Overview',   icon: '◎' },
+  { path: '/app/portfolio', label: 'Portfolio',  icon: '◫' },
+  { path: '/app/signals',   label: 'Signals',    icon: '◈' },
+  { path: '/app/sentiment', label: 'Sentiment',  icon: '◉' },
+  { path: '/app/backtest',  label: 'Backtest',   icon: '◷' },
+  { path: '/app/journal',   label: 'Journal',    icon: '◧' },
+  { path: '/app/calendar',  label: 'Calendar',   icon: '◻' },
 ]
 
-function Sidebar({ dbOk }) {
+function AppShell() {
   const { user, signOut } = useAuth()
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    const fmt = () => new Date().toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    })
-    setTime(fmt())
-    const t = setInterval(() => setTime(fmt()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const etHour = parseInt(new Date().toLocaleString('en-US', {
-    timeZone: 'America/New_York', hour: 'numeric', hour12: false
-  }))
-  const marketOpen = etHour >= 9 && etHour < 16
+  const loc = useLocation()
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <div className="logo">
-          <span className="logo-mark">⚡</span>
-          <div>
-            <div className="logo-name">ANKUSH AI</div>
-            <div className="logo-sub">Trading Intelligence</div>
-          </div>
-        </div>
-      </div>
-
-      <nav className="sidebar-nav">
-        {NAV.map(({ path, label, icon }) => (
-          <NavLink key={path} to={path} end={path === '/'}
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <span className="nav-icon">{icon}</span>
-            <span className="nav-label">{label}</span>
-          </NavLink>
-        ))}
-      </nav>
-
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#080c14', color:'#f0f4ff' }}>
       <LiveTicker />
-
-      <div className="sidebar-footer">
-        <div className="clock">{time}</div>
-        <div className="date-str">
-          {new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}
-        </div>
-        <div className={`market-status ${marketOpen ? 'open' : 'closed'}`}>
-          <span className="status-dot" />
-          {marketOpen ? 'MARKET OPEN' : 'MARKET CLOSED'}
-        </div>
-        <div className="connection-row">
-          <span className={`conn-dot ${dbOk ? 'ok' : 'err'}`} />
-          <span className="conn-label">Supabase {dbOk ? 'live' : 'offline'}</span>
-        </div>
-        {user && (
-          <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)' }}>
-            <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)',
-              marginBottom:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {user.email}
+      <RealtimeToast />
+      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+        <nav style={{ width:220, background:'#0d1420', borderRight:'1px solid rgba(255,255,255,0.07)', display:'flex', flexDirection:'column', padding:'20px 0' }}>
+          <div style={{ padding:'0 20px 24px', fontFamily:'DM Mono,monospace', fontSize:13, letterSpacing:'.14em', color:'#f0f4ff' }}>
+            ⚡ ANKUSHAI
+          </div>
+          {NAV.map(n => (
+            <NavLink key={n.path} to={n.path} end={n.path==='/app'}
+              style={({ isActive }) => ({
+                display:'flex', alignItems:'center', gap:10, padding:'10px 20px',
+                fontFamily:'DM Mono,monospace', fontSize:12, letterSpacing:'.08em',
+                color: isActive ? '#f0f4ff' : '#4a5c7a',
+                background: isActive ? 'rgba(37,99,235,0.12)' : 'transparent',
+                borderRight: isActive ? '2px solid #2563eb' : '2px solid transparent',
+                textDecoration:'none', transition:'all .15s'
+              })}>
+              <span>{n.icon}</span>{n.label}
+            </NavLink>
+          ))}
+          <div style={{ flex:1 }} />
+          <div style={{ padding:'12px 20px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ fontFamily:'DM Mono,monospace', fontSize:10, color:'#4a5c7a', marginBottom:8, letterSpacing:'.08em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {user?.email}
             </div>
-            <button onClick={signOut} className="btn btn-ghost"
-              style={{ width:'100%', justifyContent:'center', padding:'5px 8px', fontSize:11 }}>
+            <button onClick={signOut} style={{ fontFamily:'DM Mono,monospace', fontSize:11, letterSpacing:'.08em', color:'#4a5c7a', background:'none', border:'none', cursor:'pointer', padding:0 }}>
               Sign Out
             </button>
           </div>
-        )}
-      </div>
-    </aside>
-  )
-}
-
-function TopBar() {
-  const loc = useLocation()
-  const current = NAV.find(n => n.path === loc.pathname) || NAV[0]
-  return (
-    <header className="topbar">
-      <div className="topbar-title">
-        <span className="topbar-icon">{current.icon}</span>
-        {current.label}
-      </div>
-      <div className="topbar-right">
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--green)',
-          display:'flex', alignItems:'center', gap:4 }}>
-          <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--green)',
-            display:'inline-block', animation:'pulse 2s infinite' }} />
-          REAL-TIME
-        </span>
-        <span className="build-tag">P3 · Enterprise</span>
-      </div>
-    </header>
-  )
-}
-
-function Shell() {
-  const [dbOk, setDbOk] = useState(false)
-
-  useEffect(() => {
-    supabase.from('events').select('id').limit(1)
-      .then(({ error }) => setDbOk(!error))
-      .catch(() => setDbOk(false))
-  }, [])
-
-  return (
-    <div className="app-shell">
-      <Sidebar dbOk={dbOk} />
-      <div className="main-area">
-        <TopBar />
-        <main className="page-content">
-          <Routes>
-            <Route path="/"          element={<ErrorBoundary page label="Overview"><Overview /></ErrorBoundary>} />
-            <Route path="/portfolio" element={<ErrorBoundary page label="Portfolio"><Portfolio /></ErrorBoundary>} />
-            <Route path="/signals"   element={<ErrorBoundary page label="Signals"><Signals /></ErrorBoundary>} />
-            <Route path="/sentiment" element={<ErrorBoundary page label="Sentiment"><Sentiment /></ErrorBoundary>} />
-            <Route path="/backtest"  element={<ErrorBoundary page label="Backtest"><Backtest /></ErrorBoundary>} />
-            <Route path="/journal"   element={<ErrorBoundary page label="Journal"><Journal /></ErrorBoundary>} />
-            <Route path="/calendar"  element={<ErrorBoundary page label="Calendar"><Calendar /></ErrorBoundary>} />
-            <Route path="*"          element={<Navigate to="/" replace />} />
-          </Routes>
+        </nav>
+        <main style={{ flex:1, overflow:'auto', padding:'28px 32px' }}>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/app" element={<Overview />} />
+              <Route path="/app/portfolio" element={<Portfolio />} />
+              <Route path="/app/signals" element={<Signals />} />
+              <Route path="/app/sentiment" element={<Sentiment />} />
+              <Route path="/app/backtest" element={<Backtest />} />
+              <Route path="/app/journal" element={<Journal />} />
+              <Route path="/app/calendar" element={<Calendar />} />
+              <Route path="*" element={<Navigate to="/app" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
-      <RealtimeToast />
     </div>
   )
 }
 
-export default function App() {
+function App() {
   return (
-    <ErrorBoundary label="Application Error">
+    <BrowserRouter>
       <AuthProvider>
-        <BrowserRouter>
-          <ProtectedRoute>
-            <Shell />
-          </ProtectedRoute>
-        </BrowserRouter>
+        <Routes>
+          {/* Public landing page */}
+          <Route path="/" element={<LandingPage />} />
+          {/* Protected dashboard under /app/* */}
+          <Route path="/app/*" element={
+            <ProtectedRoute>
+              <AppShell />
+            </ProtectedRoute>
+          } />
+          {/* Catch-all: send to landing */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </AuthProvider>
-    </ErrorBoundary>
+    </BrowserRouter>
   )
 }
+
+export default App
