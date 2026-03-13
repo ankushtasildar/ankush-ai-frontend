@@ -9,6 +9,7 @@ import Signals from './pages/Signals'
 import Sentiment from './pages/Sentiment'
 import Backtest from './pages/Backtest'
 import LandingPage from './pages/LandingPage'
+import AuthCallback from './pages/AuthCallback'
 import { Journal, Calendar } from './pages/index'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
@@ -25,7 +26,6 @@ const NAV = [
 
 function AppShell() {
   const { user, signOut } = useAuth()
-  const loc = useLocation()
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#080c14', color:'#f0f4ff' }}>
@@ -83,15 +83,13 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public landing page */}
           <Route path="/" element={<LandingPage />} />
-          {/* Protected dashboard under /app/* */}
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/app/*" element={
             <ProtectedRoute>
               <AppShell />
             </ProtectedRoute>
           } />
-          {/* Catch-all: send to landing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
