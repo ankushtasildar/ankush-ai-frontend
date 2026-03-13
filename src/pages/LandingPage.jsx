@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 
 export default function LandingPage() {
-  const { user } = useAuth()
+  const { user, signInWithGoogle, signInWithMagicLink } = useAuth()
   const navigate = useNavigate()
 
   // If already logged in, go straight to dashboard
@@ -43,15 +43,20 @@ export default function LandingPage() {
   async function handleMagicLink(emailId) {
     const email = document.getElementById(emailId).value
     if (!email) { alert('Please enter your email.'); return }
+    const { error } = await signInWithMagicLink(email)
+    if (error) alert('Error: ' + error.message)
+    else alert('✅ Magic link sent to ' + email + '! Check your inbox.')
+  }
     const { error } = await import('../lib/supabase').then(m => 
       m.supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/app' } })
     )
     if (error) alert('Error: ' + error.message)
-    else alert('✅ Magic link sent to ' + email + '! Check your inbox.')
+    else alert('â Magic link sent to ' + email + '! Check your inbox.')
   }
 
   async function handleGoogleAuth() {
-    const { supabase } = await import('../lib/supabase')
+    signInWithGoogle()
+  } = await import('../lib/supabase')
     supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/app' } })
   }
 
@@ -143,7 +148,7 @@ export default function LandingPage() {
         .pricing-divider{height:1px;background:var(--border);margin:20px 0}
         .pricing-features{list-style:none;margin-bottom:28px}
         .pricing-features li{font-size:14px;color:var(--text-2);padding:6px 0;padding-left:20px;position:relative}
-        .pricing-features li::before{content:'✓';position:absolute;left:0;color:var(--green);font-size:12px}
+        .pricing-features li::before{content:'â';position:absolute;left:0;color:var(--green);font-size:12px}
         .pricing-btn{display:block;text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:14px;border-radius:8px;cursor:pointer;transition:all .2s;border:none;width:100%}
         .pricing-btn.primary{background:var(--blue);color:white}
         .pricing-btn.primary:hover{background:var(--blue-light);box-shadow:0 0 24px rgba(37,99,235,0.4)}
@@ -192,22 +197,22 @@ export default function LandingPage() {
         <div className="lp-grid" />
 
         <nav>
-          <a href="/" className="nav-logo"><span className="bolt">⚡</span> ANKUSHAI</a>
+          <a href="/" className="nav-logo"><span className="bolt">â¡</span> ANKUSHAI</a>
           <ul className="nav-links">
             <li><a href="#features">Features</a></li>
             <li><a href="#pricing">Pricing</a></li>
             <li><a onClick={() => openModal('login')}>Sign In</a></li>
           </ul>
-          <a className="nav-cta" onClick={() => openModal('signup')}>Get Access →</a>
+          <a className="nav-cta" onClick={() => openModal('signup')}>Get Access â</a>
         </nav>
 
         <section className="hero">
           <div className="hero-glow" />
           <div className="hero-tag"><span className="dot" /> Live Trading Intelligence</div>
           <h1>Institutional edge,<br /><span className="accent">built for traders.</span></h1>
-          <p className="hero-sub">Real-time signals, AI-powered thesis generation, and portfolio analytics — everything a serious trader needs, in one platform.</p>
+          <p className="hero-sub">Real-time signals, AI-powered thesis generation, and portfolio analytics â everything a serious trader needs, in one platform.</p>
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => openModal('signup')}>Start Free Trial →</button>
+            <button className="btn-primary" onClick={() => openModal('signup')}>Start Free Trial â</button>
             <button className="btn-outline" onClick={() => openModal('login')}>Sign In</button>
           </div>
           <div className="hero-stats">
@@ -225,12 +230,12 @@ export default function LandingPage() {
             <div className="section-sub">Built on institutional infrastructure, accessible to every serious trader.</div>
             <div className="features-grid" style={{marginTop:'48px'}}>
               {[
-                {icon:'📡',title:'Live Signal Feed',desc:'Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'},
-                {icon:'🤖',title:'AI Thesis Generator',desc:'Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues — powered by a fine-tuned financial model.'},
-                {icon:'📊',title:'Portfolio Analytics',desc:'Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'},
-                {icon:'📰',title:'Sentiment Intelligence',desc:'NLP analysis of 10,000+ news sources, earnings transcripts, and Fed communications. Real-time sentiment scores for every major ticker.'},
-                {icon:'🔄',title:'Strategy Backtesting',desc:'Backtest any signal combination on 20+ years of tick data. Walk-forward optimization, Monte Carlo simulation, and slippage modeling.'},
-                {icon:'▲',title:'Supabase Real-Time',desc:'Every table syncs live across all browser sessions instantly — no refresh needed. Built on institutional-grade Postgres infrastructure.'},
+                {icon:'ð¡',title:'Live Signal Feed',desc:'Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'},
+                {icon:'ð¤',title:'AI Thesis Generator',desc:'Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues â powered by a fine-tuned financial model.'},
+                {icon:'ð',title:'Portfolio Analytics',desc:'Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'},
+                {icon:'ð°',title:'Sentiment Intelligence',desc:'NLP analysis of 10,000+ news sources, earnings transcripts, and Fed communications. Real-time sentiment scores for every major ticker.'},
+                {icon:'ð',title:'Strategy Backtesting',desc:'Backtest any signal combination on 20+ years of tick data. Walk-forward optimization, Monte Carlo simulation, and slippage modeling.'},
+                {icon:'â²',title:'Supabase Real-Time',desc:'Every table syncs live across all browser sessions instantly â no refresh needed. Built on institutional-grade Postgres infrastructure.'},
               ].map(f => (
                 <div className="feature-card" key={f.title}>
                   <span className="feature-icon">{f.icon}</span>
@@ -258,7 +263,7 @@ export default function LandingPage() {
                 <ul className="pricing-features">
                   {['Signal feed (50 signals/day)','Portfolio tracker','News sentiment','Basic backtesting','Trade journal','Email support'].map(i=><li key={i}>{i}</li>)}
                 </ul>
-                <button className="pricing-btn outline" onClick={()=>openModal('signup')}>Get Started →</button>
+                <button className="pricing-btn outline" onClick={()=>openModal('signup')}>Get Started â</button>
               </div>
               <div className="pricing-card featured">
                 <div className="pricing-badge">Most Popular</div>
@@ -269,7 +274,7 @@ export default function LandingPage() {
                 <ul className="pricing-features">
                   {['Unlimited signals','AI Thesis Generator (unlimited)','AI Journal Pattern Coach','Advanced backtesting','Price charts + EMA/RSI','Macro calendar','Real-time alerts','Priority support'].map(i=><li key={i}>{i}</li>)}
                 </ul>
-                <button className="pricing-btn primary" onClick={()=>openModal('signup')}>Start Free Trial →</button>
+                <button className="pricing-btn primary" onClick={()=>openModal('signup')}>Start Free Trial â</button>
               </div>
               <div className="pricing-card">
                 <div className="pricing-tier">Enterprise</div>
@@ -279,25 +284,25 @@ export default function LandingPage() {
                 <ul className="pricing-features">
                   {['Everything in Pro','Multi-user seats','API access','Custom signal engines','Dedicated infrastructure','SLA + white-glove onboarding'].map(i=><li key={i}>{i}</li>)}
                 </ul>
-                <button className="pricing-btn outline">Contact Sales →</button>
+                <button className="pricing-btn outline">Contact Sales â</button>
               </div>
             </div>
           </div>
         </section>
 
         <footer>
-          <div className="footer-logo">⚡ ANKUSHAI</div>
+          <div className="footer-logo">â¡ ANKUSHAI</div>
           <div className="footer-links">
             <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Support</a>
           </div>
-          <div className="footer-copy">© 2026 AnkushAI. All rights reserved.</div>
+          <div className="footer-copy">Â© 2026 AnkushAI. All rights reserved.</div>
         </footer>
 
         {/* MODAL */}
         <div className="modal-overlay" id="modal" onClick={closeModalOutside}>
           <div className="modal">
-            <button className="modal-close" onClick={closeModal}>✕</button>
-            <span className="modal-icon">⚡</span>
+            <button className="modal-close" onClick={closeModal}>â</button>
+            <span className="modal-icon">â¡</span>
             <div id="modal-signup-view">
               <div className="modal-title">Get Access</div>
               <div className="modal-sub">Start your 7-day free trial. No credit card required.</div>
@@ -314,7 +319,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <input className="modal-input" type="email" placeholder="Email address" id="modal-email" />
-              <button className="modal-submit" onClick={()=>handleMagicLink('modal-email')}>Send Magic Link →</button>
+              <button className="modal-submit" onClick={()=>handleMagicLink('modal-email')}>Send Magic Link â</button>
               <div className="modal-divider">or</div>
               <button className="modal-google" onClick={handleGoogleAuth}>
                 <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.07 0-3.83-1.4-4.46-3.27H1.85v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.52 10.54A4.8 4.8 0 0 1 4.27 9c0-.53.09-1.05.25-1.54V5.39H1.85A8 8 0 0 0 .98 9c0 1.29.31 2.51.87 3.61l2.67-2.07z"/><path fill="#EA4335" d="M8.98 3.58c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1a8 8 0 0 0-7.13 4.39l2.67 2.07c.63-1.87 2.4-3.27 4.46-3.27z"/></svg>
@@ -329,7 +334,7 @@ export default function LandingPage() {
               <div className="modal-title">Welcome back</div>
               <div className="modal-sub">Sign in to your AnkushAI account.</div>
               <input className="modal-input" type="email" placeholder="Email address" id="modal-login-email" />
-              <button className="modal-submit" onClick={()=>handleMagicLink('modal-login-email')}>Send Magic Link →</button>
+              <button className="modal-submit" onClick={()=>handleMagicLink('modal-login-email')}>Send Magic Link â</button>
               <div className="modal-divider">or</div>
               <button className="modal-google" onClick={handleGoogleAuth}>
                 <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.07 0-3.83-1.4-4.46-3.27H1.85v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.52 10.54A4.8 4.8 0 0 1 4.27 9c0-.53.09-1.05.25-1.54V5.39H1.85A8 8 0 0 0 .98 9c0 1.29.31 2.51.87 3.61l2.67-2.07z"/><path fill="#EA4335" d="M8.98 3.58c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1a8 8 0 0 0-7.13 4.39l2.67 2.07c.63-1.87 2.4-3.27 4.46-3.27z"/></svg>
