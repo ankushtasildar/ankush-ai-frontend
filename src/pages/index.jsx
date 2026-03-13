@@ -3,7 +3,7 @@ import { api } from '../lib/api'
 import { useRealtimeTable } from '../lib/useRealtime'
 
 
-// ── Journal ───────────────────────────────────────────────────
+// ââ Journal âââââââââââââââââââââââââââââââââââââââââââââââââââ
 export function Journal() {
   const [entries, setEntries]   = useState([])
   const [loading, setLoading]   = useState(true)
@@ -40,7 +40,7 @@ export function Journal() {
   const getPatterns = async () => {
     setPatLoading(true)
     try { setPatterns(await api.journal.patterns()) }
-    catch { setPatterns({ summary: 'Pattern analysis unavailable — check ANTHROPIC_API_KEY', patterns: [] }) }
+    catch { setPatterns({ summary: 'Pattern analysis unavailable â check ANTHROPIC_API_KEY', patterns: [] }) }
     setPatLoading(false)
   }
 
@@ -59,7 +59,7 @@ export function Journal() {
         <div className={`metric-tile ${totalPnl >= 0 ? 'green' : 'red'}`}>
           <div className="metric-label">Realized P&L</div>
           <div className={`metric-value ${totalPnl >= 0 ? 'positive' : 'negative'}`}>
-            {totalPnl !== 0 ? `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(2)}` : '—'}
+            {totalPnl !== 0 ? `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(2)}` : 'â'}
           </div>
         </div>
         <div className="metric-tile">
@@ -70,7 +70,7 @@ export function Journal() {
         <div className="metric-tile">
           <div className="metric-label">Avg P&L / Trade</div>
           <div className="metric-value" style={{ fontSize: 18 }}>
-            {entries.length > 0 ? `$${(totalPnl / entries.length).toFixed(2)}` : '—'}
+            {entries.length > 0 ? `$${(totalPnl / entries.length).toFixed(2)}` : 'â'}
           </div>
         </div>
       </div>
@@ -79,9 +79,9 @@ export function Journal() {
       {patterns && (
         <div className="card section" style={{ borderLeft: '3px solid var(--blue)' }}>
           <div className="card-header">
-            <span className="card-title">⚡ AI Pattern Analysis</span>
+            <span className="card-title">â¡ AI Pattern Analysis</span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
-              {patterns.entry_count} trades analyzed · win rate {patterns.win_rate != null ? (patterns.win_rate * 100).toFixed(0) + '%' : winRate + '%'}
+              {patterns.entry_count} trades analyzed Â· win rate {patterns.win_rate != null ? (patterns.win_rate * 100).toFixed(0) + '%' : winRate + '%'}
             </span>
           </div>
           <div style={{ padding: '14px 16px', fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
@@ -98,11 +98,11 @@ export function Journal() {
                 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                     <span style={{ fontFamily:'var(--font-mono)', fontWeight:600, fontSize:12 }}>{p.name}</span>
-                    <spa. style={{
+                    <span style={{
                       fontFamily:'var(--font-mono)', fontSize:9, fontWeight:600,
                       color: p.severity==='high' ? 'var(--red)' : p.severity==='medium' ? 'var(--yellow)' : 'var(--green)',
                       textTransform:'uppercase',
-                    }}>{p.severity} · {p.count} occurrences</span>
+                    }}>{p.severity} Â· {p.count} occurrences</span>
                   </div>
                   <div style={{ fontSize:12, color:'var(--text-muted)' }}>{p.description}</div>
                 </div>
@@ -114,15 +114,15 @@ export function Journal() {
 
       <div className="card section">
         <div className="card-header">
-          <span className="card-title">◇ Trade Journal</span>
+          <span className="card-title">â Trade Journal</span>
           <div style={{ display:'flex', gap:8 }}>
             <button className="btn btn-ghost" style={{ padding:'4px 12px', fontSize:11 }}
               onClick={getPatterns} disabled={patLoading}>
-              {patLoading ? '⟳ Analyzing…' : '⚡ AI Patterns'}
+              {patLoading ? 'â³ Analyzingâ¦' : 'â¡ AI Patterns'}
             </button>
             <button className="btn btn-primary" style={{ padding:'4px 12px', fontSize:11 }}
               onClick={() => setShowForm(v => !v)}>
-              {showForm ? '✕ Cancel' : '+ Log Trade'}
+              {showForm ? 'â Cancel' : '+ Log Trade'}
             </button>
           </div>
         </div>
@@ -173,7 +173,7 @@ export function Journal() {
               </div>
               <div className="form-group">
                 <label>Notes</label>
-                <input placeholder="Thesis, observations…" value={form.note} onChange={e => setForm({...form, note: e.target.value})} />
+                <input placeholder="Thesis, observationsâ¦" value={form.note} onChange={e => setForm({...form, note: e.target.value})} />
               </div>
             </div>
             <button className="btn btn-primary" onClick={submit}>Save Trade</button>
@@ -181,7 +181,7 @@ export function Journal() {
         )}
 
         {loading ? <div className="loading">LOADING JOURNAL</div>
-          : entries.length === 0 ? <div className="empty"><span style={{fontSize:24}}>◇</span>No trades logged yet</div>
+          : entries.length === 0 ? <div className="empty"><span style={{fontSize:24}}>â</span>No trades logged yet</div>
           : (
             <table className="data-table">
               <thead><tr>
@@ -196,11 +196,11 @@ export function Journal() {
                       <td className="mono" style={{ fontWeight: 600 }}>{e.symbol}</td>
                       <td><span className={`tag ${e.direction === 'long' ? 'bullish' : 'bearish'}`}>{e.direction?.toUpperCase()}</span></td>
                       <td className="mono">${Number(e.entry_price).toFixed(2)}</td>
-                      <td className="mono">{e.exit_price ? `$${Number(e.exit_price).toFixed(2)}` : '—'}</td>
+                      <td className="mono">{e.exit_price ? `$${Number(e.exit_price).toFixed(2)}` : 'â'}</td>
                       <td className={pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}>{pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}</td>
-                      <td className={pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}>{e.pnl_pct ? `${e.pnl_pct >= 0 ? '+' : ''}${Number(e.pnl_pct).toFixed(2)}%` : '—'}</td>
-                      <td style={{ color:'var(--text-muted)', fontSize:11 }}>{e.close_reason?.replace(/_/g,' ') || '—'}</td>
-                      <td className="mono" style={{ color:'var(--text-muted)', fontSize:11 }}>{e.closed_at ? new Date(e.closed_at).toLocaleDateString() : '—'}</td>
+                      <td className={pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}>{e.pnl_pct ? `${e.pnl_pct >= 0 ? '+' : ''}${Number(e.pnl_pct).toFixed(2)}%` : 'â'}</td>
+                      <td style={{ color:'var(--text-muted)', fontSize:11 }}>{e.close_reason?.replace(/_/g,' ') || 'â'}</td>
+                      <td className="mono" style={{ color:'var(--text-muted)', fontSize:11 }}>{e.closed_at ? new Date(e.closed_at).toLocaleDateString() : 'â'}</td>
                     </tr>
                   )
                 })}
@@ -213,7 +213,7 @@ export function Journal() {
 }
 
 
-// ── Calendar ──────────────────────────────────────────────────
+// ââ Calendar ââââââââââââââââââââââââââââââââââââââââââââââââââ
 export function Calendar() {
   const [events, setEvents]     = useState([])
   const [loading, setLoading]   = useState(true)
@@ -259,18 +259,18 @@ export function Calendar() {
 
       <div className="card section">
         <div className="card-header">
-          <span className="card-title">○ Macro Calendar</span>
+          <span className="card-title">â Macro Calendar</span>
           <button className="btn btn-ghost" style={{ padding:'4px 12px', fontSize:11 }}
             onClick={refresh} disabled={refreshing}>
-            {refreshing ? '⟳ Refreshing…' : '↻ Refresh'}
+            {refreshing ? 'â³ Refreshingâ¦' : 'â» Refresh'}
           </button>
         </div>
 
         {loading ? <div className="loading">LOADING CALENDAR</div>
           : events.length === 0 ? (
             <div className="empty">
-              <span style={{ fontSize:24 }}>○</span>
-              No events — click Refresh to fetch macro calendar
+              <span style={{ fontSize:24 }}>â</span>
+              No events â click Refresh to fetch macro calendar
             </div>
           ) : (
             <table className="data-table">
@@ -282,7 +282,7 @@ export function Calendar() {
                 {events.map((e, i) => (
                   <tr key={e.id || i}>
                     <td className="mono">{e.event_date}</td>
-                    <td className="mono" style={{ color:'var(--text-muted)' }}>{e.event_time || '—'}</td>
+                    <td className="mono" style={{ color:'var(--text-muted)' }}>{e.event_time || 'â'}</td>
                     <td style={{ fontWeight:500 }}>{e.title}</td>
                     <td style={{ color:'var(--text-muted)', fontSize:11 }}>{e.country || e.currency}</td>
                     <td>
@@ -290,10 +290,10 @@ export function Calendar() {
                         color: impactColor[e.impact] || 'var(--text-muted)',
                         fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700,
                         textTransform:'uppercase',
-                      }}>{e.impact || '—'}</span>
+                      }}>{e.impact || 'â'}</span>
                     </td>
-                    <td className="mono" style={{ color:'var(--text-muted)' }}>{e.forecast || '—'}</td>
-                    <td className="mono" style={{ color:'var(--text-muted)' }}>{e.previous || '—'}</td>
+                    <td className="mono" style={{ color:'var(--text-muted)' }}>{e.forecast || 'â'}</td>
+                    <td className="mono" style={{ color:'var(--text-muted)' }}>{e.previous || 'â'}</td>
                   </tr>
                 ))}
               </tbody>
