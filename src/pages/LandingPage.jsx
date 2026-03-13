@@ -6,7 +6,6 @@ export default function LandingPage() {
   const { user, signInWithGoogle, signInWithMagicLink } = useAuth()
   const navigate = useNavigate()
 
-  // If already logged in, go straight to dashboard
   useEffect(() => {
     if (user) navigate('/app')
   }, [user])
@@ -34,6 +33,7 @@ export default function LandingPage() {
     document.getElementById('modal-login-view').style.display='block'
     return false
   }
+
   function switchToSignup() {
     document.getElementById('modal-signup-view').style.display='block'
     document.getElementById('modal-login-view').style.display='none'
@@ -45,19 +45,11 @@ export default function LandingPage() {
     if (!email) { alert('Please enter your email.'); return }
     const { error } = await signInWithMagicLink(email)
     if (error) alert('Error: ' + error.message)
-    else alert('â Magic link sent to ' + email + '! Check your inbox.')
-  }
-    const { error } = await import('../lib/supabase').then(m => 
-      m.supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/app' } })
-    )
-    if (error) alert('Error: ' + error.message)
-    else alert('ÃÂ¢ÃÂÃÂ Magic link sent to ' + email + '! Check your inbox.')
+    else alert('Magic link sent to ' + email + '! Check your inbox.')
   }
 
   function handleGoogleAuth() {
     signInWithGoogle()
-  } = await import('../lib/supabase')
-    supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/app' } })
   }
 
   return (
@@ -67,8 +59,7 @@ export default function LandingPage() {
           --bg:#080c14;--surface:#0d1420;--surface2:#111927;
           --border:rgba(255,255,255,0.07);--border-bright:rgba(255,255,255,0.14);
           --blue:#2563eb;--blue-light:#3b82f6;--blue-glow:rgba(37,99,235,0.18);
-          --green:#10b981;--green-glow:rgba(16,185,129,0.12);
-          --yellow:#f59e0b;--red:#ef4444;
+          --green:#10b981;--yellow:#f59e0b;--red:#ef4444;
           --text:#f0f4ff;--text-2:#8b9fc0;--text-3:#4a5c7a;
           --mono:'DM Mono',monospace;--display:'Syne',sans-serif;--body:'DM Sans',sans-serif;
           --radius:10px;
@@ -106,30 +97,7 @@ export default function LandingPage() {
         section{position:relative;z-index:1;padding:100px 0}
         .section-tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue-light);background:rgba(37,99,235,0.1);border:1px solid rgba(37,99,235,0.25);padding:5px 14px;border-radius:100px;margin-bottom:20px}
         .section-title{font-family:var(--display);font-size:clamp(32px,4vw,52px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
-        .section-sub{color:var(--text-2);font-size:17px;font-weight:300;line-height:1.7;max-width:560px;margin-top:16px}
-        .live-demo{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-top:48px}
-        .demo-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--surface2)}
-        .demo-dots{display:flex;gap:6px}
-        .demo-dots span{width:10px;height:10px;border-radius:50%}
-        .demo-dots .red{background:#ef4444}.demo-dots .yellow{background:#f59e0b}.demo-dots .green{background:#10b981}
-        .demo-title{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--text-3);text-transform:uppercase}
-        .demo-live{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--green)}
-        .demo-live::before{content:'';width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
-        .demo-content{padding:24px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-        .demo-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px}
-        .demo-card-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px}
-        .demo-card-value{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--text);margin-bottom:4px}
-        .demo-card-change{font-family:var(--mono);font-size:11px}
-        .up{color:var(--green)}.dn{color:var(--red)}
-        .signal-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
-        .signal-row:last-child{border-bottom:none}
-        .signal-ticker{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text)}
-        .signal-action{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:4px}
-        .signal-action.buy{background:rgba(16,185,129,0.15);color:var(--green)}
-        .signal-action.sell{background:rgba(239,68,68,0.15);color:var(--red)}
-        .signal-score{font-family:var(--mono);font-size:13px;color:var(--text-2)}
-        .features-section .section-title{margin-bottom:48px}
-        .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+        .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:48px}
         .feature-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;transition:border-color .2s,transform .2s}
         .feature-card:hover{border-color:var(--border-bright);transform:translateY(-2px)}
         .feature-icon{font-size:28px;margin-bottom:16px;display:block}
@@ -148,7 +116,7 @@ export default function LandingPage() {
         .pricing-divider{height:1px;background:var(--border);margin:20px 0}
         .pricing-features{list-style:none;margin-bottom:28px}
         .pricing-features li{font-size:14px;color:var(--text-2);padding:6px 0;padding-left:20px;position:relative}
-        .pricing-features li::before{content:'ÃÂ¢ÃÂÃÂ';position:absolute;left:0;color:var(--green);font-size:12px}
+        .pricing-features li::before{content:'checkmark';position:absolute;left:0;color:var(--green);font-size:12px}
         .pricing-btn{display:block;text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:14px;border-radius:8px;cursor:pointer;transition:all .2s;border:none;width:100%}
         .pricing-btn.primary{background:var(--blue);color:white}
         .pricing-btn.primary:hover{background:var(--blue-light);box-shadow:0 0 24px rgba(37,99,235,0.4)}
@@ -197,48 +165,46 @@ export default function LandingPage() {
         <div className="lp-grid" />
 
         <nav>
-          <a href="/" className="nav-logo"><span className="bolt">ÃÂ¢ÃÂÃÂ¡</span> ANKUSHAI</a>
+          <a href="/" className="nav-logo"><span className="bolt">bolt</span> ANKUSHAI</a>
           <ul className="nav-links">
             <li><a href="#features">Features</a></li>
             <li><a href="#pricing">Pricing</a></li>
             <li><a onClick={() => openModal('login')}>Sign In</a></li>
           </ul>
-          <a className="nav-cta" onClick={() => openModal('signup')}>Get Access ÃÂ¢ÃÂÃÂ</a>
+          <button className="nav-cta" onClick={() => openModal('signup')}>Get Access</button>
         </nav>
 
         <section className="hero">
           <div className="hero-glow" />
           <div className="hero-tag"><span className="dot" /> Live Trading Intelligence</div>
           <h1>Institutional edge,<br /><span className="accent">built for traders.</span></h1>
-          <p className="hero-sub">Real-time signals, AI-powered thesis generation, and portfolio analytics ÃÂ¢ÃÂÃÂ everything a serious trader needs, in one platform.</p>
+          <p className="hero-sub">Real-time signals, AI-powered thesis generation, and portfolio analytics in one platform.</p>
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => openModal('signup')}>Start Free Trial ÃÂ¢ÃÂÃÂ</button>
+            <button className="btn-primary" onClick={() => openModal('signup')}>Start Free Trial</button>
             <button className="btn-outline" onClick={() => openModal('login')}>Sign In</button>
           </div>
           <div className="hero-stats">
-            <div className="stat-item"><div className="stat-value">847</div><div className="stat-label">Active Signals</div></div>
-            <div className="stat-item"><div className="stat-value">94.2%</div><div className="stat-label">Signal Accuracy</div></div>
-            <div className="stat-item"><div className="stat-value">12ms</div><div className="stat-label">Avg Latency</div></div>
-            <div className="stat-item"><div className="stat-value">$2.4B</div><div className="stat-label">Volume Tracked</div></div>
+            {[['847','Active Signals'],['94.2%','Signal Accuracy'],['12ms','Avg Latency'],['$2.4B','Volume Tracked']].map(([v,l]) => (
+              <div className="stat-item" key={l}><div className="stat-value">{v}</div><div className="stat-label">{l}</div></div>
+            ))}
           </div>
         </section>
 
-        <section id="features" className="features-section" style={{position:'relative',zIndex:1,padding:'100px 0'}}>
+        <section id="features" style={{position:'relative',zIndex:1,padding:'100px 0'}}>
           <div className="container">
             <div className="section-tag">Platform Features</div>
             <div className="section-title">Everything you need to trade smarter</div>
-            <div className="section-sub">Built on institutional infrastructure, accessible to every serious trader.</div>
-            <div className="features-grid" style={{marginTop:'48px'}}>
+            <div className="features-grid">
               {[
-                {icon:'ÃÂ°ÃÂÃÂÃÂ¡',title:'Live Signal Feed',desc:'Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'},
-                {icon:'ÃÂ°ÃÂÃÂ¤ÃÂ',title:'AI Thesis Generator',desc:'Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues ÃÂ¢ÃÂÃÂ powered by a fine-tuned financial model.'},
-                {icon:'ÃÂ°ÃÂÃÂÃÂ',title:'Portfolio Analytics',desc:'Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'},
-                {icon:'ÃÂ°ÃÂÃÂÃÂ°',title:'Sentiment Intelligence',desc:'NLP analysis of 10,000+ news sources, earnings transcripts, and Fed communications. Real-time sentiment scores for every major ticker.'},
-                {icon:'ÃÂ°ÃÂÃÂÃÂ',title:'Strategy Backtesting',desc:'Backtest any signal combination on 20+ years of tick data. Walk-forward optimization, Monte Carlo simulation, and slippage modeling.'},
-                {icon:'ÃÂ¢ÃÂÃÂ²',title:'Supabase Real-Time',desc:'Every table syncs live across all browser sessions instantly ÃÂ¢ÃÂÃÂ no refresh needed. Built on institutional-grade Postgres infrastructure.'},
+                {icon:'signal',title:'Live Signal Feed',desc:'Proprietary scoring engine analyzes 50+ technical and macro indicators with real-time P&L tracking.'},
+                {icon:'robot',title:'AI Thesis Generator',desc:'Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues.'},
+                {icon:'chart',title:'Portfolio Analytics',desc:'Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation.'},
+                {icon:'news',title:'Sentiment Intelligence',desc:'NLP analysis of 10,000+ news sources and earnings transcripts with real-time sentiment scores.'},
+                {icon:'back',title:'Strategy Backtesting',desc:'Backtest any signal combination on 20+ years of tick data with walk-forward optimization.'},
+                {icon:'db',title:'Supabase Real-Time',desc:'Every table syncs live across all browser sessions instantly on institutional-grade Postgres infrastructure.'},
               ].map(f => (
                 <div className="feature-card" key={f.title}>
-                  <span className="feature-icon">{f.icon}</span>
+                  <span className="feature-icon">*</span>
                   <div className="feature-title">{f.title}</div>
                   <div className="feature-desc">{f.desc}</div>
                 </div>
@@ -252,7 +218,6 @@ export default function LandingPage() {
             <div className="pricing-header">
               <div className="section-tag">Pricing</div>
               <div className="section-title">Simple, transparent access</div>
-              <div style={{color:'var(--text-2)',fontSize:'15px',marginTop:'12px',textAlign:'center'}}>Cancel anytime. No lock-in. Start with a free trial.</div>
             </div>
             <div className="pricing-grid">
               <div className="pricing-card">
@@ -261,9 +226,9 @@ export default function LandingPage() {
                 <div className="pricing-period">per month</div>
                 <div className="pricing-divider" />
                 <ul className="pricing-features">
-                  {['Signal feed (50 signals/day)','Portfolio tracker','News sentiment','Basic backtesting','Trade journal','Email support'].map(i=><li key={i}>{i}</li>)}
+                  {['Signal feed (50/day)','Portfolio tracker','News sentiment','Basic backtesting','Trade journal','Email support'].map(i=><li key={i}>{i}</li>)}
                 </ul>
-                <button className="pricing-btn outline" onClick={()=>openModal('signup')}>Get Started ÃÂ¢ÃÂÃÂ</button>
+                <button className="pricing-btn outline" onClick={()=>openModal('signup')}>Get Started</button>
               </div>
               <div className="pricing-card featured">
                 <div className="pricing-badge">Most Popular</div>
@@ -272,9 +237,9 @@ export default function LandingPage() {
                 <div className="pricing-period">per month</div>
                 <div className="pricing-divider" />
                 <ul className="pricing-features">
-                  {['Unlimited signals','AI Thesis Generator (unlimited)','AI Journal Pattern Coach','Advanced backtesting','Price charts + EMA/RSI','Macro calendar','Real-time alerts','Priority support'].map(i=><li key={i}>{i}</li>)}
+                  {['Unlimited signals','AI Thesis Generator','AI Journal Coach','Advanced backtesting','Price charts + EMA/RSI','Macro calendar','Real-time alerts','Priority support'].map(i=><li key={i}>{i}</li>)}
                 </ul>
-                <button className="pricing-btn primary" onClick={()=>openModal('signup')}>Start Free Trial ÃÂ¢ÃÂÃÂ</button>
+                <button className="pricing-btn primary" onClick={()=>openModal('signup')}>Start Free Trial</button>
               </div>
               <div className="pricing-card">
                 <div className="pricing-tier">Enterprise</div>
@@ -284,25 +249,22 @@ export default function LandingPage() {
                 <ul className="pricing-features">
                   {['Everything in Pro','Multi-user seats','API access','Custom signal engines','Dedicated infrastructure','SLA + white-glove onboarding'].map(i=><li key={i}>{i}</li>)}
                 </ul>
-                <button className="pricing-btn outline">Contact Sales ÃÂ¢ÃÂÃÂ</button>
+                <button className="pricing-btn outline">Contact Sales</button>
               </div>
             </div>
           </div>
         </section>
 
         <footer>
-          <div className="footer-logo">ÃÂ¢ÃÂÃÂ¡ ANKUSHAI</div>
-          <div className="footer-links">
-            <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Support</a>
-          </div>
-          <div className="footer-copy">ÃÂÃÂ© 2026 AnkushAI. All rights reserved.</div>
+          <div className="footer-logo">bolt ANKUSHAI</div>
+          <div className="footer-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Support</a></div>
+          <div className="footer-copy">2026 AnkushAI. All rights reserved.</div>
         </footer>
 
-        {/* MODAL */}
         <div className="modal-overlay" id="modal" onClick={closeModalOutside}>
           <div className="modal">
-            <button className="modal-close" onClick={closeModal}>ÃÂ¢ÃÂÃÂ</button>
-            <span className="modal-icon">ÃÂ¢ÃÂÃÂ¡</span>
+            <button className="modal-close" onClick={closeModal}>x</button>
+            <span className="modal-icon">bolt</span>
             <div id="modal-signup-view">
               <div className="modal-title">Get Access</div>
               <div className="modal-sub">Start your 7-day free trial. No credit card required.</div>
@@ -319,14 +281,14 @@ export default function LandingPage() {
                 </div>
               </div>
               <input className="modal-input" type="email" placeholder="Email address" id="modal-email" />
-              <button className="modal-submit" onClick={()=>handleMagicLink('modal-email')}>Send Magic Link ÃÂ¢ÃÂÃÂ</button>
+              <button className="modal-submit" onClick={()=>handleMagicLink('modal-email')}>Send Magic Link</button>
               <div className="modal-divider">or</div>
               <button className="modal-google" onClick={handleGoogleAuth}>
                 <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.07 0-3.83-1.4-4.46-3.27H1.85v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.52 10.54A4.8 4.8 0 0 1 4.27 9c0-.53.09-1.05.25-1.54V5.39H1.85A8 8 0 0 0 .98 9c0 1.29.31 2.51.87 3.61l2.67-2.07z"/><path fill="#EA4335" d="M8.98 3.58c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1a8 8 0 0 0-7.13 4.39l2.67 2.07c.63-1.87 2.4-3.27 4.46-3.27z"/></svg>
                 Continue with Google
               </button>
               <div className="modal-legal">
-                By signing up you agree to our <a href="#" style={{color:'var(--blue-light)'}}>Terms of Service</a> and <a href="#" style={{color:'var(--blue-light)'}}>Privacy Policy</a>.<br/>
+                By signing up you agree to our <a href="#" style={{color:'var(--blue-light)'}}>Terms</a> and <a href="#" style={{color:'var(--blue-light)'}}>Privacy Policy</a>.<br/>
                 Already have an account? <a href="#" style={{color:'var(--blue-light)'}} onClick={e=>{e.preventDefault();switchToLogin()}}>Sign in</a>
               </div>
             </div>
@@ -334,14 +296,14 @@ export default function LandingPage() {
               <div className="modal-title">Welcome back</div>
               <div className="modal-sub">Sign in to your AnkushAI account.</div>
               <input className="modal-input" type="email" placeholder="Email address" id="modal-login-email" />
-              <button className="modal-submit" onClick={()=>handleMagicLink('modal-login-email')}>Send Magic Link ÃÂ¢ÃÂÃÂ</button>
+              <button className="modal-submit" onClick={()=>handleMagicLink('modal-login-email')}>Send Magic Link</button>
               <div className="modal-divider">or</div>
               <button className="modal-google" onClick={handleGoogleAuth}>
                 <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.07 0-3.83-1.4-4.46-3.27H1.85v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.52 10.54A4.8 4.8 0 0 1 4.27 9c0-.53.09-1.05.25-1.54V5.39H1.85A8 8 0 0 0 .98 9c0 1.29.31 2.51.87 3.61l2.67-2.07z"/><path fill="#EA4335" d="M8.98 3.58c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1a8 8 0 0 0-7.13 4.39l2.67 2.07c.63-1.87 2.4-3.27 4.46-3.27z"/></svg>
                 Continue with Google
               </button>
               <div className="modal-legal">
-                Don't have an account? <a href="#" style={{color:'var(--blue-light)'}} onClick={e=>{e.preventDefault();switchToSignup()}}>Get access</a>
+                No account? <a href="#" style={{color:'var(--blue-light)'}} onClick={e=>{e.preventDefault();switchToSignup()}}>Get access</a>
               </div>
             </div>
           </div>
