@@ -3,7 +3,8 @@ import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
 
-const REDIRECT_URL = import.meta.env.VITE_SITE_URL || 'https://www.ankushai.org'
+const BASE_URL = import.meta.env.VITE_SITE_URL || 'https://www.ankushai.org'
+const CALLBACK_URL = BASE_URL + '/auth/callback'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -24,13 +25,13 @@ export function AuthProvider({ children }) {
   const signInWithGoogle = () =>
     supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: REDIRECT_URL }
+      options: { redirectTo: CALLBACK_URL }
     })
 
   const signInWithMagicLink = (email) =>
     supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: REDIRECT_URL }
+      options: { emailRedirectTo: CALLBACK_URL }
     })
 
   const signOut = () => supabase.auth.signOut()
