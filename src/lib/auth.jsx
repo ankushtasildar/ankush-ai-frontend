@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
 
-const REDIRECT_URL = import.meta.env.VITE_SITE_URL || 'https://ankush-ai-frontend.vercel.app'
+const REDIRECT_URL = import.meta.env.VITE_SITE_URL || 'https://www.ankushai.org'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
