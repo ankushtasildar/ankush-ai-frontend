@@ -5,17 +5,11 @@ const AuthContext = createContext(null)
 const CALLBACK_URL = window.location.origin + '/auth/callback'
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(undefined)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      setLoading(false)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -31,7 +25,7 @@ export function AuthProvider({ children }) {
   async function signOut() { await supabase.auth.signOut() }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithMagicLink, signOut }}>
+    <AuthContext.Provider value={{ user: user ?? null, loading: user === undefined, signInWithGoogle, signInWithMagicLink, signOut }}>
       {children}
     </AuthContext.Provider>
   )
