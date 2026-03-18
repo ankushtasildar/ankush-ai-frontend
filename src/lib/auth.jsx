@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
-
 const CALLBACK_URL = window.location.origin + '/auth/callback'
 
 export function AuthProvider({ children }) {
@@ -21,19 +20,15 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signInWithGoogle = () =>
-    supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: CALLBACK_URL }
-    })
+  async function signInWithGoogle() {
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: CALLBACK_URL } })
+  }
 
-  const signInWithMagicLink = (email) =>
-    supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: CALLBACK_URL }
-    })
+  async function signInWithMagicLink(email) {
+    return supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: CALLBACK_URL } })
+  }
 
-  const signOut = () => supabase.auth.signOut()
+  async function signOut() { await supabase.auth.signOut() }
 
   return (
     <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithMagicLink, signOut }}>
@@ -42,4 +37,4 @@ export function AuthProvider({ children }) {
   )
 }
 
-export const useAuth = () => useContext(AuthContext)
+export function useAuth() { return useContext(AuthContext) }
