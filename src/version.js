@@ -1,3 +1,2 @@
-// AnkushAI Production
-export const VERSION = '1773815596236';
-export const BUILD = 'production';
+// AnkushAI Production — auth fix atomic commit
+export const VERSION = '1773818604258';

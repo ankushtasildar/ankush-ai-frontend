@@ -15,20 +15,36 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: CALLBACK_URL } })
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: CALLBACK_URL }
+    })
   }
 
   async function signInWithMagicLink(email) {
-    return supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: CALLBACK_URL } })
+    return supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: CALLBACK_URL }
+    })
   }
 
-  async function signOut() { await supabase.auth.signOut() }
+  async function signOut() {
+    await supabase.auth.signOut()
+  }
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, loading: user === undefined, signInWithGoogle, signInWithMagicLink, signOut }}>
+    <AuthContext.Provider value={{
+      user: user ?? null,
+      loading: user === undefined,
+      signInWithGoogle,
+      signInWithMagicLink,
+      signOut
+    }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-export function useAuth() { return useContext(AuthContext) }
+export function useAuth() {
+  return useContext(AuthContext)
+}
