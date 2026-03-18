@@ -1,3 +1,4 @@
+import { SubscriptionBanner } from '../components/SubscriptionBanner'
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
 import { useRealtimeTable } from '../lib/useRealtime'
@@ -24,7 +25,7 @@ export default function Overview() {
     if (!thesisSymbol) return
     setThesisLoading(true)
     try { setThesis(await api.thesis(thesisSymbol.toUpperCase())) }
-    catch { setThesis({ symbol: thesisSymbol, thesis: 'Thesis unavailable — check ANTHROPIC_API_KEY' }) }
+    catch { setThesis({ symbol: thesisSymbol, thesis: 'Thesis unavailable â check ANTHROPIC_API_KEY' }) }
     setThesisLoading(false)
   }
 
@@ -36,17 +37,19 @@ export default function Overview() {
   const highConf = signals.filter(s => s.score >= 70).length
 
   return (
-    <div>
+    <>
+      <SubscriptionBanner />
+      <div>
       <div className="metrics-grid">
         <div className="metric-tile">
           <div className="metric-label">Portfolio Value</div>
-          <div className="metric-value">{totalValue > 0 ? `$${totalValue.toLocaleString('en-US',{maximumFractionDigits:0})}` : '—'}</div>
+          <div className="metric-value">{totalValue > 0 ? `$${totalValue.toLocaleString('en-US',{maximumFractionDigits:0})}` : 'â'}</div>
           <div className="metric-sub">{positions.length} positions</div>
         </div>
         <div className={`metric-tile ${totalPnl > 0 ? 'green' : totalPnl < 0 ? 'red' : ''}`}>
           <div className="metric-label">Unrealized P&L</div>
           <div className={`metric-value ${totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : ''}`}>
-            {totalPnl !== 0 ? `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(0)}` : '—'}
+            {totalPnl !== 0 ? `${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(0)}` : 'â'}
           </div>
         </div>
         <div className={`metric-tile ${highConf > 0 ? 'green' : ''}`}>
@@ -56,7 +59,7 @@ export default function Overview() {
         </div>
         <div className={`metric-tile ${health ? 'green' : ''}`}>
           <div className="metric-label">Backend</div>
-          <div className="metric-value" style={{ fontSize: 14 }}>{health ? '● Online' : '○ Offline'}</div>
+          <div className="metric-value" style={{ fontSize: 14 }}>{health ? 'â Online' : 'â Offline'}</div>
           <div className="metric-sub">{health?.supabase?.connected ? 'DB connected' : 'DB offline'}</div>
         </div>
       </div>
@@ -65,16 +68,16 @@ export default function Overview() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">
-              ⬤ Live Signals
+              â¬¤ Live Signals
               <span style={{ fontSize: 9, color: 'var(--green)', marginLeft: 6, animation: 'pulse 2s infinite' }}>LIVE</span>
             </span>
             <button className="btn btn-primary" onClick={runPipeline} disabled={running}
               style={{ padding: '5px 12px', fontSize: 11 }}>
-              {running ? '⟳ Running…' : '▶ Run Pipeline'}
+              {running ? 'â³ Runningâ¦' : 'â¶ Run Pipeline'}
             </button>
           </div>
           {sigLoading ? <div className="loading">CONNECTING</div>
-            : signals.length === 0 ? <div className="empty"><span style={{fontSize:24}}>◆</span>No signals — click Run Pipeline</div>
+            : signals.length === 0 ? <div className="empty"><span style={{fontSize:24}}>â</span>No signals â click Run Pipeline</div>
             : (
               <table className="data-table">
                 <thead><tr><th>Symbol</th><th>Signal</th><th>Score</th><th>Price</th><th>RSI</th></tr></thead>
@@ -87,9 +90,9 @@ export default function Overview() {
                         <td className="mono" style={{ fontWeight: 600 }}>{s.symbol}</td>
                         <td><span className={`tag ${cls}`}>{s.signal_type?.replace(/_/g, ' ')}</span></td>
                         <td><span className={`score-badge ${tier}`}>{s.score}</span></td>
-                        <td className="mono">{s.price ? `$${Number(s.price).toFixed(2)}` : '—'}</td>
+                        <td className="mono">{s.price ? `$${Number(s.price).toFixed(2)}` : 'â'}</td>
                         <td className="mono" style={{ color: s.rsi > 70 ? 'var(--red)' : s.rsi < 30 ? 'var(--green)' : 'var(--text-muted)' }}>
-                          {s.rsi ? Number(s.rsi).toFixed(1) : '—'}
+                          {s.rsi ? Number(s.rsi).toFixed(1) : 'â'}
                         </td>
                       </tr>
                     )
@@ -102,13 +105,13 @@ export default function Overview() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">
-              ⬤ Positions
+              â¬¤ Positions
               <span style={{ fontSize: 9, color: 'var(--green)', marginLeft: 6 }}>LIVE</span>
             </span>
-            <Link to="/portfolio" style={{ fontSize: 11, color: 'var(--blue)', textDecoration: 'none' }}>Manage →</Link>
+            <Link to="/portfolio" style={{ fontSize: 11, color: 'var(--blue)', textDecoration: 'none' }}>Manage â</Link>
           </div>
           {posLoading ? <div className="loading">CONNECTING</div>
-            : positions.length === 0 ? <div className="empty"><span style={{fontSize:24}}>◉</span>No positions</div>
+            : positions.length === 0 ? <div className="empty"><span style={{fontSize:24}}>â</span>No positions</div>
             : (
               <table className="data-table">
                 <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Current</th><th>P&L</th></tr></thead>
@@ -134,7 +137,7 @@ export default function Overview() {
 
       <div className="card section">
         <div className="card-header">
-          <span className="card-title">⚡ AI Thesis Generator</span>
+          <span className="card-title">â¡ AI Thesis Generator</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Click any signal row to pre-fill</span>
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
@@ -143,7 +146,7 @@ export default function Overview() {
             style={{ maxWidth: 160 }}
             onKeyDown={e => e.key === 'Enter' && getThesis()} />
           <button className="btn btn-primary" onClick={getThesis} disabled={thesisLoading || !thesisSymbol}>
-            {thesisLoading ? 'Generating…' : 'Generate Thesis'}
+            {thesisLoading ? 'Generatingâ¦' : 'Generate Thesis'}
           </button>
         </div>
         {thesis && (
@@ -151,7 +154,7 @@ export default function Overview() {
             borderLeft: '3px solid var(--blue)', borderRadius: 'var(--radius)',
             padding: '16px 20px', fontSize: 13, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--blue)', marginBottom: 10, letterSpacing: '.1em' }}>
-              THESIS · {thesis.symbol}
+              THESIS Â· {thesis.symbol}
             </div>
             {thesis.thesis}
           </div>
