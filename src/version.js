@@ -1,2 +1,3 @@
-// Build 2026-03-18T06:05:30.048Z
-export const VERSION = '1773813930048';
+// AnkushAI Production
+export const VERSION = '1773815596236';
+export const BUILD = 'production';
