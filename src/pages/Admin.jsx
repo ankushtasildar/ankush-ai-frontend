@@ -1,21 +1,29 @@
 import { useState, useEffect } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
 const ADMIN_EMAIL = 'ankushtasildar2@gmail.com'
 const LS_KEY = 'aai_admin'
+const ADMIN_SECRET = 'ankushai-admin-2024'
+
+async function adminFetch(action, body) {
+  const url = '/api/admin' + (action ? '?action=' + action : '');
+  const opts = {
+    headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+  };
+  if (body) { opts.method = 'POST'; opts.body = JSON.stringify(body); }
+  const r = await fetch(url, opts);
+  return r.json();
+}
 
 export default function Admin() {
   const { user, loading } = useAuth()
   const localAuth = localStorage.getItem(LS_KEY) === 'true'
 
-  // Loading state — wait for auth to resolve if no local auth
   if (!localAuth && loading) {
     return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#080c14',color:'#4a5c7a',fontFamily:'"DM Mono",monospace',fontSize:12 }}>Loading...</div>
   }
 
-  // Not authorized — use <Navigate> component (correct way to redirect in render)
   if (!localAuth && user?.email !== ADMIN_EMAIL) {
     return <Navigate to="/admin/login" replace />
   }
@@ -35,8 +43,8 @@ function AdminDashboard({ localAuth, email }) {
 
   async function loadData() {
     setDataLoading(true)
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(500)
-    if (data) {
+    const data = await adminFetch('users')
+    if (Array.isArray(data)) {
       setUsers(data)
       const pro = data.filter(p => p.plan === 'pro').length
       setStats({ total: data.length, pro, free: data.length - pro })
@@ -47,14 +55,14 @@ function AdminDashboard({ localAuth, email }) {
   async function createCode() {
     const code = codeInput.trim().toUpperCase()
     if (!code) return
-    const { error } = await supabase.from('access_codes').insert({ code, created_by: 'admin', is_active: true })
-    setCodeMsg(error ? 'Error: ' + error.message : '✓ Created: ' + code)
+    const r = await adminFetch('create-code', { code })
+    setCodeMsg(r.ok ? '✓ Created: ' + code : 'Error: ' + r.error)
     setCodeInput('')
     setTimeout(() => setCodeMsg(''), 4000)
   }
 
-  async function togglePlan(id, plan) {
-    await supabase.from('profiles').update({ plan: plan === 'pro' ? 'free' : 'pro', updated_at: new Date().toISOString() }).eq('id', id)
+  async function togglePlan(userId, plan) {
+    await adminFetch('toggle-plan', { userId, plan })
     loadData()
   }
 
