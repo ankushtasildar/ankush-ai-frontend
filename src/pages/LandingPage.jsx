@@ -171,10 +171,10 @@ export default function LandingPage() {
           <p className="sec-sub">Built on institutional infrastructure, accessible to every serious trader.</p>
           <div className="feat-grid">
             {[
-              ['>>>','Live Signal Feed','Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'],
-              ['[AI]','AI Thesis Generator','Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues - powered by a fine-tuned financial model.'],
-              ['[~]','Portfolio Analytics','Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'],
-              ['[i]','Sentiment Intelligence','NLP analysis of 10,000+ news sources and earnings transcripts. Real-time sentiment scores for every major ticker.'],
+              ['\u{1F4E1}','Live Signal Feed','Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'],
+              ['\u{1F916}','AI Thesis Generator','Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues - powered by a fine-tuned financial model.'],
+              ['\u{1F4CA}','Portfolio Analytics','Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'],
+              ['\u{1F4F0}','Sentiment Intelligence','NLP analysis of 10,000+ news sources and earnings transcripts. Real-time sentiment scores for every major ticker.'],
               ['🔄','Strategy Backtesting','Backtest any signal combination on 20+ years of tick data. Walk-forward optimization and Monte Carlo simulation.'],
               ['⚡','Real-Time Sync','Every table syncs live across all sessions instantly. Built on institutional-grade Postgres infrastructure.'],
             ].map(([icon,title,desc]) => (
