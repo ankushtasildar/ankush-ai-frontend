@@ -1,10 +1,8 @@
 import { useAuth } from '../lib/auth'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import AuthModal from '../components/AuthModal'
 
 export default function LandingPage() {
-  const [showModal, setShowModal] = useState(false)
 
   const { user, signInWithGoogle, signInWithMagicLink } = useAuth()
   const navigate = useNavigate()
@@ -18,7 +16,7 @@ export default function LandingPage() {
 
   useEffect(() => { if (user) navigate('/app') }, [user])
 
-  function setShowModal(true) { setModalView(view); setModalOpen(true); setMsg('') }
+  function openModal(view) { setModalView(view); setModalOpen(true); setMsg('') }
 
   async function handleMagicLink(e) {
     e.preventDefault()
@@ -123,7 +121,7 @@ export default function LandingPage() {
         .price-div{height:1px;background:rgba(255,255,255,0.07);margin:20px 0}
         .price-feats{list-style:none;margin-bottom:28px}
         .price-feats li{font-size:14px;color:#8b9fc0;padding:6px 0 6px 22px;position:relative}
-        .price-feats li::before{content:'â';position:absolute;left:0;color:#10b981;font-size:12px;font-weight:700}
+        .price-feats li::before{content:'Ã¢ÂÂ';position:absolute;left:0;color:#10b981;font-size:12px;font-weight:700}
         .price-btn{display:block;text-align:center;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:14px;border-radius:8px;cursor:pointer;transition:all .2s;border:none;width:100%}
         .price-btn.pri{background:#2563eb;color:white}
         .price-btn.pri:hover{background:#3b82f6;box-shadow:0 0 24px rgba(37,99,235,0.4)}
@@ -141,22 +139,22 @@ export default function LandingPage() {
       <div className="lp-grid" />
 
       <nav>
-        <a href="/" className="nav-logo">â¡ ANKUSHAI</a>
+        <a href="/" className="nav-logo">Ã¢ÂÂ¡ ANKUSHAI</a>
         <ul className="nav-links">
           <li><a href="#features">Features</a></li>
           <li><a href="#pricing">Pricing</a></li>
           <li><a onClick={() => setShowModal(true)}>Sign In</a></li>
         </ul>
-        <button className="nav-cta" onClick={() => setShowModal(true)}>Get Access â</button>
+        <button className="nav-cta" onClick={() => setShowModal(true)}>Get Access Ã¢ÂÂ</button>
       </nav>
 
       <div className="hero">
         <div className="hero-glow" />
         <div className="hero-tag"><span className="dot" /> Live Trading Intelligence</div>
         <h1>Institutional edge,<br /><span className="accent">built for traders.</span></h1>
-        <p className="hero-sub">Real-time signals, AI-powered thesis generation, and portfolio analytics â everything a serious trader needs, in one platform.</p>
+        <p className="hero-sub">Real-time signals, AI-powered thesis generation, and portfolio analytics Ã¢ÂÂ everything a serious trader needs, in one platform.</p>
         <div className="hero-btns">
-          <button className="btn-pri" onClick={() => setShowModal(true)}>Start Free Trial â</button>
+          <button className="btn-pri" onClick={() => setShowModal(true)}>Start Free Trial Ã¢ÂÂ</button>
           <button className="btn-out" onClick={() => setShowModal(true)}>Sign In</button>
         </div>
         <div className="stats">
@@ -173,12 +171,12 @@ export default function LandingPage() {
           <p className="sec-sub">Built on institutional infrastructure, accessible to every serious trader.</p>
           <div className="feat-grid">
             {[
-              ['ð¡','Live Signal Feed','Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'],
-              ['ð¤','AI Thesis Generator','Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues â powered by a fine-tuned financial model.'],
-              ['ð','Portfolio Analytics','Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'],
-              ['ð°','Sentiment Intelligence','NLP analysis of 10,000+ news sources and earnings transcripts. Real-time sentiment scores for every major ticker.'],
-              ['ð','Strategy Backtesting','Backtest any signal combination on 20+ years of tick data. Walk-forward optimization and Monte Carlo simulation.'],
-              ['â¡','Real-Time Sync','Every table syncs live across all sessions instantly. Built on institutional-grade Postgres infrastructure.'],
+              ['Ã°ÂÂÂ¡','Live Signal Feed','Proprietary scoring engine analyzes 50+ technical and macro indicators. Every signal includes confidence score, entry/exit levels, and real-time P&L tracking.'],
+              ['Ã°ÂÂ¤Â','AI Thesis Generator','Describe any trade setup and get a structured investment thesis, risk/reward analysis, and historical analogues Ã¢ÂÂ powered by a fine-tuned financial model.'],
+              ['Ã°ÂÂÂ','Portfolio Analytics','Real-time P&L tracking, drawdown analysis, sector exposure, and Sharpe ratio calculation across your entire portfolio.'],
+              ['Ã°ÂÂÂ°','Sentiment Intelligence','NLP analysis of 10,000+ news sources and earnings transcripts. Real-time sentiment scores for every major ticker.'],
+              ['Ã°ÂÂÂ','Strategy Backtesting','Backtest any signal combination on 20+ years of tick data. Walk-forward optimization and Monte Carlo simulation.'],
+              ['Ã¢ÂÂ¡','Real-Time Sync','Every table syncs live across all sessions instantly. Built on institutional-grade Postgres infrastructure.'],
             ].map(([icon,title,desc]) => (
               <div className="feat-card" key={title}>
                 <span className="feat-icon">{icon}</span>
@@ -206,7 +204,7 @@ export default function LandingPage() {
               <ul className="price-feats">
                 {['Signal feed (50/day)','Portfolio tracker','News sentiment','Basic backtesting','Trade journal','Email support'].map(i=><li key={i}>{i}</li>)}
               </ul>
-              <button className="price-btn out" onClick={() => setShowModal(true)}>Get Started â</button>
+              <button className="price-btn out" onClick={() => setShowModal(true)}>Get Started Ã¢ÂÂ</button>
             </div>
             <div className="price-card featured">
               <div className="price-badge">Most Popular</div>
@@ -217,7 +215,7 @@ export default function LandingPage() {
               <ul className="price-feats">
                 {['Unlimited signals','AI Thesis Generator','AI Journal Coach','Advanced backtesting','Price charts + EMA/RSI','Macro calendar','Real-time alerts','Priority support'].map(i=><li key={i}>{i}</li>)}
               </ul>
-              <button className="price-btn pri" onClick={() => setShowModal(true)}>Start Free Trial â</button>
+              <button className="price-btn pri" onClick={() => setShowModal(true)}>Start Free Trial Ã¢ÂÂ</button>
             </div>
             <div className="price-card">
               <div className="price-tier">Enterprise</div>
@@ -227,23 +225,23 @@ export default function LandingPage() {
               <ul className="price-feats">
                 {['Everything in Pro','Multi-user seats','API access','Custom signal engines','Dedicated infrastructure','SLA + white-glove onboarding'].map(i=><li key={i}>{i}</li>)}
               </ul>
-              <a href="mailto:ankushtasildar2@gmail.com" className="price-btn out" style={{textDecoration:'none'}}>Contact Sales â</a>
+              <a href="mailto:ankushtasildar2@gmail.com" className="price-btn out" style={{textDecoration:'none'}}>Contact Sales Ã¢ÂÂ</a>
             </div>
           </div>
         </div>
       </section>
 
       <footer>
-        <div className="foot-logo">â¡ ANKUSHAI</div>
+        <div className="foot-logo">Ã¢ÂÂ¡ ANKUSHAI</div>
         <div className="foot-links"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Support</a></div>
-        <div className="foot-copy">Â© 2026 AnkushAI. All rights reserved.</div>
+        <div className="foot-copy">ÃÂ© 2026 AnkushAI. All rights reserved.</div>
       </footer>
 
       {modalOpen && (
         <div style={s.overlay} onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
           <div style={s.modal}>
-            <button style={s.close} onClick={() => setModalOpen(false)}>â</button>
-            <span style={{fontSize:'32px',display:'block',marginBottom:'16px'}}>â¡</span>
+            <button style={s.close} onClick={() => setModalOpen(false)}>Ã¢ÂÂ</button>
+            <span style={{fontSize:'32px',display:'block',marginBottom:'16px'}}>Ã¢ÂÂ¡</span>
 
             {modalView === 'signup' ? (<>
               <div style={s.title}>Get Access</div>
@@ -259,7 +257,7 @@ export default function LandingPage() {
               </div>
               {msg && <div style={msg.startsWith('Error') ? s.msgErr : s.msg}>{msg}</div>}
               <input style={s.input} type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key==='Enter' && handleMagicLink(e)} />
-              <button style={s.submit} onClick={handleMagicLink} disabled={loading}>{loading ? 'Sending...' : 'Send Magic Link â'}</button>
+              <button style={s.submit} onClick={handleMagicLink} disabled={loading}>{loading ? 'Sending...' : 'Send Magic Link Ã¢ÂÂ'}</button>
               <div style={s.divider}>or</div>
               <button style={s.google} onClick={handleGoogle} disabled={loading}><GoogleSVG />Continue with Google</button>
               <div style={s.legal}>
@@ -271,14 +269,13 @@ export default function LandingPage() {
               <div style={s.sub}>Sign in to your AnkushAI account.</div>
               {msg && <div style={msg.startsWith('Error') ? s.msgErr : s.msg}>{msg}</div>}
               <input style={s.input} type="email" placeholder="Email address" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={e => e.key==='Enter' && handleMagicLink(e)} />
-              <button style={s.submit} onClick={handleMagicLink} disabled={loading}>{loading ? 'Sending...' : 'Send Magic Link â'}</button>
+              <button style={s.submit} onClick={handleMagicLink} disabled={loading}>{loading ? 'Sending...' : 'Send Magic Link Ã¢ÂÂ'}</button>
               <div style={s.divider}>or</div>
               <button style={s.google} onClick={handleGoogle} disabled={loading}><GoogleSVG />Continue with Google</button>
-              <div style={s.legal}>No account? <a style={s.legalLink} onClick={() => { setModalView('signup'); setMsg('') }}>Get access â</a></div>
+              <div style={s.legal}>No account? <a style={s.legalLink} onClick={() => { setModalView('signup'); setMsg('') }}>Get access Ã¢ÂÂ</a></div>
             </>)}
           </div>
-        {showModal && <AuthModal onClose={() => setShowModal(false)} />}
-      </div>
+        </div>
       )}
     </>
   )

@@ -21,12 +21,19 @@ export function AuthProvider({ children }) {
     })
   }
 
+  async function signInWithMagicLink(email) {
+    return supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: CALLBACK_URL }
+    })
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
   }
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, loading: user === undefined, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user: user ?? null, loading: user === undefined, signInWithGoogle, signInWithMagicLink, signOut }}>
       {children}
     </AuthContext.Provider>
   )

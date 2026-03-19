@@ -16,7 +16,11 @@ export default function AuthCallback() {
       }
     })
     const t = setTimeout(() => {
-      if (!done.current) { done.current = true; subscription.unsubscribe(); navigate('/', { replace: true }) }
+      if (!done.current) {
+        done.current = true
+        subscription.unsubscribe()
+        navigate('/', { replace: true })
+      }
     }, 10000)
     return () => { subscription.unsubscribe(); clearTimeout(t) }
   }, [navigate])
