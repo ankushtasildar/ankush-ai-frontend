@@ -1,25 +1,82 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 const STRATEGIES = ['Day Trade','Swing Trade','Position Trade','Options Play','Long-Term','Hedging']
-const EMOTIONS = ['Confident','Cautious','FOMO','Fearful','Disciplined','Greedy','Patient','Anxious','Neutral']
-const SETUPS = ['Breakout','Breakdown','Mean Reversion','Trend Follow','Earnings Play','News Catalyst','Technical Pattern','Options Strategy','Scalp']
+const EMOTIONS   = ['Confident','Cautious','FOMO','Fearful','Disciplined','Greedy','Patient','Anxious','Neutral']
+const SETUPS     = ['Breakout','Breakdown','Mean Reversion','Trend Follow','Earnings Play','News Catalyst','Technical Pattern','Options Strategy','Scalp']
 
 const S = {
   page: { padding:24, fontFamily:'"DM Mono",monospace', minHeight:'100vh', color:'#e2e8f0' },
-  hdr: { display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24 },
-  h1: { color:'#e2e8f0',fontSize:20,fontWeight:700,margin:0 },
-  sub: { color:'#4a5c7a',fontSize:11,marginTop:4 },
-  btn: (bg='#2563eb',c='white') => ({ padding:'9px 18px',borderRadius:8,border:'none',fontSize:12,cursor:'pointer',fontFamily:'inherit',background:bg,color:c,fontWeight:600 }),
+  hdr:  { display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24 },
+  h1:   { color:'#e2e8f0',fontSize:20,fontWeight:700,margin:0 },
+  sub:  { color:'#4a5c7a',fontSize:11,marginTop:4 },
+  btn:  (bg='#2563eb',c='white') => ({ padding:'9px 18px',borderRadius:8,border:'none',fontSize:12,cursor:'pointer',fontFamily:'inherit',background:bg,color:c,fontWeight:600 }),
   card: { background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:12,padding:20,marginBottom:14 },
-  lbl: { color:'#4a5c7a',fontSize:10,marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.06em' },
-  inp: { background:'#141b24',border:'1px solid #1e2d3d',borderRadius:8,padding:'10px 12px',color:'#e2e8f0',fontSize:13,fontFamily:'inherit',width:'100%',outline:'none',boxSizing:'border-box' },
-  sel: { background:'#141b24',border:'1px solid #1e2d3d',borderRadius:8,padding:'10px 12px',color:'#e2e8f0',fontSize:13,fontFamily:'inherit',width:'100%',outline:'none',cursor:'pointer' },
-  g2: { display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 },
-  g3: { display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14 },
-  g4: { display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14 },
+  lbl:  { color:'#4a5c7a',fontSize:10,marginBottom:5,display:'block',textTransform:'uppercase',letterSpacing:'0.06em' },
+  inp:  { background:'#141b24',border:'1px solid #1e2d3d',borderRadius:8,padding:'10px 12px',color:'#e2e8f0',fontSize:13,fontFamily:'inherit',width:'100%',outline:'none',boxSizing:'border-box' },
+  sel:  { background:'#141b24',border:'1px solid #1e2d3d',borderRadius:8,padding:'10px 12px',color:'#e2e8f0',fontSize:13,fontFamily:'inherit',width:'100%',outline:'none',cursor:'pointer' },
+  g3:   { display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14 },
+  g4:   { display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:14 },
 }
 
+// ── DB helpers ────────────────────────────────────────────────────────────────
+function entryToRow(e, userId) {
+  return {
+    user_id:          userId,
+    ticker:           e.ticker,
+    asset_type:       e.assetType,
+    strategy:         e.strategy,
+    direction:        e.direction,
+    setup:            e.setup,
+    emotion:          e.emotion,
+    quantity:         e.quantity ? parseFloat(e.quantity) : null,
+    contracts:        e.contracts ? parseFloat(e.contracts) : null,
+    underlying_price: e.underlyingPrice ? parseFloat(e.underlyingPrice) : null,
+    strike:           e.strike || null,
+    option_type:      e.optionType || null,
+    expiration:       e.expiration || null,
+    entry_price:      e.entryPrice ? parseFloat(e.entryPrice) : null,
+    exit_price:       e.exitPrice  ? parseFloat(e.exitPrice)  : null,
+    entry_date:       e.entryDate  || null,
+    exit_date:        e.exitDate   || null,
+    pnl:              e.pnl        ? parseFloat(e.pnl)        : 0,
+    status:           e.status     || 'open',
+    notes:            e.notes      || null,
+    lesson_learned:   e.lessonLearned || null,
+    closed_at:        e.closedAt   || null,
+  };
+}
+
+function rowToEntry(row) {
+  return {
+    id:             row.id,
+    ticker:         row.ticker,
+    assetType:      row.asset_type,
+    strategy:       row.strategy,
+    direction:      row.direction,
+    setup:          row.setup,
+    emotion:        row.emotion,
+    quantity:       row.quantity?.toString(),
+    contracts:      row.contracts?.toString(),
+    underlyingPrice:row.underlying_price?.toString(),
+    strike:         row.strike,
+    optionType:     row.option_type,
+    expiration:     row.expiration,
+    entryPrice:     row.entry_price?.toString(),
+    exitPrice:      row.exit_price?.toString(),
+    entryDate:      row.entry_date,
+    exitDate:       row.exit_date,
+    pnl:            row.pnl || 0,
+    status:         row.status,
+    notes:          row.notes,
+    lessonLearned:  row.lesson_learned,
+    createdAt:      row.created_at,
+    closedAt:       row.closed_at,
+  };
+}
+
+// ── Chat bubble ───────────────────────────────────────────────────────────────
 function ChatBubble({ msg }) {
   const isAI = msg.role === 'assistant'
   return (
@@ -27,15 +84,15 @@ function ChatBubble({ msg }) {
       <div style={{
         maxWidth:'82%',
         background: isAI ? '#0d1117' : 'rgba(37,99,235,0.2)',
-        border: `1px solid ${isAI ? '#1e2d3d' : 'rgba(37,99,235,0.4)'}`,
+        border:`1px solid ${isAI?'#1e2d3d':'rgba(37,99,235,0.4)'}`,
         borderRadius: isAI ? '4px 14px 14px 14px' : '14px 4px 14px 14px',
         padding:'12px 16px', fontSize:13, color:'#c4d4e8', lineHeight:1.7,
       }}>
-        {isAI && <div style={{ color:'#a78bfa',fontSize:10,fontWeight:700,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em' }}>&#x1F916; AnkushAI Journal Coach</div>}
+        {isAI && <div style={{ color:'#a78bfa',fontSize:10,fontWeight:700,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em' }}>&#x1F916; AnkushAI Coach</div>}
         <div style={{ whiteSpace:'pre-wrap' }}>
           {msg.content.split('\n').map((line,i) => {
             const isBold = /^\*\*(.+)\*\*/.test(line.trim())
-            const clean = line.replace(/\*\*/g,'')
+            const clean  = line.replace(/\*\*/g,'')
             return isBold
               ? <div key={i} style={{ fontWeight:700,color:'#93c5fd',marginTop:i>0?10:0,marginBottom:4 }}>{clean}</div>
               : <div key={i}>{clean}</div>
@@ -47,6 +104,7 @@ function ChatBubble({ msg }) {
   )
 }
 
+// ── Journal Coach chat ────────────────────────────────────────────────────────
 function JournalChat({ entry, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -56,13 +114,11 @@ function JournalChat({ entry, onClose }) {
   useEffect(() => {
     if (!entry) return
     const isOpts = entry.assetType === 'Options'
-    const pnl = parseFloat(entry.pnl || 0)
-    const wasGain = pnl > 0
+    const pnl    = parseFloat(entry.pnl || 0)
+    const win    = pnl > 0
     setMessages([{
       role:'assistant', ts:Date.now(),
-      content: `Hey ${wasGain ? '— nice close today!' : '— tough one today.'}  I saw you ${entry.status === 'closed' ? 'closed out your' : 'opened a'} ${entry.ticker} ${isOpts ? `$${entry.strike} ${entry.optionType?.toUpperCase()}` : ''} position${entry.status === 'closed' ? ` for a ${wasGain ? '+' : ''}${pnl ? '$'+Math.abs(pnl).toFixed(0) : 'flat'}` : ''}.
-
-${entry.status === 'closed' ? `Walk me through it — what was going through your head when you decided to ${wasGain ? 'take profits' : 'cut the position'}? Was it the chart, news, or did something feel off?` : `Tell me about your thesis here. What's the setup you're playing, and what would invalidate it?`}`
+      content:`Hey${win?' — nice close today!':' — tough one today.'}  I saw you ${entry.status==='closed'?'closed out your':'opened a'} ${entry.ticker}${isOpts?` $${entry.strike} ${entry.optionType?.toUpperCase()}`:''}  position${entry.status==='closed'?` for a ${win?'+':''}${pnl?'$'+Math.abs(pnl).toFixed(0):'flat'}`:''}.\n\n${entry.status==='closed'?`Walk me through it — what was going through your head when you decided to ${win?'take profits':'cut the position'}?`:'Tell me about your thesis. What\'s the setup, and what would invalidate it?'}`
     }])
   }, [entry])
 
@@ -72,66 +128,46 @@ ${entry.status === 'closed' ? `Walk me through it — what was going through you
     if (!input.trim() || loading) return
     const userMsg = { role:'user', ts:Date.now(), content:input.trim() }
     const newMsgs = [...messages, userMsg]
-    setMessages(newMsgs)
-    setInput('')
-    setLoading(true)
+    setMessages(newMsgs); setInput(''); setLoading(true)
+
     const isOpts = entry?.assetType === 'Options'
-    const pnl = parseFloat(entry?.pnl || 0)
-    const system = `You are an elite trading journal coach and market analyst. Your role: help traders learn from decisions through Socratic questioning and honest market analysis.
+    const pnl    = parseFloat(entry?.pnl || 0)
+    const system = `You are an elite trading journal coach. Help traders learn from decisions through Socratic questioning and honest market analysis.
 
-TRADE CONTEXT:
-Ticker: ${entry?.ticker} (${entry?.assetType})
-${isOpts ? `Strike: $${entry?.strike} | Expiry: ${entry?.expiration} | ${entry?.optionType?.toUpperCase()} | ${entry?.contracts} contracts` : `${entry?.direction || 'Long'} ${entry?.quantity} shares @ $${entry?.entryPrice}`}
-Strategy: ${entry?.strategy} | Setup: ${entry?.setup}
-Entry Date: ${entry?.entryDate} | Status: ${entry?.status === 'closed' ? 'Closed' : 'Open'}
-P&L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} ${pnl >= 0 ? '(WIN)' : '(LOSS)'}
-Original Thesis: ${entry?.notes || 'Not recorded'}
-Emotion at Entry: ${entry?.emotion || 'Not recorded'}
+TRADE: ${entry?.ticker} (${entry?.assetType})
+${isOpts?`Strike: $${entry?.strike} | Exp: ${entry?.expiration} | ${entry?.optionType?.toUpperCase()} | ${entry?.contracts} contracts`:`${entry?.direction||'Long'} ${entry?.quantity} shares @ $${entry?.entryPrice}`}
+Strategy: ${entry?.strategy} | Setup: ${entry?.setup} | Emotion at entry: ${entry?.emotion}
+P&L: ${pnl>=0?'+':''}$${pnl.toFixed(2)} ${pnl>=0?'(WIN)':'(LOSS)'}
+Thesis: ${entry?.notes||'None recorded'}
 
-COACHING STYLE:
-- Ask probing questions to surface the decision-making process
-- Identify specific cognitive biases by name (FOMO, anchoring, disposition effect, etc.)
-- Connect emotions to outcomes — this is where real learning happens
-- If it was good, reinforce WHY the process was good, not just the outcome
-- If it was poor, be direct but constructive about the specific failure
-- Keep responses 3-5 sentences max unless they ask for deep analysis
-- Never give future trade recommendations`
+STYLE: Ask probing questions. Name specific cognitive biases (FOMO, anchoring, disposition effect, etc.). Connect emotions to outcomes. Direct but constructive. 3-5 sentences max unless deep analysis requested. No future trade recommendations.`
 
     fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system, messages: newMsgs.map(m => ({ role:m.role, content:m.content })) })
-    }).then(r=>r.json()).then(d => {
-      setMessages(p => [...p, { role:'assistant', ts:Date.now(), content:d.content?.[0]?.text || 'Connection issue — tell me more anyway.' }])
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system, messages:newMsgs.map(m=>({role:m.role,content:m.content})) })
+    }).then(r=>r.json()).then(d=>{
+      setMessages(p=>[...p,{ role:'assistant', ts:Date.now(), content:d.content?.[0]?.text||'Connection issue — tell me more anyway.' }])
       setLoading(false)
-    }).catch(() => {
-      setMessages(p => [...p, { role:'assistant', ts:Date.now(), content:'Connection issue. But — what was the one thing you wish you had done differently?' }])
-      setLoading(false)
-    })
+    }).catch(()=>{ setMessages(p=>[...p,{ role:'assistant', ts:Date.now(), content:'Connection issue. What was the one thing you\'d do differently?' }]); setLoading(false) })
   }
 
   return (
     <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
-      <div style={{ background:'#0a0f1a',border:'1px solid #2d3f55',borderRadius:16,width:'100%',maxWidth:700,height:'80vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(0,0,0,0.8)' }}>
+      <div style={{ background:'#0a0f1a',border:'1px solid #2d3f55',borderRadius:16,width:'100%',maxWidth:700,height:'80vh',display:'flex',flexDirection:'column' }}>
         <div style={{ padding:'16px 20px',borderBottom:'1px solid #1e2d3d',display:'flex',justifyContent:'space-between',alignItems:'center' }}>
           <div>
             <div style={{ color:'#a78bfa',fontSize:15,fontWeight:700 }}>&#x1F4DA; Journal Coach</div>
-            <div style={{ color:'#4a5c7a',fontSize:11,marginTop:2 }}>{entry?.ticker} {entry?.strategy} &bull; {entry?.status === 'closed' ? 'Post-trade debrief' : 'Active position review'}</div>
+            <div style={{ color:'#4a5c7a',fontSize:11,marginTop:2 }}>{entry?.ticker} {entry?.strategy} &bull; {entry?.status==='closed'?'Post-trade debrief':'Active position review'}</div>
           </div>
           <button onClick={onClose} style={{ background:'none',border:'none',color:'#4a5c7a',cursor:'pointer',fontSize:20 }}>&times;</button>
         </div>
         <div style={{ flex:1,overflowY:'auto',padding:'16px 20px' }}>
           {messages.map((m,i) => <ChatBubble key={i} msg={m} />)}
-          {loading && (
-            <div style={{ display:'flex',justifyContent:'flex-start',marginBottom:14 }}>
-              <div style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:'4px 14px 14px 14px',padding:'12px 16px',color:'#4a5c7a',fontSize:13 }}>&#x26A1; Thinking...</div>
-            </div>
-          )}
+          {loading && <div style={{ display:'flex',justifyContent:'flex-start',marginBottom:14 }}><div style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:'4px 14px 14px 14px',padding:'12px 16px',color:'#4a5c7a',fontSize:13 }}>&#x26A1; Thinking...</div></div>}
           <div ref={bottomRef} />
         </div>
         <div style={{ padding:'12px 16px',borderTop:'1px solid #1e2d3d',display:'flex',gap:10 }}>
-          <input style={{ ...S.inp,flex:1 }} value={input} onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Type your thoughts... (Enter to send)" disabled={loading} />
+          <input style={{ ...S.inp,flex:1 }} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Type your thoughts... (Enter to send)" disabled={loading} />
           <button onClick={send} disabled={!input.trim()||loading} style={{ ...S.btn(!input.trim()||loading?'#1e2d3d':'#2563eb'),padding:'9px 16px',opacity:!input.trim()||loading?0.5:1 }}>Send</button>
         </div>
       </div>
@@ -139,33 +175,27 @@ COACHING STYLE:
   )
 }
 
+// ── EOD Debrief ───────────────────────────────────────────────────────────────
 function EODDebrief({ entries, onClose }) {
   const [loading, setLoading] = useState(true)
   const [debrief, setDebrief] = useState('')
 
   useEffect(() => {
-    const closedToday = entries.filter(e => {
-      if (e.status !== 'closed') return false
-      const today = new Date().toISOString().split('T')[0]
-      return (e.exitDate === today || e.closedAt?.startsWith(today) || e.createdAt?.startsWith(today))
-    })
-    const positions = closedToday.length > 0 ? closedToday : entries.slice(0, 5)
-
-    fetch('/api/eod-debrief', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ positions, userContext: `${entries.length} total trades in journal` })
-    }).then(r=>r.json()).then(d => { setDebrief(d.debrief || 'Debrief unavailable.'); setLoading(false) })
-      .catch(() => { setDebrief('Debrief service unavailable. Try again later.'); setLoading(false) })
+    const today    = new Date().toISOString().split('T')[0]
+    const todaysClosed = entries.filter(e => e.status==='closed' && (e.exitDate===today || e.closedAt?.startsWith(today) || e.createdAt?.startsWith(today)))
+    const positions = todaysClosed.length > 0 ? todaysClosed : entries.slice(0, 5)
+    fetch('/api/eod-debrief', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ positions, userContext:`${entries.length} total trades in journal` }) })
+      .then(r=>r.json()).then(d=>{ setDebrief(d.debrief||'Debrief unavailable.'); setLoading(false) })
+      .catch(()=>{ setDebrief('Debrief service unavailable.'); setLoading(false) })
   }, [entries])
 
   return (
     <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
-      <div style={{ background:'#0a0f1a',border:'1px solid #2d3f55',borderRadius:16,padding:28,width:'100%',maxWidth:720,maxHeight:'84vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.8)' }}>
+      <div style={{ background:'#0a0f1a',border:'1px solid #2d3f55',borderRadius:16,padding:28,width:'100%',maxWidth:720,maxHeight:'84vh',overflow:'auto' }}>
         <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20 }}>
           <div>
             <div style={{ color:'#f59e0b',fontSize:16,fontWeight:700 }}>&#x1F4C5; End-of-Day Debrief</div>
-            <div style={{ color:'#4a5c7a',fontSize:11,marginTop:3 }}>AI analysis of today&apos;s trading decisions &bull; {new Date().toLocaleDateString()}</div>
+            <div style={{ color:'#4a5c7a',fontSize:11,marginTop:3 }}>AI analysis of today&apos;s decisions &bull; {new Date().toLocaleDateString()}</div>
           </div>
           <button onClick={onClose} style={{ background:'none',border:'none',color:'#4a5c7a',cursor:'pointer',fontSize:20 }}>&times;</button>
         </div>
@@ -177,36 +207,41 @@ function EODDebrief({ entries, onClose }) {
         ) : (
           <div style={{ color:'#c4d4e8',fontSize:13,lineHeight:1.78 }}>
             {debrief.split('\n').map((line,i) => {
-              const isHeader = /^\*\*[A-Z]/.test(line.trim())
+              const isH = /^\*\*[A-Z]/.test(line.trim())
               const clean = line.replace(/\*\*/g,'')
-              return isHeader
+              return isH
                 ? <div key={i} style={{ color:'#f59e0b',fontWeight:700,marginTop:i>0?20:0,marginBottom:6,fontSize:12,textTransform:'uppercase',letterSpacing:'0.04em',borderBottom:'1px solid #1e2d3d',paddingBottom:6 }}>{clean}</div>
                 : <div key={i} style={{ marginBottom:clean.trim()?4:10 }}>{clean}</div>
             })}
           </div>
         )}
-        <style>{`@keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }`}</style>
+        <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>
   )
 }
 
+// ── Add Trade Modal ───────────────────────────────────────────────────────────
 function AddTradeModal({ onSave, onClose }) {
   const [f, setF] = useState({
     ticker:'',assetType:'Stock',strategy:'Swing Trade',direction:'Long',
     quantity:'',entryPrice:'',exitPrice:'',entryDate:new Date().toISOString().split('T')[0],
     exitDate:'',notes:'',lessonLearned:'',emotion:'Confident',setup:'Breakout',
-    expiration:'',strike:'',optionType:'call',contracts:'1',
+    expiration:'',strike:'',optionType:'call',contracts:'1',underlyingPrice:'',
   })
+  const [saving, setSaving] = useState(false)
   const set = (k,v) => setF(p=>({...p,[k]:v}))
   const isOpts = f.assetType === 'Options'
-  const qty = isOpts ? parseFloat(f.contracts)*100 : parseFloat(f.quantity)
+  const qty = isOpts ? parseFloat(f.contracts||0)*100 : parseFloat(f.quantity||0)
   const pnl = f.exitPrice && f.entryPrice ? ((parseFloat(f.exitPrice)-parseFloat(f.entryPrice))*(f.direction==='Short'?-1:1)*qty).toFixed(2) : null
-  function save() {
+
+  async function save() {
     if (!f.ticker || !f.entryPrice) return
-    onSave({ ...f, id:Date.now().toString(), pnl:pnl?parseFloat(pnl):0, status:f.exitPrice?'closed':'open', createdAt:new Date().toISOString() })
+    setSaving(true)
+    await onSave({ ...f, pnl:pnl?parseFloat(pnl):0, status:f.exitPrice?'closed':'open' })
     onClose()
   }
+
   return (
     <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'24px 16px',overflowY:'auto' }}>
       <div style={{ background:'#0a0f1a',border:'1px solid #2d3f55',borderRadius:16,padding:28,width:'100%',maxWidth:820 }}>
@@ -248,7 +283,7 @@ function AddTradeModal({ onSave, onClose }) {
         )}
         <div style={{ marginBottom:14 }}>
           <label style={S.lbl}>Trade Thesis / Notes</label>
-          <textarea style={{ ...S.inp,minHeight:64,resize:'vertical' }} value={f.notes} onChange={e=>set('notes',e.target.value)} placeholder="Why did you enter? What was the catalyst? What were your targets?" />
+          <textarea style={{ ...S.inp,minHeight:64,resize:'vertical' }} value={f.notes} onChange={e=>set('notes',e.target.value)} placeholder="Why did you enter? What was the catalyst? Targets?" />
         </div>
         <div style={{ marginBottom:20 }}>
           <label style={S.lbl}>Lesson Learned</label>
@@ -256,19 +291,23 @@ function AddTradeModal({ onSave, onClose }) {
         </div>
         <div style={{ display:'flex',gap:10,justifyContent:'flex-end',borderTop:'1px solid #1e2d3d',paddingTop:16 }}>
           <button onClick={onClose} style={S.btn('#1e2d3d','#8b9fc0')}>Cancel</button>
-          <button onClick={save} disabled={!f.ticker||!f.entryPrice} style={{ ...S.btn(),opacity:!f.ticker||!f.entryPrice?0.5:1 }}>Log Trade</button>
+          <button onClick={save} disabled={!f.ticker||!f.entryPrice||saving} style={{ ...S.btn(),opacity:!f.ticker||!f.entryPrice||saving?0.5:1 }}>
+            {saving ? 'Saving...' : 'Log Trade'}
+          </button>
         </div>
       </div>
     </div>
   )
 }
 
+// ── Entry Card ────────────────────────────────────────────────────────────────
 function EntryCard({ entry, onChat }) {
   const isOpts = entry.assetType === 'Options'
-  const pnl = parseFloat(entry.pnl || 0)
-  const up = pnl >= 0
-  const sc = { 'Day Trade':'#f59e0b','Swing Trade':'#10b981','Position Trade':'#3b82f6','Options Play':'#8b5cf6','Long-Term':'#06b6d4','Hedging':'#64748b' }[entry.strategy]||'#4a5c7a'
-  const ec = { 'Confident':'#10b981','Disciplined':'#3b82f6','Patient':'#06b6d4','Cautious':'#f59e0b','FOMO':'#f97316','Fearful':'#ef4444','Greedy':'#f97316','Anxious':'#f43f5e','Neutral':'#4a5c7a' }[entry.emotion]||'#4a5c7a'
+  const pnl    = parseFloat(entry.pnl || 0)
+  const up     = pnl >= 0
+  const sc     = { 'Day Trade':'#f59e0b','Swing Trade':'#10b981','Position Trade':'#3b82f6','Options Play':'#8b5cf6','Long-Term':'#06b6d4','Hedging':'#64748b' }[entry.strategy]||'#4a5c7a'
+  const ec     = { 'Confident':'#10b981','Disciplined':'#3b82f6','Patient':'#06b6d4','Cautious':'#f59e0b','FOMO':'#f97316','Fearful':'#ef4444','Greedy':'#f97316','Anxious':'#f43f5e','Neutral':'#4a5c7a' }[entry.emotion]||'#4a5c7a'
+
   return (
     <div style={{ ...S.card,borderLeft:`3px solid ${entry.status==='closed'?(up?'#10b981':'#ef4444'):'#3b82f6'}` }}>
       <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10 }}>
@@ -285,7 +324,7 @@ function EntryCard({ entry, onChat }) {
         {entry.status==='closed' && (
           <div style={{ textAlign:'right' }}>
             <div style={{ color:up?'#10b981':'#ef4444',fontSize:17,fontWeight:700 }}>{up?'+':''}{pnl.toFixed(2)}</div>
-            <div style={{ color:'#4a5c7a',fontSize:11 }}>in ${entry.entryPrice}{entry.exitPrice?' → out $'+entry.exitPrice:''}</div>
+            <div style={{ color:'#4a5c7a',fontSize:11 }}>in ${entry.entryPrice}{entry.exitPrice?' → $'+entry.exitPrice:''}</div>
           </div>
         )}
       </div>
@@ -295,64 +334,104 @@ function EntryCard({ entry, onChat }) {
           &#x1F4A1; {entry.lessonLearned}
         </div>
       )}
-      <button onClick={()=>onChat(entry)} style={{ ...S.btn('rgba(167,139,250,0.15)','#a78bfa'),fontSize:11,padding:'6px 14px' }}>
-        &#x1F4AC; Journal Chat
-      </button>
+      <button onClick={()=>onChat(entry)} style={{ ...S.btn('rgba(167,139,250,0.15)','#a78bfa'),fontSize:11,padding:'6px 14px' }}>&#x1F4AC; Journal Chat</button>
     </div>
   )
 }
 
+// ── Main Journal Page ─────────────────────────────────────────────────────────
 export default function Journal() {
   const { user } = useAuth()
-  const [entries, setEntries] = useState([])
-  const [showAdd, setShowAdd] = useState(false)
-  const [chatEntry, setChatEntry] = useState(null)
-  const [showDebrief, setShowDebrief] = useState(false)
-  const [filter, setFilter] = useState('All')
-  const KEY = 'aai_journal_' + (user?.id || 'demo')
+  const [entries,    setEntries]    = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [chatEntry,  setChatEntry]  = useState(null)
+  const [showDebrief,setShowDebrief]= useState(false)
+  const [filter,     setFilter]     = useState('All')
+  const [error,      setError]      = useState(null)
 
+  // Load from Supabase
   useEffect(() => {
-    try { const d = localStorage.getItem(KEY); if (d) setEntries(JSON.parse(d)) } catch(e) {}
+    if (!user) return
+    loadEntries()
   }, [user])
 
-  const persist = e => { setEntries(e); localStorage.setItem(KEY, JSON.stringify(e)) }
-  const add = e => persist([e, ...entries])
+  async function loadEntries() {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data, error: err } = await supabase
+        .from('journal_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      if (err) throw err
+      setEntries((data || []).map(rowToEntry))
+    } catch (e) {
+      console.error('Journal load error:', e)
+      setError('Could not load journal entries. ' + e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const closed = entries.filter(e => e.status==='closed')
-  const wins = closed.filter(e => parseFloat(e.pnl||0) > 0)
-  const totalPnl = closed.reduce((s,e) => s+parseFloat(e.pnl||0), 0)
-  const winRate = closed.length ? Math.round(wins.length/closed.length*100) : 0
-  const avgPnl = closed.length ? (totalPnl/closed.length).toFixed(2) : 0
-  const shown = filter==='All' ? entries : entries.filter(e => e.strategy===filter)
+  async function addEntry(formData) {
+    if (!user) return
+    try {
+      const row = entryToRow(formData, user.id)
+      const { data, error: err } = await supabase
+        .from('journal_entries')
+        .insert([row])
+        .select()
+        .single()
+      if (err) throw err
+      setEntries(prev => [rowToEntry(data), ...prev])
+    } catch (e) {
+      console.error('Journal insert error:', e)
+      // Fallback: add locally so user doesn't lose their entry
+      setEntries(prev => [{ ...formData, id: Date.now().toString(), createdAt: new Date().toISOString() }, ...prev])
+    }
+  }
+
+  const closed   = entries.filter(e => e.status === 'closed')
+  const wins     = closed.filter(e => parseFloat(e.pnl||0) > 0)
+  const totalPnl = closed.reduce((s,e) => s + parseFloat(e.pnl||0), 0)
+  const winRate  = closed.length ? Math.round(wins.length/closed.length*100) : 0
+  const avgPnl   = closed.length ? (totalPnl/closed.length).toFixed(2) : 0
+  const shown    = filter==='All' ? entries : entries.filter(e => e.strategy===filter)
 
   return (
     <div style={S.page}>
-      {showAdd && <AddTradeModal onSave={add} onClose={()=>setShowAdd(false)} />}
-      {chatEntry && <JournalChat entry={chatEntry} onClose={()=>setChatEntry(null)} />}
-      {showDebrief && <EODDebrief entries={entries} onClose={()=>setShowDebrief(false)} />}
+      {showAdd    && <AddTradeModal onSave={addEntry} onClose={()=>setShowAdd(false)} />}
+      {chatEntry  && <JournalChat entry={chatEntry} onClose={()=>setChatEntry(null)} />}
+      {showDebrief&& <EODDebrief entries={entries} onClose={()=>setShowDebrief(false)} />}
 
       <div style={S.hdr}>
         <div>
           <h1 style={S.h1}>&#x1F4D4; Trading Journal</h1>
-          <div style={S.sub}>{entries.length} trades &bull; AI coach available on every trade</div>
+          <div style={S.sub}>
+            {loading ? 'Loading...' : `${entries.length} trades &bull; synced to cloud`}
+          </div>
         </div>
         <div style={{ display:'flex',gap:10 }}>
-          {entries.length > 0 && (
-            <button style={S.btn('#92400e','#fcd34d')} onClick={()=>setShowDebrief(true)}>
-              &#x1F4C5; EOD Debrief
-            </button>
-          )}
+          {entries.length > 0 && <button style={S.btn('#92400e','#fcd34d')} onClick={()=>setShowDebrief(true)}>&#x1F4C5; EOD Debrief</button>}
           <button style={S.btn()} onClick={()=>setShowAdd(true)}>+ New Entry</button>
         </div>
       </div>
+
+      {error && (
+        <div style={{ background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'12px 16px',marginBottom:16,color:'#f87171',fontSize:12 }}>
+          &#x26A0; {error} <button onClick={loadEntries} style={{ ...S.btn('rgba(239,68,68,0.2)','#f87171'),fontSize:11,padding:'4px 10px',marginLeft:8 }}>Retry</button>
+        </div>
+      )}
 
       {closed.length > 0 && (
         <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24 }}>
           {[
             { label:'Total P&L', val:(totalPnl>=0?'+':'')+totalPnl.toFixed(2), color:totalPnl>=0?'#10b981':'#ef4444' },
-            { label:'Win Rate', val:winRate+'%', color:winRate>=50?'#10b981':'#f59e0b' },
-            { label:'Avg P&L', val:(parseFloat(avgPnl)>=0?'+':'')+avgPnl, color:parseFloat(avgPnl)>=0?'#10b981':'#ef4444' },
-            { label:'Total Trades', val:closed.length, color:'#e2e8f0' },
+            { label:'Win Rate',  val:winRate+'%',                               color:winRate>=50?'#10b981':'#f59e0b' },
+            { label:'Avg P&L',   val:(parseFloat(avgPnl)>=0?'+':'')+avgPnl,    color:parseFloat(avgPnl)>=0?'#10b981':'#ef4444' },
+            { label:'Trades',    val:closed.length,                             color:'#e2e8f0' },
           ].map(({label,val,color}) => (
             <div key={label} style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:10,padding:18 }}>
               <div style={{ color:'#4a5c7a',fontSize:10,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8 }}>{label}</div>
@@ -372,12 +451,18 @@ export default function Journal() {
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {loading ? (
+        <div style={{ ...S.card,textAlign:'center',padding:'48px 24px',color:'#4a5c7a',fontSize:13 }}>
+          <div style={{ fontSize:28,marginBottom:12,animation:'spin 1.2s linear infinite',display:'inline-block' }}>&#x26A1;</div>
+          <div>Loading your journal...</div>
+          <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+        </div>
+      ) : shown.length === 0 ? (
         <div style={{ ...S.card,textAlign:'center',padding:'56px 24px' }}>
           <div style={{ fontSize:42,marginBottom:14 }}>&#x1F4D4;</div>
           <div style={{ color:'#e2e8f0',fontSize:16,marginBottom:8 }}>No trades logged yet</div>
           <div style={{ color:'#4a5c7a',fontSize:12,marginBottom:22,maxWidth:400,margin:'0 auto 22px' }}>
-            Log your trades and chat with your AI coach. After every close, your coach asks: <em style={{color:'#8b9fc0'}}>"What was going through your head?"</em>
+            Log your trades and chat with your AI coach. Entries sync across all your devices.
           </div>
           <button style={S.btn()} onClick={()=>setShowAdd(true)}>Log First Trade</button>
         </div>
