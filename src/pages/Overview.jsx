@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
-import { useMarket } from '../lib/useMarket'
+import { useMarket } from '../lib/useMarket.jsx'
 import { supabase } from '../lib/supabase'
 
 export default function Overview() {

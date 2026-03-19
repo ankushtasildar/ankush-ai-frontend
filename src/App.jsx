@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, Outlet } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/auth'
-import { MarketProvider, useMarket } from './lib/useMarket'
+import { MarketProvider, useMarket } from './lib/useMarket.jsx'
 import ProtectedRoute from './components/ProtectedRoute'
 import LandingPage from './pages/LandingPage'
 import AuthCallback from './pages/AuthCallback'
