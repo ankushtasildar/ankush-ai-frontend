@@ -33,7 +33,13 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, loading: user === undefined, signInWithGoogle, signInWithMagicLink, signOut }}>
+    <AuthContext.Provider value={{
+      user: user ?? null,
+      loading: user === undefined,
+      signInWithGoogle,
+      signInWithMagicLink,
+      signOut
+    }}>
       {children}
     </AuthContext.Provider>
   )
