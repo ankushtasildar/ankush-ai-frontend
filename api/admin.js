@@ -8,11 +8,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-secret');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // Verify admin secret from header
   const secret = req.headers['x-admin-secret'];
-  if (secret !== ADMIN_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  if (secret !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -22,7 +19,7 @@ export default async function handler(req, res) {
   const { action } = req.query;
 
   try {
-    if (action === 'users' || !action) {
+    if (!action || action === 'users') {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -32,8 +29,19 @@ export default async function handler(req, res) {
       return res.status(200).json(data || []);
     }
 
+    // Parse body for POST actions
+    let body = {};
+    if (req.method === 'POST') {
+      try {
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        body = JSON.parse(Buffer.concat(chunks).toString());
+      } catch(e) { body = {}; }
+    }
+
     if (action === 'toggle-plan') {
-      const { userId, plan } = req.body || JSON.parse(req.body || '{}');
+      const { userId, plan } = body;
+      if (!userId) return res.status(400).json({ error: 'userId required' });
       const newPlan = plan === 'pro' ? 'free' : 'pro';
       const { error } = await supabase
         .from('profiles')
@@ -44,7 +52,8 @@ export default async function handler(req, res) {
     }
 
     if (action === 'create-code') {
-      const { code } = req.body || JSON.parse(req.body || '{}');
+      const { code } = body;
+      if (!code) return res.status(400).json({ error: 'code required' });
       const { error } = await supabase
         .from('access_codes')
         .insert({ code: code.toUpperCase(), created_by: 'admin', is_active: true });
@@ -52,9 +61,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, code });
     }
 
-    return res.status(400).json({ error: 'Unknown action' });
-  } catch (err) {
-    console.error('Admin API error:', err);
+    return res.status(400).json({ error: 'Unknown action: ' + action });
+  } catch(err) {
+    console.error('Admin API error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }

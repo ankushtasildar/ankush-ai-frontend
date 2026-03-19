@@ -7,22 +7,40 @@ export default function AuthCallback() {
   const done = useRef(false)
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    async function handleCallback() {
       if (done.current) return
-      if (event === 'SIGNED_IN' && session) {
+
+      // Try getSession first — Supabase auto-processes hash tokens on load
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
         done.current = true
-        subscription.unsubscribe()
         navigate('/app', { replace: true })
+        return
       }
-    })
-    const t = setTimeout(() => {
-      if (!done.current) {
-        done.current = true
-        subscription.unsubscribe()
-        navigate('/', { replace: true })
-      }
-    }, 10000)
-    return () => { subscription.unsubscribe(); clearTimeout(t) }
+
+      // Fallback: listen for SIGNED_IN event
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (done.current) return
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          done.current = true
+          subscription.unsubscribe()
+          navigate('/app', { replace: true })
+        }
+      })
+
+      // Safety timeout
+      const t = setTimeout(() => {
+        if (!done.current) {
+          done.current = true
+          subscription.unsubscribe()
+          navigate('/', { replace: true })
+        }
+      }, 8000)
+
+      return () => { subscription.unsubscribe(); clearTimeout(t) }
+    }
+
+    handleCallback()
   }, [navigate])
 
   return (
