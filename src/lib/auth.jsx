@@ -1,50 +1,32 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-const AuthContext = createContext(null)
-const CALLBACK_URL = window.location.origin + '/auth/callback'
+const AuthContext = createContext({})
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined)
 
   useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
-  async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: CALLBACK_URL }
-    })
-  }
-
-  async function signInWithMagicLink(email) {
-    return supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: CALLBACK_URL }
-    })
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut()
-  }
+  const loading = user === undefined
 
   return (
-    <AuthContext.Provider value={{
-      user: user ?? null,
-      loading: user === undefined,
-      signInWithGoogle,
-      signInWithMagicLink,
-      signOut
-    }}>
+    <AuthContext.Provider value={{ user, loading }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
+export const useAuth = () => useContext(AuthContext)
