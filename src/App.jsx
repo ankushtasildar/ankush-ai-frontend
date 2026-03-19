@@ -17,13 +17,13 @@ import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
 const NAV = [
-  { path: '/app',           label: 'Overview',   icon: 'â' },
-  { path: '/app/portfolio', label: 'Portfolio',  icon: 'â«' },
-  { path: '/app/signals',   label: 'Signals',    icon: 'â' },
-  { path: '/app/sentiment', label: 'Sentiment',  icon: 'â' },
-  { path: '/app/backtest',  label: 'Backtest',   icon: 'â·' },
-  { path: '/app/journal',   label: 'Journal',    icon: 'â§' },
-  { path: '/app/calendar',  label: 'Calendar',   icon: 'â»' },
+  { path: '/app',           label: 'Overview',   icon: 'Ã¢ÂÂ' },
+  { path: '/app/portfolio', label: 'Portfolio',  icon: 'Ã¢ÂÂ«' },
+  { path: '/app/signals',   label: 'Signals',    icon: 'Ã¢ÂÂ' },
+  { path: '/app/sentiment', label: 'Sentiment',  icon: 'Ã¢ÂÂ' },
+  { path: '/app/backtest',  label: 'Backtest',   icon: 'Ã¢ÂÂ·' },
+  { path: '/app/journal',   label: 'Journal',    icon: 'Ã¢ÂÂ§' },
+  { path: '/app/calendar',  label: 'Calendar',   icon: 'Ã¢ÂÂ»' },
 ]
 
 function AppShell() {
@@ -37,7 +37,7 @@ function AppShell() {
       <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
         <nav style={{ width:220, background:'#0d1420', borderRight:'1px solid rgba(255,255,255,0.07)', display:'flex', flexDirection:'column', padding:'20px 0' }}>
           <div style={{ padding:'0 20px 24px', fontFamily:'DM Mono,monospace', fontSize:13, letterSpacing:'.14em', color:'#f0f4ff' }}>
-            â¡ ANKUSHAI
+            Ã¢ÂÂ¡ ANKUSHAI
           </div>
           {NAV.map(n => (
             <NavLink key={n.path} to={n.path} end={n.path==='/app'}
@@ -55,7 +55,7 @@ function AppShell() {
           <div style={{ flex:1 }} />
           {isAdmin && (
             <NavLink to="/admin" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 20px', fontFamily:'DM Mono,monospace', fontSize:11, letterSpacing:'.08em', color:'#f59e0b', textDecoration:'none' }}>
-              â Admin
+              Ã¢ÂÂ Admin
             </NavLink>
           )}
           <div style={{ padding:'12px 20px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
@@ -94,7 +94,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/app/*" element={<ProtectedRoute><AppShell /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
