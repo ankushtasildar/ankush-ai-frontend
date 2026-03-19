@@ -12,9 +12,10 @@ export default function AdminLogin() {
     e.preventDefault()
     if (pw === ADMIN_SECRET) {
       sessionStorage.setItem('admin_auth', 'true')
-      navigate('/admin/dashboard')
+      navigate('/admin')
     } else {
       setError('Invalid password')
+      setPw('')
     }
   }
 
@@ -22,7 +23,8 @@ export default function AdminLogin() {
     <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#080c14' }}>
       <form onSubmit={handleSubmit} style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:12,padding:'40px 32px',width:320,textAlign:'center' }}>
         <div style={{ fontSize:28,marginBottom:12 }}>⚡</div>
-        <h2 style={{ color:'#e2e8f0',fontFamily:'"DM Mono",monospace',fontSize:16,marginBottom:24 }}>Admin Access</h2>
+        <h2 style={{ color:'#e2e8f0',fontFamily:'"DM Mono",monospace',fontSize:16,marginBottom:8 }}>Admin Access</h2>
+        <p style={{ color:'#4a5c7a',fontSize:12,marginBottom:24,fontFamily:'"DM Mono",monospace' }}>AnkushAI Dashboard</p>
         <input
           type="password"
           value={pw}
