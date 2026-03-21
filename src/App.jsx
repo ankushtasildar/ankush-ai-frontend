@@ -57,7 +57,7 @@ function AppShell({ children }) {
 
   async function fetchMarketStatus() {
     try {
-      const r = await fetch('/api/market?type=quote&symbol=SPY')
+      const r = await fetch('/api/market?action=quote&symbol=SPY')
       if (r.ok) {
         const d = await r.json()
         const etHour = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })
@@ -73,21 +73,21 @@ function AppShell({ children }) {
   const isAdmin = user?.email === 'ankushtasildar2@gmail.com'
 
   const nav = [
-    { to: 'overview', label: 'Overview', icon: '◈', badge: null },
-    { to: 'charts', label: 'Charts', icon: '📈', badge: null },
-    { to: 'setups', label: 'Top Setups', icon: '🎯', badge: 'HOT' },
-    { to: 'signals', label: 'Signals', icon: '⚡', badge: null },
-    { to: 'earnings', label: 'Earnings', icon: '📅', badge: null },
-    { to: 'sectors', label: 'Sectors', icon: '🌡', badge: null },
-    { to: 'strategies', label: 'Strategies', icon: '⚙', badge: null },
-    { to: 'portfolio', label: 'Portfolio', icon: '💼', badge: null },
-    { to: 'journal', label: 'Journal', icon: '📓', badge: null },
-    { to: 'risk', label: 'Risk Calc', icon: '⚖', badge: null },
-    { to: 'billing', label: 'Billing', icon: '💳', badge: null, divider: true },
-    { to: 'eod', label: 'EOD Debrief', icon: '🌙', badge: null },
+    { to: 'overview', label: 'Overview', icon: 'â', badge: null },
+    { to: 'charts', label: 'Charts', icon: 'ð', badge: null },
+    { to: 'setups', label: 'Top Setups', icon: 'ð¯', badge: 'HOT' },
+    { to: 'signals', label: 'Signals', icon: 'â¡', badge: null },
+    { to: 'earnings', label: 'Earnings', icon: 'ð', badge: null },
+    { to: 'sectors', label: 'Sectors', icon: 'ð¡', badge: null },
+    { to: 'strategies', label: 'Strategies', icon: 'â', badge: null },
+    { to: 'portfolio', label: 'Portfolio', icon: 'ð¼', badge: null },
+    { to: 'journal', label: 'Journal', icon: 'ð', badge: null },
+    { to: 'risk', label: 'Risk Calc', icon: 'â', badge: null },
+    { to: 'billing', label: 'Billing', icon: 'ð³', badge: null, divider: true },
+    { to: 'eod', label: 'EOD Debrief', icon: 'ð', badge: null },
     ...(isAdmin ? [
-      { to: 'intelligence', label: 'Intelligence', icon: '🧠', badge: null, divider: true },
-      { to: 'admin', label: 'Admin', icon: '🔧', badge: null },
+      { to: 'intelligence', label: 'Intelligence', icon: 'ð§ ', badge: null, divider: true },
+      { to: 'admin', label: 'Admin', icon: 'ð§', badge: null },
     ] : [])
   ]
 
@@ -108,7 +108,7 @@ function AppShell({ children }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 16px', marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#2563eb,#7c3aed)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>A</div>
           {!collapsed && <div style={{ fontFamily: '"Syne",sans-serif', fontWeight: 800, fontSize: 14, color: '#f0f6ff' }}>ANKUSHAI</div>}
-          <button onClick={() => setCollapsed(!collapsed)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 16, padding: 0 }}>{collapsed ? '→' : '←'}</button>
+          <button onClick={() => setCollapsed(!collapsed)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 16, padding: 0 }}>{collapsed ? 'â' : 'â'}</button>
         </div>
 
         {/* Nav items */}
@@ -145,7 +145,7 @@ function AppShell({ children }) {
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ color: '#f0f6ff', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.username || user.email?.split('@')[0]}</div>
-                <div style={{ color: isPro ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>● {isPro ? 'PRO' : 'FREE'}</div>
+                <div style={{ color: isPro ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>â {isPro ? 'PRO' : 'FREE'}</div>
               </div>
               <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 10 }}>out</button>
             </div>
