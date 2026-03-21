@@ -50,6 +50,47 @@ const YAHOO_HEADERS = {
   'Origin': 'https://finance.yahoo.com',
 };
 
+async function fetchPolygonAggs(symbol) {
+  const key = process.env.POLYGON_API_KEY;
+  if (!key) return null;
+  try {
+    const to = new Date(), from = new Date();
+    from.setFullYear(from.getFullYear() - 1);
+    const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${from.toISOString().split('T')[0]}/${to.toISOString().split('T')[0]}?adjusted=true&sort=asc&limit=365&apiKey=${key}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`Polygon HTTP ${r.status}`);
+    const data = await r.json();
+    if (!data.results?.length) throw new Error('No results');
+
+    const bars = data.results;
+    const latest = bars[bars.length - 1];
+    const prevBar = bars[bars.length - 2];
+    const price = latest.c;
+    const prevClose = prevBar?.c || price;
+
+    // Build meta-like object matching Yahoo structure
+    const meta = {
+      regularMarketPrice: price,
+      chartPreviousClose: prevClose,
+      marketState: 'CLOSED', // Polygon free tier is EOD
+      symbol: symbol,
+      shortName: symbol,
+    };
+
+    // Build hist matching the Yahoo format
+    const hist = bars.map(b => ({
+      date: new Date(b.t).toISOString().split('T')[0],
+      open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v
+    }));
+
+    console.log(`Polygon OK: ${symbol} $${price.toFixed(2)}`);
+    return { symbol, meta, price, prevClose, hist };
+  } catch (e) {
+    console.error(`Polygon failed ${symbol}: ${e.message}`);
+    return null;
+  }
+}
+
 async function fetchYahooChart(symbol) {
   try {
     const url = `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y&includePrePost=true`;
@@ -267,6 +308,26 @@ function computeTechnicals(hist, currentPrice) {
 // ── Batch price fetch via Yahoo spark (single API call for all symbols) ───────
 async function fetchBatchPrices(symbols) {
   const prices = {};
+  
+  // Try Polygon grouped daily first (single call, no rate limit issues)
+  const polyKey = process.env.POLYGON_API_KEY;
+  if (polyKey) {
+    try {
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+      const dateStr = yesterday.toISOString().split('T')[0];
+      const url = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${dateStr}?adjusted=true&apiKey=${polyKey}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) {
+        const data = await r.json();
+        for (const bar of (data.results || [])) {
+          if (symbols.includes(bar.T)) prices[bar.T] = bar.c;
+        }
+        console.log(`Polygon grouped: ${Object.keys(prices).length} prices`);
+        if (Object.keys(prices).length >= symbols.length * 0.7) return prices;
+      }
+    } catch(e) { console.error('Polygon grouped failed:', e.message); }
+  }
+  
   try {
     // Yahoo v8/finance/spark - batch endpoint, different rate limit from chart
     const url = `https://query2.finance.yahoo.com/v8/finance/spark?symbols=${symbols.join(',')}&range=1d&interval=1d`;
@@ -310,7 +371,8 @@ async function fetchBatchPrices(symbols) {
 async function fetchTickerData(symbol) {
   const sym = symbol.toUpperCase();
 
-  const chartData = await fetchYahooChart(sym);
+  // Try Polygon first (no rate limit issues from Vercel), fall back to Yahoo
+  const chartData = await fetchPolygonAggs(sym).catch(() => null) || await fetchYahooChart(sym).catch(() => null);
   if (!chartData) return null;
 
   const { meta, price, prevClose, hist } = chartData;
