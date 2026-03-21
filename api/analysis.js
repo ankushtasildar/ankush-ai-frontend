@@ -1,192 +1,227 @@
-// api/analysis.js v5 — Cache-first scan architecture
-// Reads from global_scan_cache (pre-computed) for instant response
-// Falls back to live scan only when cache is stale or empty
+// analysis.js — Final unified version
+// Self-contained: no external scan-cache module dependency
+// Uses 'scan_cache' table (correct name, created in migration)
+// Cache-first: serves all users from shared scan, falls back to live Claude call
 
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// L1 in-memory cache
-let L1 = null, L1_TS = 0
-const L1_TTL = 4 * 60 * 1000
+const SCAN_UNIVERSE = [
+  'AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AVGO','AMD','ORCL',
+  'JPM','GS','BAC','V','MA','XOM','CVX','LLY','UNH','JNJ',
+  'PLTR','SNOW','NET','CRWD','DDOG','MDB','COIN','HOOD',
+  'SPY','QQQ','IWM','XLK','XLE','XLF','GLD','TLT',
+  'MSTR','RKLB','SMCI','ARM','DELL','MU','INTC','QCOM',
+  'MRNA','GILD','ABBV','PFE','REGN','VRTX',
+  'COST','WMT','TGT','HD','NKE','LULU','SBUX',
+]
+
+function isMarketHours() {
+  const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const d = et.getDay(), m = et.getHours() * 60 + et.getMinutes()
+  return d >= 1 && d <= 5 && m >= 570 && m < 960
+}
+
+function getCacheTTL() {
+  return isMarketHours() ? 15 * 60 * 1000 : 60 * 60 * 1000
+}
+
+async function getCachedScan() {
+  try {
+    const { data, error } = await supabase
+      .from('scan_cache')
+      .select('scan_data, created_at, setup_count, market_mood, vix')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (error || !data) return null
+    const age = Date.now() - new Date(data.created_at).getTime()
+    if (age < getCacheTTL()) {
+      return { ...data.scan_data, cached: true, cacheAge: Math.round(age / 60000), servedAt: new Date().toISOString() }
+    }
+    return null
+  } catch(e) { console.warn('[analysis] cache read error:', e.message); return null }
+}
+
+async function saveScan(result) {
+  try {
+    await supabase.from('scan_cache').insert({
+      scan_data: result,
+      setup_count: result.setups?.length || 0,
+      market_mood: result.marketContext?.mood || 'Unknown',
+      vix: result.marketContext?.vix || null,
+      spy_change: result.marketContext?.spyChange || null,
+    })
+  } catch(e) { console.warn('[analysis] cache save error:', e.message) }
+}
+
+async function recordSetups(setups) {
+  if (!setups?.length) return
+  try {
+    const rows = setups.slice(0, 12).map(s => ({
+      symbol: s.symbol,
+      setup_type: s.setupType || s.setup_type || 'AI Scan',
+      bias: s.bias,
+      entry_high: s.entryHigh || s.entry_high || null,
+      entry_low: s.entryLow || s.entry_low || null,
+      stop_loss: s.stopLoss || s.stop_loss || null,
+      target_1: s.target1 || s.target_1 || null,
+      confidence: s.confidence || 7,
+      frameworks: s.frameworks || [],
+      rr_ratio: s.rrRatio || s.rr_ratio || null,
+      scan_date: new Date().toISOString().split('T')[0],
+    }))
+    await supabase.from('setup_records').insert(rows)
+  } catch(e) { console.warn('[analysis] record setups error:', e.message) }
+}
+
+async function getMarketContext() {
+  try {
+    const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://www.ankushai.org'
+    const r = await fetch(`${base}/api/market?action=context`, { signal: AbortSignal.timeout(8000) })
+    return await r.json()
+  } catch(e) { return { spy: 0, spyChange: 0, vix: 20, mood: 'Unknown', regime: 'neutral' } }
+}
+
+async function getPatterns() {
+  try {
+    const { data } = await supabase
+      .from('ai_learned_patterns')
+      .select('pattern_name, works_best_when, fails_when, recommended_iv_strategy, prompt_weight')
+      .order('prompt_weight', { ascending: false })
+      .limit(8)
+    return data || []
+  } catch(e) { return [] }
+}
+
+async function getMacroEvents() {
+  try {
+    const { data } = await supabase
+      .from('macro_events')
+      .select('event_date, title, impact')
+      .gte('event_date', new Date().toISOString().split('T')[0])
+      .order('event_date')
+      .limit(5)
+    return data || []
+  } catch(e) { return [] }
+}
+
+async function runFullScan() {
+  // 1. Check cache first
+  const cached = await getCachedScan()
+  if (cached) { console.log('[analysis] Serving from cache, age:', cached.cacheAge, 'min'); return cached }
+
+  console.log('[analysis] Cache miss — running live scan')
+  const [marketContext, patterns, macroEvents] = await Promise.all([getMarketContext(), getPatterns(), getMacroEvents()])
+
+  const patternCtx = patterns.length > 0
+    ? `\n\nLEARNED PATTERNS (calibrate confidence accordingly):\n${patterns.map(p => `• ${p.pattern_name} [weight:${p.prompt_weight}]: works when ${p.works_best_when} | fails when ${p.fails_when}`).join('\n')}`
+    : ''
+  const macroCtx = macroEvents.length > 0
+    ? `\n\nUPCOMING MACRO EVENTS:\n${macroEvents.map(e => `• ${e.event_date}: ${e.title} [${e.impact}]`).join('\n')}`
+    : ''
+
+  const prompt = `You are AnkushAI — institutional options trading intelligence running 100 analyst frameworks.
+
+MARKET NOW: SPY $${(marketContext.spy||0).toFixed(2)} (${(marketContext.spyChange||0) >= 0 ? '+' : ''}${(marketContext.spyChange||0).toFixed(2)}%), VIX ${marketContext.vix||20} (${marketContext.mood}), Regime: ${marketContext.regime}
+${patternCtx}${macroCtx}
+
+SCAN UNIVERSE: ${SCAN_UNIVERSE.slice(0, 45).join(', ')}
+
+Find 8-12 highest-conviction trading setups RIGHT NOW. Apply:
+- Technical: EMA stack (20/50/200), RSI, MACD, volume, breakout/breakdown patterns
+- Options: IV rank, earnings proximity, unusual activity, spread vs directional
+- Macro: sector momentum, VIX regime ${marketContext.regime === 'risk_off' ? '⚠️ RISK-OFF — be selective, prefer hedged plays' : ''}
+- Patterns: use learned weights above to bias confidence scores
+
+RULES:
+1. NO penny stocks (price < $5), no <$500M market cap
+2. Every setup needs EXACT dollar levels — no vague ranges  
+3. R/R ≥ 2:1 minimum. VIX > 25 → prefer spreads over naked longs
+4. Confidence 1-10 based on setup quality + regime fit + learned patterns
+
+Return ONLY a JSON array, no markdown:
+[{
+  "symbol": "NVDA",
+  "setupType": "EMA Breakout + Volume Confirmation",
+  "bias": "bullish",
+  "confidence": 8,
+  "entryLow": 870,
+  "entryHigh": 885,
+  "stopLoss": 855,
+  "target1": 920,
+  "target2": 960,
+  "rrRatio": 3.2,
+  "ivRank": 38,
+  "recommendedTrade": "Buy June 900 calls at ~$3.50",
+  "frameworks": ["ema_breakout", "momentum", "volume"],
+  "analysis": "Clear EMA stack with 3x volume surge on breakout. RSI 58 — room to run. VIX at 27 warrants defined-risk via calls rather than stock.",
+  "urgency": "today"
+}]`
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }]
+  })
+
+  let setups = []
+  const text = msg.content[0]?.text || '[]'
+  try {
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const parsed = JSON.parse(clean)
+    setups = Array.isArray(parsed) ? parsed : (parsed.setups || [])
+  } catch(e) {
+    console.error('[analysis] JSON parse error:', e.message, 'text[:200]:', text.substring(0, 200))
+    // Try to extract array from response
+    const match = text.match(/\[[\s\S]*\]/)
+    if (match) { try { setups = JSON.parse(match[0]) } catch(e2) {} }
+  }
+
+  const result = { setups, marketContext, patterns: patterns.length, generatedAt: new Date().toISOString(), cached: false }
+
+  // Save to cache + record setups (non-blocking)
+  Promise.all([saveScan(result), recordSetups(setups)]).catch(e => console.warn('[analysis] post-scan save:', e.message))
+
+  return result
+}
+
+async function analyzeSingle(symbol) {
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1200,
+    messages: [{ role: 'user', content: `Analyze ${symbol} for a trade RIGHT NOW. Provide: current technical setup (EMA stack, RSI, MACD), exact entry zone, stop loss, two targets, R/R ratio, and recommended options play with strike/expiry. Be specific with dollar levels.` }]
+  })
+  return { symbol, analysis: msg.content[0]?.text, generatedAt: new Date().toISOString() }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type')
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
-  const { type = 'scan', symbol, force } = req.query
-  const authHeader = req.headers.authorization || ''
+  const type = (req.query.type || req.query.action || 'scan').toLowerCase()
+  const symbol = req.query.symbol?.toUpperCase()
 
-  // ── SINGLE SYMBOL ANALYSIS ──────────────────────────────────────
-  if (type === 'single' && symbol) {
-    try {
-      // Check cache first
-      const { data: cached } = await supabase
-        .from('global_scan_cache')
-        .select('setups, created_at')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (cached?.setups) {
-        const setup = cached.setups.find(s => s.symbol?.toUpperCase() === symbol.toUpperCase())
-        if (setup) {
-          return res.json({ ...setup, source: 'cache', cached_at: cached.created_at })
-        }
-      }
-
-      // Live single-symbol analysis
-      const msg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `Analyze ${symbol.toUpperCase()} for options trading. Return ONLY JSON:
-{"symbol":"${symbol}","setupType":"","bias":"bullish|bearish","confidence":7,"entryLow":0,"entryHigh":0,"stopLoss":0,"target1":0,"target2":0,"rrRatio":2.5,"ivRank":35,"recommendedTrade":"","urgency":"medium","frameworks":["momentum"],"analysis":"","keyLevels":"","catalysts":[]}`
-        }]
-      })
-      const text = msg.content[0]?.text || ''
-      const match = text.match(/\{[\s\S]*\}/)
-      if (match) return res.json({ ...JSON.parse(match[0]), source: 'live' })
-      return res.status(500).json({ error: 'Parse failed' })
-    } catch (e) {
-      return res.status(500).json({ error: e.message })
+  try {
+    if (type === 'scan') {
+      const result = await runFullScan()
+      return res.json(result)
     }
+    if (type === 'single' && symbol) return res.json(await analyzeSingle(symbol))
+    if (type === 'cache_status') {
+      const cached = await getCachedScan()
+      return res.json({ hasCachedScan: !!cached, cacheAge: cached?.cacheAge, cacheExpiry: cached ? Math.round((getCacheTTL()/60000) - (cached.cacheAge||0)) : 0 })
+    }
+    return res.status(400).json({ error: 'Unknown type. Use: scan, single, cache_status' })
+  } catch(e) {
+    console.error('[analysis] handler error:', e.message)
+    return res.status(500).json({ error: e.message, type })
   }
-
-  // ── FULL SCAN — cache-first ──────────────────────────────────────
-  if (type === 'scan') {
-    // L1: in-memory
-    if (!force && L1 && Date.now() - L1_TS < L1_TTL) {
-      res.setHeader('X-Cache', 'L1')
-      return res.json({ setups: L1.setups, market_context: L1.market_context, source: 'cache-l1', age_minutes: Math.floor((Date.now() - L1_TS)/60000) })
-    }
-
-    // L2: Supabase global scan cache
-    try {
-      const { data } = await supabase
-        .from('global_scan_cache')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (data) {
-        const age = (Date.now() - new Date(data.created_at).getTime()) / 60000
-        // Serve from cache if < 35 min old
-        if (!force && age < 35) {
-          L1 = data; L1_TS = Date.now()
-          res.setHeader('X-Cache', 'L2')
-          res.setHeader('X-Cache-Age', Math.floor(age) + 'min')
-          return res.json({
-            setups: data.setups,
-            market_context: data.market_context,
-            source: 'cache',
-            age_minutes: Math.floor(age),
-            setup_count: data.setups?.length || 0
-          })
-        }
-      }
-    } catch (e) {
-      console.error('Cache read error:', e.message)
-    }
-
-    // L3: Live scan (only when cache is truly stale or forced)
-    try {
-      console.log('[analysis] Running live scan...')
-      const startTime = Date.now()
-
-      // Get patterns
-      const { data: patterns } = await supabase
-        .from('ai_learned_patterns')
-        .select('*')
-        .order('prompt_weight', { ascending: false })
-        .limit(10)
-
-      const patternCtx = (patterns || []).map(p =>
-        `• ${p.pattern_name}: Works when ${p.works_best_when}. Weight: ${p.prompt_weight}x`
-      ).join('\n')
-
-      const SYMBOLS = ['AAPL','MSFT','NVDA','AMZN','META','GOOGL','TSLA','AMD','CRM','NFLX',
-        'ADBE','QCOM','AVGO','TXN','MU','INTC','NOW','PANW','SNOW','PLTR',
-        'COIN','MSTR','HOOD','RBLX','UBER','SPY','QQQ','IWM','GLD','TLT',
-        'XLK','XLF','XLE','XLV','XLY','ARKK','SMH','SOXX','JPM','BAC',
-        'GS','MS','WFC','C','BLK','COST','HD','WMT','TGT','LOW',
-        'PFE','JNJ','LLY','MRK','ABBV','UNH','CVS','GILD','BIIB','REGN',
-        'RKLB','ASTS','IONQ','RGTI','SOUN','AISP','BBAI']
-
-      const msg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        system: `You are AnkushAI's institutional scan engine.
-
-Learned patterns (apply with listed weight multiplier):
-${patternCtx}
-
-Rules:
-- Only stocks > $5 (no penny stocks)
-- Need options liquidity (avg volume > 500k)  
-- Always include: entry zone, stop, target, R/R, recommended option play
-- Return 12-18 setups maximum`,
-        messages: [{
-          role: 'user',
-          content: `Analyze: ${SYMBOLS.join(', ')}. Return ONLY valid JSON:
-{"scan_summary":"brief overview","setups":[{"symbol":"","setupType":"","bias":"bullish","confidence":7,"entryLow":0,"entryHigh":0,"stopLoss":0,"target1":0,"rrRatio":2.5,"ivRank":35,"recommendedTrade":"","urgency":"medium","frameworks":[],"analysis":"","keyLevels":"","catalysts":[]}]}`
-        }]
-      })
-
-      const text = msg.content[0]?.text || ''
-      const match = text.match(/\{[\s\S]*\}/)
-      if (!match) throw new Error('No JSON in response')
-      const result = JSON.parse(match[0])
-      const duration = Date.now() - startTime
-
-      // Store in global cache
-      const mktCtx = { scan_summary: result.scan_summary, scanned_count: SYMBOLS.length }
-      const { data: saved } = await supabase
-        .from('global_scan_cache')
-        .insert({ setups: result.setups || [], market_context: mktCtx, scan_duration_ms: duration, symbols_scanned: SYMBOLS.length, setup_count: result.setups?.length || 0 })
-        .select().single()
-
-      // Store individual setups in setup_records
-      if (result.setups?.length > 0) {
-        const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }))
-        await supabase.from('setup_records').insert(
-          result.setups.map(s => ({
-            symbol: s.symbol,
-            setup_type: s.setupType,
-            bias: s.bias,
-            confidence: s.confidence,
-            entry_low: s.entryLow,
-            entry_high: s.entryHigh,
-            stop_loss: s.stopLoss,
-            target_1: s.target1,
-            target_2: s.target2,
-            rr_ratio: s.rrRatio,
-            iv_rank: s.ivRank,
-            frameworks: s.frameworks,
-            analysis: s.analysis,
-            status: 'open',
-            scan_id: saved?.id
-          }))
-        ).catch(e => console.error('setup_records insert error:', e.message))
-      }
-
-      L1 = saved; L1_TS = Date.now()
-      res.setHeader('X-Cache', 'MISS')
-      return res.json({ setups: result.setups || [], market_context: mktCtx, source: 'live', duration_ms: duration })
-
-    } catch (e) {
-      console.error('[analysis] Live scan error:', e.message)
-      return res.status(500).json({ error: e.message, setups: [] })
-    }
-  }
-
-  return res.status(400).json({ error: 'Invalid type' })
 }
