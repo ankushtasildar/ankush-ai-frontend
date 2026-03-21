@@ -71,13 +71,32 @@ export default function Overview() {
 
   const load = useCallback(async () => {
     try {
-      const [mktR, cacheR, openR, eventsR] = await Promise.allSettled([
+      const [mktR, qqR, iwR, cacheR, openR, eventsR] = await Promise.allSettled([
         fetch('/api/market?action=overview').then(r=>r.json()),
+        fetch('/api/market?action=quote&symbol=QQQ').then(r=>r.json()),
+        fetch('/api/market?action=quote&symbol=IWM').then(r=>r.json()),
         supabase.from('scan_cache').select('*').order('created_at',{ascending:false}).limit(1),
         supabase.from('setup_records').select('*').eq('status','open').limit(10),
         supabase.from('macro_events').select('*').order('event_date',{ascending:true}).limit(4)
       ])
-      if (mktR.status==='fulfilled' && !mktR.value.error) setMkt(mktR.value)
+      if (mktR.status==='fulfilled' && mktR.value && !mktR.value.error) {
+        const raw = mktR.value
+        const ctx = raw.context || {}
+        setMkt({
+          spy:  { price: raw.quote && raw.quote.price, change: raw.quote && raw.quote.change, changePct: ctx.spyChange || 0 },
+          qqq:  qqR.status==='fulfilled' && qqR.value && qqR.value.price ? { price: qqR.value.price, change: qqR.value.change, changePct: qqR.value.changePercent } : null,
+          iwm:  iwR.status==='fulfilled' && iwR.value && iwR.value.price ? { price: iwR.value.price, change: iwR.value.change, changePct: iwR.value.changePercent } : null,
+          vix:  ctx.vix || (raw.vix && raw.vix.vix),
+          mood: ctx.mood,
+          sectors: raw.sectors || [],
+          marketOpen: raw.marketOpen || ctx.marketOpen,
+          regime: ctx.regime,
+          leader: ctx.leader,
+          laggard: ctx.laggard,
+          advancing: ctx.advancing,
+          declining: ctx.declining,
+        })
+      }
       if (cacheR.status==='fulfilled' && cacheR.value.data && cacheR.value.data[0]) setSetups(cacheR.value.data[0].setups||[])
       if (openR.status==='fulfilled' && openR.value.data) {
         const o = openR.value.data
@@ -97,9 +116,9 @@ export default function Overview() {
     await load(); setScanLoading(false)
   }
 
-  const sp = mkt?.indices?.spy
-  const qq = mkt?.indices?.qqq
-  const iw = mkt?.indices?.iwm
+  const sp = mkt?.spy
+  const qq = mkt?.qqq
+  const iw = mkt?.iwm
   const vix = mkt?.vix
   const mood = mkt?.mood
   const sectors = mkt?.sectors || []
