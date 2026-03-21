@@ -1,8 +1,10 @@
-const Anthropic = require('@anthropic-ai/sdk');
+// Using Anthropic API via fetch (no SDK required)
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const { createClient } = require('@supabase/supabase-js');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Anthropic called directly via fetch
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const maxDuration = 60; // Vercel Pro max
 const cors = { 'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST,GET,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization' };
 
 // ── Universe ─────────────────────────────────────────────────────────────────
@@ -438,8 +440,29 @@ Run full 100-analyst synthesis. ALL price levels must come from the actual data 
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.write('data: ' + JSON.stringify({ type: 'data', tickerData: td }) + '\n\n');
-      const stream = client.messages.stream({ model: 'claude-sonnet-4-20250514', max_tokens: 3500, system: sys, messages: [{ role: 'user', content: msg }] });
-      for await (const chunk of stream) if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') res.write('data: ' + JSON.stringify({ type: 'text', text: chunk.delta.text }) + '\n\n');
+      // Stream via fetch
+      const streamResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 3500, stream: true, system: sys, messages: [{ role: 'user', content: msg }] })
+      });
+      const reader = streamResp.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value).split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+                res.write('data: ' + JSON.stringify({ type: 'text', text: ev.delta.text }) + '\n\n');
+              }
+            } catch (e) {}
+          }
+        }
+      }
       res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
       res.end();
     } catch (err) {
@@ -459,14 +482,14 @@ Run full 100-analyst synthesis. ALL price levels must come from the actual data 
       // Core always-included symbols + random rotation
       const core = ['SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMD', 'PLTR'];
       const rotation = [...UNIVERSE].filter(s => !core.includes(s)).sort(() => Math.random() - 0.5).slice(0, 10);
-      const batch = [...core, ...rotation].slice(0, 16);
+      const batch = [...core, ...rotation].slice(0, 12); // Keep under 60s Vercel limit
 
       // Fetch with slight delay between requests to avoid rate limiting
       const tickerDataList = [];
       for (const sym of batch) {
         const td = await fetchTickerData(sym).catch(() => null);
         if (td) tickerDataList.push(td);
-        if (batch.indexOf(sym) < batch.length - 1) await new Promise(r => setTimeout(r, 200));
+        if (batch.indexOf(sym) < batch.length - 1) await new Promise(r => setTimeout(r, 150));
       }
 
       const qualified = tickerDataList.filter(td => passesGate(td));
@@ -522,17 +545,19 @@ Find the 6 BEST options trading setups right now. For each:
 
 Output ONLY valid JSON array. Use ONLY prices from the data provided above.`;
 
-      const result = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2800,
-        system: sys, messages: [{ role: 'user', content: scanMsg }]
+      const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2800, system: sys, messages: [{ role: 'user', content: scanMsg }] })
       });
+      const aiData = await aiResp.json();
 
       let setups = [];
       try {
-        const raw = result.content[0].text.replace(/```json|```/g, '').trim();
+        const raw = (aiData.content[0].text || '').replace(/```json|```/g, '').trim();
         setups = JSON.parse(raw);
       } catch (e) {
-        console.error('Parse error:', e.message, result.content[0].text.substring(0, 300));
+        console.error('Parse error:', e.message, (aiData.content?.[0]?.text || '').substring(0, 300));
       }
 
       // Enrich each setup with live ticker data
