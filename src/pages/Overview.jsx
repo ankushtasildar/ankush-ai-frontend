@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-const fmt = (n, d=2) => n==null?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
-const fmtPct = n => n==null?'—':(n>0?'+':'')+fmt(n,2)+'%'
-const fmtDollar = (n,d=2) => n==null?'—':'$'+fmt(n,d)
-const fmtVol = n => n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':n?.toFixed(0)||'—'
+const fmt = (n, d=2) => n==null?'â':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const fmtPct = n => n==null?'â':(n>0?'+':'')+fmt(n,2)+'%'
+const fmtDollar = (n,d=2) => n==null?'â':'$'+fmt(n,d)
+const fmtVol = n => n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':n?.toFixed(0)||'â'
 
 function IndexCard({ symbol, label, data, onClick }) {
   const change = data?.changePercent || 0
@@ -24,7 +24,7 @@ function IndexCard({ symbol, label, data, onClick }) {
         </div>
       </div>
       <div style={{color:'#f0f6ff',fontSize:20,fontWeight:800,fontFamily:'"DM Mono",monospace',marginBottom:4}}>
-        {data?.price ? fmtDollar(data.price) : '—'}
+        {data?.price ? fmtDollar(data.price) : 'â'}
       </div>
       <div style={{display:'flex',gap:8,fontSize:9,color:'#3d4e62',fontFamily:'"DM Mono",monospace'}}>
         {data?.high && <span>H:{fmtDollar(data.high)}</span>}
@@ -70,7 +70,7 @@ function OpenSetupRow({ setup, onChart }) {
   const age = Math.floor((Date.now() - new Date(setup.created_at).getTime()) / 86400000)
   return (
     <div style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-      <span style={{background:isPos?'rgba(16,185,129,0.08)':'rgba(239,68,68,0.08)',border:`1px solid ${isPos?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'}`,borderRadius:4,padding:'1px 7px',color:isPos?'#10b981':'#ef4444',fontSize:9,fontFamily:'"DM Mono",monospace',fontWeight:700,minWidth:48,textAlign:'center'}}>{isPos?'▲ BULL':'▼ BEAR'}</span>
+      <span style={{background:isPos?'rgba(16,185,129,0.08)':'rgba(239,68,68,0.08)',border:`1px solid ${isPos?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'}`,borderRadius:4,padding:'1px 7px',color:isPos?'#10b981':'#ef4444',fontSize:9,fontFamily:'"DM Mono",monospace',fontWeight:700,minWidth:48,textAlign:'center'}}>{isPos?'â² BULL':'â¼ BEAR'}</span>
       <span style={{fontFamily:'"DM Mono",monospace',fontWeight:700,color:'#f0f6ff',minWidth:50}}>{setup.symbol}</span>
       <span style={{color:'#4a5c7a',fontSize:10,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{setup.setup_type}</span>
       <span style={{color:'#3d4e62',fontSize:10,fontFamily:'"DM Mono",monospace'}}>{age}d</span>
@@ -122,7 +122,7 @@ export default function Overview() {
 
   async function loadMarket() {
     try {
-      const r = await fetch('/api/market?type=context')
+      const r = await fetch('/api/market?action=context')
       if (r.ok) {
         const d = await r.json()
         setMarket(d)
@@ -186,7 +186,7 @@ export default function Overview() {
     setAiLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const r = await fetch('/api/ai', {
+      const r = await fetch('/api/analysis?type=single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session?.access_token || '') },
         body: JSON.stringify({
@@ -227,11 +227,11 @@ export default function Overview() {
         <div>
           <div style={{ color:'#3d4e62', fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:4 }}>{greeting}</div>
           <h1 style={{ fontFamily:'"Syne",sans-serif', fontSize:28, fontWeight:800, margin:'0 0 4px' }}>
-            {loading ? 'Loading...' : mood === 'Fear' ? '⚠️ Markets Under Pressure' : mood === 'Risk On' ? '🚀 Risk On — Markets Running' : '📊 Market Overview'}
+            {loading ? 'Loading...' : mood === 'Fear' ? 'â ï¸ Markets Under Pressure' : mood === 'Risk On' ? 'ð Risk On â Markets Running' : 'ð Market Overview'}
           </h1>
           <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
             <div style={{ width:8, height:8, borderRadius:'50%', background:isOpen?'#10b981':'#4a5c7a', boxShadow:isOpen?'0 0 8px #10b981':'none' }} />
-            <span style={{ color:'#4a5c7a', fontSize:11 }}>{isOpen ? 'Market Open' : 'Market Closed'} · {timeStr} ET</span>
+            <span style={{ color:'#4a5c7a', fontSize:11 }}>{isOpen ? 'Market Open' : 'Market Closed'} Â· {timeStr} ET</span>
             {lastUpdated && <span style={{ color:'#2d3d50', fontSize:10 }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
         </div>
@@ -239,7 +239,7 @@ export default function Overview() {
           <MoodBadge mood={mood} />
           <span style={{ background:vixColor+'15', border:`1px solid ${vixColor}30`, borderRadius:6, padding:'3px 10px', color:vixColor, fontSize:11, fontFamily:'"DM Mono",monospace', fontWeight:700 }}>VIX {fmt(vix)}</span>
           <button onClick={generateAISnapshot} disabled={aiLoading} style={{ padding:'6px 14px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:11, cursor:aiLoading?'default':'pointer', opacity:aiLoading?.7:1, fontFamily:'"DM Mono",monospace' }}>
-            {aiLoading ? '⟳ Thinking...' : '⚡ AI Snapshot'}
+            {aiLoading ? 'â³ Thinking...' : 'â¡ AI Snapshot'}
           </button>
         </div>
       </div>
@@ -247,7 +247,7 @@ export default function Overview() {
       {/* AI Snapshot */}
       {aiSnapshot && (
         <div style={{ background:'rgba(37,99,235,0.05)', border:'1px solid rgba(37,99,235,0.15)', borderRadius:12, padding:'14px 16px', marginBottom:16 }}>
-          <div style={{ color:'#60a5fa', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em', marginBottom:8 }}>⚡ AI MARKET SNAPSHOT</div>
+          <div style={{ color:'#60a5fa', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em', marginBottom:8 }}>â¡ AI MARKET SNAPSHOT</div>
           <div style={{ color:'#8b9fc0', fontSize:12, lineHeight:1.7 }}>{aiSnapshot}</div>
         </div>
       )}
@@ -258,10 +258,10 @@ export default function Overview() {
         <IndexCard symbol="QQQ" label="Nasdaq 100 ETF" data={market?.qqq} onClick={() => navigate('/app/charts?symbol=QQQ')} />
         <IndexCard symbol="IWM" label="Russell 2000 ETF" data={market?.iwm} onClick={() => navigate('/app/charts?symbol=IWM')} />
         <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', flex:1, minWidth:140 }}>
-          <div style={{ color:'#3d4e62', fontSize:10, marginBottom:6 }}>VIX — Fear Index</div>
+          <div style={{ color:'#3d4e62', fontSize:10, marginBottom:6 }}>VIX â Fear Index</div>
           <div style={{ color:vixColor, fontSize:20, fontWeight:800, fontFamily:'"DM Mono",monospace', marginBottom:4 }}>{fmt(vix)}</div>
           <div style={{ color:'#4a5c7a', fontSize:10 }}>
-            {vix > 30 ? '🔴 Extreme fear' : vix > 20 ? '🟡 Elevated anxiety' : vix > 15 ? '🟢 Normal' : '🟣 Complacency'}
+            {vix > 30 ? 'ð´ Extreme fear' : vix > 20 ? 'ð¡ Elevated anxiety' : vix > 15 ? 'ð¢ Normal' : 'ð£ Complacency'}
           </div>
           <div style={{ height:3, background:'rgba(255,255,255,0.05)', borderRadius:2, marginTop:8, overflow:'hidden' }}>
             <div style={{ width:Math.min(100, vix*2.5)+'%', height:'100%', background:vixColor, borderRadius:2 }} />
@@ -276,7 +276,7 @@ export default function Overview() {
         <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
             <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>SECTOR PERFORMANCE</div>
-            <button onClick={() => navigate('/app/sectors')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>View all →</button>
+            <button onClick={() => navigate('/app/sectors')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>View all â</button>
           </div>
           {sectors.length === 0 ? (
             <div style={{ color:'#3d4e62', fontSize:11 }}>Loading sectors...</div>
@@ -284,8 +284,8 @@ export default function Overview() {
             sectors.slice(0, 8).map((s, i) => <SectorBar key={i} sector={s} />)
           )}
           <div style={{ display:'flex', gap:8, marginTop:10, paddingTop:8, borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-            <div style={{ color:'#10b981', fontSize:10 }}>▲ {market?.marketMood?.advancing || 0} advancing</div>
-            <div style={{ color:'#ef4444', fontSize:10 }}>▼ {market?.marketMood?.declining || 0} declining</div>
+            <div style={{ color:'#10b981', fontSize:10 }}>â² {market?.marketMood?.advancing || 0} advancing</div>
+            <div style={{ color:'#ef4444', fontSize:10 }}>â¼ {market?.marketMood?.declining || 0} declining</div>
           </div>
         </div>
 
@@ -293,12 +293,12 @@ export default function Overview() {
         <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
             <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>OPEN SETUPS ({openSetups.length})</div>
-            <button onClick={() => navigate('/app/setups')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Scan →</button>
+            <button onClick={() => navigate('/app/setups')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Scan â</button>
           </div>
           {openSetups.length === 0 ? (
             <div style={{ color:'#3d4e62', fontSize:11, textAlign:'center', padding:'20px 0' }}>
               No open setups tracked yet.<br />
-              <button onClick={() => navigate('/app/setups')} style={{ marginTop:8, padding:'6px 14px', background:'rgba(37,99,235,0.1)', border:'1px solid rgba(37,99,235,0.2)', borderRadius:6, color:'#60a5fa', fontSize:10, cursor:'pointer' }}>Run a scan →</button>
+              <button onClick={() => navigate('/app/setups')} style={{ marginTop:8, padding:'6px 14px', background:'rgba(37,99,235,0.1)', border:'1px solid rgba(37,99,235,0.2)', borderRadius:6, color:'#60a5fa', fontSize:10, cursor:'pointer' }}>Run a scan â</button>
             </div>
           ) : (
             openSetups.map((s, i) => <OpenSetupRow key={s.id || i} setup={s} onChart={sym => navigate('/app/charts?symbol=' + sym)} />)
@@ -311,7 +311,7 @@ export default function Overview() {
           <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
               <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>PORTFOLIO</div>
-              <button onClick={() => navigate('/app/portfolio')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Manage →</button>
+              <button onClick={() => navigate('/app/portfolio')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Manage â</button>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <div>
@@ -329,7 +329,7 @@ export default function Overview() {
           <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
               <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>TRADING PERFORMANCE</div>
-              <button onClick={() => navigate('/app/journal')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Journal →</button>
+              <button onClick={() => navigate('/app/journal')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Journal â</button>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
               <div style={{ textAlign:'center' }}>
@@ -351,7 +351,7 @@ export default function Overview() {
           <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', flex:1 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
               <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>MACRO CALENDAR</div>
-              <button onClick={() => navigate('/app/earnings')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Earnings →</button>
+              <button onClick={() => navigate('/app/earnings')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Earnings â</button>
             </div>
             {macroEvents.length === 0 ? (
               <div style={{ color:'#3d4e62', fontSize:10 }}>No upcoming events</div>
@@ -365,12 +365,12 @@ export default function Overview() {
       {/* Quick action bar */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
         {[
-          ['🎯 Run Scan', '/app/setups'],
-          ['📅 Earnings', '/app/earnings'],
-          ['🌡 Sectors', '/app/sectors'],
-          ['⚖ Risk Calc', '/app/risk'],
-          ['🌙 EOD Debrief', '/app/eod'],
-          ['🧠 Intelligence', '/app/intelligence'],
+          ['ð¯ Run Scan', '/app/setups'],
+          ['ð Earnings', '/app/earnings'],
+          ['ð¡ Sectors', '/app/sectors'],
+          ['â Risk Calc', '/app/risk'],
+          ['ð EOD Debrief', '/app/eod'],
+          ['ð§  Intelligence', '/app/intelligence'],
         ].map(([label, path]) => (
           <button key={path} onClick={() => navigate(path)} style={{ padding:'7px 14px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:8, color:'#6b7a90', fontSize:11, cursor:'pointer', transition:'all .15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(96,165,250,0.3)'; e.currentTarget.style.color='#60a5fa'; }}
