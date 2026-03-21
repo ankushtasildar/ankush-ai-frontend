@@ -197,9 +197,13 @@ Return ONLY valid JSON array, no markdown:
 async function analyzeSingle(symbol) {
   const prices = await fetchRealPrices([symbol])
   const rp = prices[symbol]?.price
-  const ctx = rp?'REAL PRICE: '+symbol+'=$'+rp.toFixed(2)+'. ALL levels from this price.':'WARNING: real price unavailable — do NOT invent prices.'
-  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:1200,messages:[{role:'user',content:ctx+'\n\nAnalyze '+symbol+' for a trade now. Entry within 2% of real price, stop 3-8% away, two targets, R/R, recommended options play.'}]})
-  return {symbol,currentPrice:rp,analysis:msg.content[0]?.text,generatedAt:new Date().toISOString()}
+  const ctx = rp?'REAL PRICE: '+symbol+'=$'+rp.toFixed(2)+'. ALL levels MUST be based on this exact price. Do NOT use any other price.':'WARNING: real price unavailable.'
+  const prompt = ctx+'\n\nAnalyze '+symbol+' for a trade. Respond ONLY with valid JSON, no markdown, no explanation:\n{"sentiment":"bullish|bearish|neutral","confidence":0-100,"price":'+( rp||0 )+',"summary":"2-3 sentence analysis","setup":"specific setup description","entry":number,"target":number,"target2":number,"stop":number,"rr":"2.5:1","support":number,"resistance":number,"optionsPlay":"specific options strategy e.g. Buy SPY $640 calls exp 2 weeks","timeframe":"days/weeks","catalyst":"key driver"}'
+  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})
+  const raw = msg.content[0]?.text || '{}'
+  let parsed
+  try { parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()) } catch(e) { parsed = {summary:raw} }
+  return {symbol, currentPrice:rp, price:rp, sentiment:parsed.sentiment||'neutral', confidence:parsed.confidence||50, summary:parsed.summary||'', setup:parsed.setup||'', entry:parsed.entry||rp, target:parsed.target||null, target2:parsed.target2||null, stop:parsed.stop||null, rr:parsed.rr||'', support:parsed.support||null, resistance:parsed.resistance||null, optionsPlay:parsed.optionsPlay||'', timeframe:parsed.timeframe||'', catalyst:parsed.catalyst||'', generatedAt:new Date().toISOString()}
 }
 
 export default async function handler(req,res) {
