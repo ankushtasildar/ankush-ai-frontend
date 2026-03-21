@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/weekly",
       "schedule": "0 11 * * 0"
+    },
+    {
+      "path": "/api/analysis?action=warm",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
+      "path": "/api/analysis?action=warm",
+      "schedule": "0 13 * * 1-5"
     }
   ],
   "functions": {
