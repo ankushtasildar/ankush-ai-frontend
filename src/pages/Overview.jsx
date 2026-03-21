@@ -1,498 +1,381 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAuth } from '../lib/auth'
-import { useMarket } from '../lib/useMarket.jsx'
-import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
-// Animated counter hook
-function useCounter(target, duration = 1200) {
-  const [val, setVal] = useState(0)
-  useEffect(() => {
-    if (!target && target !== 0) return
-    const start = Date.now()
-    const from = 0
-    const tick = () => {
-      const elapsed = Date.now() - start
-      const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setVal(from + (target - from) * eased)
-      if (progress < 1) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  }, [target])
-  return val
-}
+const fmt = (n, d=2) => n==null?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const fmtPct = n => n==null?'—':(n>0?'+':'')+fmt(n,2)+'%'
+const fmtDollar = (n,d=2) => n==null?'—':'$'+fmt(n,d)
+const fmtVol = n => n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':n?.toFixed(0)||'—'
 
-// Sparkline component
-function Sparkline({ data = [], color = '#10b981', width = 80, height = 32 }) {
-  if (!data.length) return null
-  const min = Math.min(...data), max = Math.max(...data)
-  const range = max - min || 1
-  const pts = data.map((v, i) => [
-    (i / (data.length - 1)) * width,
-    height - ((v - min) / range) * (height - 4) - 2
-  ])
-  const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
-  const area = path + ` L${width},${height} L0,${height} Z`
+function IndexCard({ symbol, label, data, onClick }) {
+  const change = data?.changePercent || 0
+  const isPos = change >= 0
   return (
-    <svg width={width} height={height} style={{ overflow: 'visible' }}>
-      <defs>
-        <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3"/>
-          <stop offset="100%" stopColor={color} stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#sg-${color.replace('#','')})`} />
-      <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      {pts.length > 0 && (
-        <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill={color}/>
-      )}
-    </svg>
-  )
-}
-
-// Mini donut gauge
-function Gauge({ value = 0, max = 100, color = '#10b981', size = 56 }) {
-  const r = 20, c = 2 * Math.PI * r
-  const pct = Math.min(value / max, 1)
-  return (
-    <svg width={size} height={size} viewBox="0 0 56 56">
-      <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4"/>
-      <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4"
-        strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
-        strokeLinecap="round" transform="rotate(-90 28 28)"
-        style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)' }}/>
-      <text x="28" y="33" textAnchor="middle" fill={color} fontSize="11" fontWeight="700" fontFamily="DM Mono">
-        {Math.round(pct * 100)}%
-      </text>
-    </svg>
-  )
-}
-
-// Stat card with animation
-function StatCard({ label, value, sub, color = '#e2e8f0', icon, trend, sparkData }) {
-  const num = parseFloat(value) || 0
-  const animated = useCounter(num)
-  const isFloat = String(value).includes('.')
-  const displayVal = typeof value === 'string' && isNaN(parseFloat(value))
-    ? value
-    : isFloat ? animated.toFixed(2) : Math.round(animated).toLocaleString()
-
-  return (
-    <div style={{
-      background: 'linear-gradient(135deg, #0d1420 0%, #0a0f1a 100%)',
-      border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: 14,
-      padding: '20px 22px',
-      position: 'relative',
-      overflow: 'hidden',
-      transition: 'border-color 0.2s, transform 0.2s',
-      cursor: 'default',
-    }}
-    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)' }}
-    >
-      <div style={{ position: 'absolute', top: 0, right: 0, width: 80, height: 80, background: `radial-gradient(circle at 80% 20%, ${color}18, transparent 70%)`, pointerEvents: 'none' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div style={{ color: '#4a5c7a', fontSize: 10, fontFamily: '"DM Mono",monospace', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</div>
-        {icon && <span style={{ fontSize: 16 }}>{icon}</span>}
+    <div onClick={onClick} style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', cursor:'pointer', flex:1, minWidth:140, transition:'border-color .15s' }}
+      onMouseEnter={e=>e.currentTarget.style.borderColor='rgba(96,165,250,0.3)'}
+      onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.07)'}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+        <div>
+          <div style={{color:'#f0f6ff',fontSize:15,fontWeight:700,fontFamily:'"DM Mono",monospace'}}>{symbol}</div>
+          <div style={{color:'#3d4e62',fontSize:10}}>{label}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{color:isPos?'#10b981':'#ef4444',fontFamily:'"DM Mono",monospace',fontSize:13,fontWeight:700}}>{fmtPct(change)}</div>
+        </div>
       </div>
-      <div style={{ color, fontSize: 26, fontWeight: 800, fontFamily: '"Syne",sans-serif', lineHeight: 1, marginBottom: 6 }}>
-        {displayVal}
+      <div style={{color:'#f0f6ff',fontSize:20,fontWeight:800,fontFamily:'"DM Mono",monospace',marginBottom:4}}>
+        {data?.price ? fmtDollar(data.price) : '—'}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        {sub && <div style={{ color: '#4a5c7a', fontSize: 11 }}>{sub}</div>}
-        {sparkData && <Sparkline data={sparkData} color={color} width={70} height={28} />}
-        {trend !== undefined && (
-          <div style={{ color: trend >= 0 ? '#10b981' : '#ef4444', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>
-            {trend >= 0 ? '▲' : '▼'} {Math.abs(trend).toFixed(1)}%
-          </div>
-        )}
+      <div style={{display:'flex',gap:8,fontSize:9,color:'#3d4e62',fontFamily:'"DM Mono",monospace'}}>
+        {data?.high && <span>H:{fmtDollar(data.high)}</span>}
+        {data?.low && <span>L:{fmtDollar(data.low)}</span>}
+        {data?.volume && <span>Vol:{fmtVol(data.volume)}</span>}
       </div>
     </div>
   )
 }
 
-// Market ticker row with mini bar
-function TickerRow({ q, onClick }) {
-  const pct = q.effectiveChangePct ?? q.changePct ?? 0
-  const price = q.effectivePrice ?? q.price
-  const isPos = pct >= 0
-  const barW = Math.min(Math.abs(pct) * 8, 60)
-
+function MoodBadge({ mood }) {
+  const colors = {
+    'Risk On':['#10b981','rgba(16,185,129,0.1)'],
+    'Mildly Bullish':['#34d399','rgba(52,211,153,0.08)'],
+    'Mixed':['#f59e0b','rgba(245,158,11,0.08)'],
+    'Fear':['#f97316','rgba(249,115,22,0.1)'],
+    'Mildly Bearish':['#f87171','rgba(248,113,113,0.08)'],
+    'Risk Off':['#ef4444','rgba(239,68,68,0.1)'],
+    'Complacency':['#a78bfa','rgba(167,139,250,0.08)'],
+  }
+  const [text, bg] = colors[mood] || ['#8b9fc0','rgba(255,255,255,0.04)']
   return (
-    <tr
-      onClick={() => onClick?.(q.symbol)}
-      style={{ cursor: 'pointer', transition: 'background 0.15s' }}
-      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-    >
-      <td style={{ padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: isPos ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, fontWeight: 700, color: isPos ? '#10b981' : '#ef4444',
-            fontFamily: '"DM Mono",monospace',
-          }}>
-            {q.symbol?.substring(0, 2)}
-          </div>
-          <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, fontFamily: '"DM Mono",monospace' }}>{q.symbol}</span>
-        </div>
-      </td>
-      <td style={{ padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0', fontSize: 13, fontFamily: '"DM Mono",monospace', fontWeight: 600 }}>
-        ${parseFloat(price || 0).toFixed(2)}
-      </td>
-      <td style={{ padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            padding: '3px 8px', borderRadius: 6,
-            background: isPos ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-            color: isPos ? '#10b981' : '#ef4444',
-            fontSize: 12, fontFamily: '"DM Mono",monospace', fontWeight: 600,
-          }}>
-            {isPos ? '+' : ''}{parseFloat(pct).toFixed(2)}%
-          </div>
-          <div style={{ width: barW, height: 3, borderRadius: 2, background: isPos ? '#10b981' : '#ef4444', opacity: 0.6 }} />
-        </div>
-      </td>
-      <td style={{ padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#4a5c7a', fontSize: 12, fontFamily: '"DM Mono",monospace' }}>
-        {q.volume ? (q.volume / 1e6).toFixed(1) + 'M' : '—'}
-      </td>
-      <td style={{ padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <span style={{
-          padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
-          fontFamily: '"DM Mono",monospace', letterSpacing: '0.05em',
-          color: q.session === 'regular' ? '#10b981' : q.session === 'premarket' || q.session === 'afterhours' ? '#f59e0b' : '#4a5c7a',
-          background: q.session === 'regular' ? 'rgba(16,185,129,0.1)' : q.session === 'premarket' || q.session === 'afterhours' ? 'rgba(245,158,11,0.1)' : 'rgba(74,92,122,0.08)',
-        }}>
-          {q.session === 'regular' ? '● LIVE' : q.session === 'premarket' ? '◐ PRE' : q.session === 'afterhours' ? '◐ AH' : '○ CLOSED'}
-        </span>
-      </td>
-    </tr>
+    <span style={{background:bg,border:`1px solid ${text}30`,borderRadius:6,padding:'3px 10px',color:text,fontSize:11,fontFamily:'"DM Mono",monospace',fontWeight:700}}>{mood}</span>
+  )
+}
+
+function SectorBar({ sector }) {
+  const isPos = sector.change >= 0
+  const barWidth = Math.min(100, Math.abs(sector.change) * 15)
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
+      <div style={{color:'#6b7a90',fontSize:10,fontFamily:'"DM Mono",monospace',minWidth:36}}>{sector.ticker}</div>
+      <div style={{flex:1,height:4,background:'rgba(255,255,255,0.04)',borderRadius:2,overflow:'hidden'}}>
+        <div style={{width:barWidth+'%',height:'100%',background:isPos?'#10b981':'#ef4444',borderRadius:2,marginLeft:isPos?0:'auto'}}/>
+      </div>
+      <div style={{color:isPos?'#10b981':'#ef4444',fontSize:10,fontFamily:'"DM Mono",monospace',minWidth:48,textAlign:'right'}}>{fmtPct(sector.change)}</div>
+    </div>
+  )
+}
+
+function OpenSetupRow({ setup, onChart }) {
+  const isPos = setup.bias === 'bullish'
+  const age = Math.floor((Date.now() - new Date(setup.created_at).getTime()) / 86400000)
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+      <span style={{background:isPos?'rgba(16,185,129,0.08)':'rgba(239,68,68,0.08)',border:`1px solid ${isPos?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'}`,borderRadius:4,padding:'1px 7px',color:isPos?'#10b981':'#ef4444',fontSize:9,fontFamily:'"DM Mono",monospace',fontWeight:700,minWidth:48,textAlign:'center'}}>{isPos?'▲ BULL':'▼ BEAR'}</span>
+      <span style={{fontFamily:'"DM Mono",monospace',fontWeight:700,color:'#f0f6ff',minWidth:50}}>{setup.symbol}</span>
+      <span style={{color:'#4a5c7a',fontSize:10,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{setup.setup_type}</span>
+      <span style={{color:'#3d4e62',fontSize:10,fontFamily:'"DM Mono",monospace'}}>{age}d</span>
+      <span style={{color:setup.confidence>=8?'#10b981':setup.confidence>=6?'#f59e0b':'#6b7a90',fontSize:10,fontFamily:'"DM Mono",monospace'}}>{setup.confidence}/10</span>
+      <button onClick={()=>onChart(setup.symbol)} style={{background:'none',border:'1px solid rgba(255,255,255,0.08)',borderRadius:4,color:'#4a5c7a',fontSize:9,cursor:'pointer',padding:'2px 6px'}}>Chart</button>
+    </div>
+  )
+}
+
+function MacroRow({ event }) {
+  const daysTo = Math.round((new Date(event.event_date+'T00:00:00') - new Date(new Date().toDateString())) / 86400000)
+  const urgency = daysTo <= 1 ? '#ef4444' : daysTo <= 5 ? '#f59e0b' : '#3d4e62'
+  const typeColor = event.event_type === 'fomc' ? '#ef4444' : event.event_type === 'cpi' ? '#f59e0b' : '#6b7a90'
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
+      <span style={{background:`${typeColor}15`,border:`1px solid ${typeColor}30`,borderRadius:4,padding:'1px 7px',color:typeColor,fontSize:9,fontFamily:'"DM Mono",monospace',minWidth:50,textAlign:'center'}}>{event.event_type.toUpperCase()}</span>
+      <span style={{color:'#8b9fc0',fontSize:11,flex:1}}>{event.title}</span>
+      <span style={{color:urgency,fontSize:10,fontFamily:'"DM Mono",monospace',whiteSpace:'nowrap'}}>
+        {daysTo === 0 ? 'TODAY' : daysTo === 1 ? 'TOMORROW' : `in ${daysTo}d`}
+      </span>
+    </div>
   )
 }
 
 export default function Overview() {
-  const { user } = useAuth()
-  const { quotes, getQuote, session, loading: mktLoading, lastUpdate } = useMarket()
   const navigate = useNavigate()
-  const [profile, setProfile] = useState(null)
-  const [journal, setJournal] = useState([])
+  const [market, setMarket] = useState(null)
+  const [sectors, setSectors] = useState([])
+  const [openSetups, setOpenSetups] = useState([])
+  const [macroEvents, setMacroEvents] = useState([])
+  const [portfolio, setPortfolio] = useState({ value: 0, return: 0, pct: 0 })
+  const [journalStats, setJournalStats] = useState({ total: 0, wins: 0, pnl: 0 })
   const [loading, setLoading] = useState(true)
-  const [timeStr, setTimeStr] = useState('')
-  const [greeting, setGreeting] = useState('')
-  const [pnlHistory, setPnlHistory] = useState([])
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [aiSnapshot, setAiSnapshot] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
 
   useEffect(() => {
-    const h = new Date().getHours()
-    setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
-    const tick = () => setTimeStr(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
+    loadAll()
+    const interval = setInterval(loadMarket, 60000)
+    return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => {
-    if (!user) return
-    Promise.all([loadProfile(), loadJournal()]).finally(() => setLoading(false))
-  }, [user])
-
-  async function loadProfile() {
-    const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-    if (data) setProfile(data)
+  async function loadAll() {
+    setLoading(true)
+    await Promise.all([loadMarket(), loadUserData(), loadMacroEvents()])
+    setLoading(false)
   }
 
-  async function loadJournal() {
+  async function loadMarket() {
     try {
-      const { data } = await supabase
-        .from('journal_entries')
-        .select('pnl, status, ticker, strategy, created_at, entry_price, exit_price')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(100)
-      if (data) {
-        setJournal(data)
-        // Build cumulative P&L history for sparkline
-        const closed = data.filter(j => j.status === 'closed').reverse()
-        let running = 0
-        setPnlHistory(closed.map(j => { running += parseFloat(j.pnl || 0); return running }))
+      const r = await fetch('/api/market?type=context')
+      if (r.ok) {
+        const d = await r.json()
+        setMarket(d)
+        setSectors(d.sectors || [])
+        setLastUpdated(new Date())
       }
-    } catch(e) {}
+    } catch (e) { console.log('Market fetch error:', e.message) }
   }
 
-  // Market calculations
-  const quoteList = Object.values(quotes)
-  const upCount = quoteList.filter(q => (q.changePct || 0) > 0).length
-  const downCount = quoteList.filter(q => (q.changePct || 0) < 0).length
-  const spy = getQuote('SPY')
-  const qqq = getQuote('QQQ')
-  const vix = getQuote('VIX')
-  const marketMood = upCount > downCount ? 'Bullish' : upCount < downCount ? 'Bearish' : 'Mixed'
-  const moodColor = upCount > downCount ? '#10b981' : upCount < downCount ? '#ef4444' : '#f59e0b'
-  const sessLabel = { regular: 'MARKET OPEN', premarket: 'PRE-MARKET', afterhours: 'AFTER HOURS', closed: 'MARKET CLOSED' }[session] || 'CLOSED'
-  const sessColor = { regular: '#10b981', premarket: '#f59e0b', afterhours: '#8b5cf6', closed: '#4a5c7a' }[session] || '#4a5c7a'
+  async function loadUserData() {
+    try {
+      // Open setups from intelligence
+      const { data: setups } = await supabase
+        .from('setup_records')
+        .select('id,symbol,bias,setup_type,confidence,created_at,entry_high,stop_loss,target_1,price_at_generation')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(8)
+      setOpenSetups(setups || [])
 
-  // Journal stats
-  const closed = journal.filter(j => j.status === 'closed')
-  const open = journal.filter(j => j.status === 'open')
-  const totalPnl = closed.reduce((s, j) => s + parseFloat(j.pnl || 0), 0)
-  const wins = closed.filter(j => parseFloat(j.pnl || 0) > 0)
-  const losses = closed.filter(j => parseFloat(j.pnl || 0) < 0)
-  const winRate = closed.length ? Math.round(wins.length / closed.length * 100) : 0
-  const avgWin = wins.length ? wins.reduce((s, j) => s + parseFloat(j.pnl), 0) / wins.length : 0
-  const avgLoss = losses.length ? Math.abs(losses.reduce((s, j) => s + parseFloat(j.pnl), 0) / losses.length) : 0
-  const profitFactor = avgLoss ? (avgWin / avgLoss).toFixed(2) : '∞'
-  const name = user?.email?.split('@')[0] || 'trader'
+      // Portfolio P&L
+      const { data: positions } = await supabase
+        .from('portfolio_positions')
+        .select('current_value,cost_basis,quantity')
+      if (positions?.length) {
+        const totalValue = positions.reduce((s, p) => s + (p.current_value || 0), 0)
+        const totalCost = positions.reduce((s, p) => s + (p.cost_basis * p.quantity || 0), 0)
+        const totalReturn = totalValue - totalCost
+        setPortfolio({ value: totalValue, return: totalReturn, pct: totalCost ? totalReturn/totalCost*100 : 0 })
+      }
 
-  // Streak calculation
-  let streak = 0
-  for (const j of closed) {
-    if (parseFloat(j.pnl || 0) > 0) streak++
-    else break
+      // Journal win rate
+      const { data: trades } = await supabase
+        .from('journal_entries')
+        .select('pnl,outcome')
+        .not('pnl', 'is', null)
+      if (trades?.length) {
+        const wins = trades.filter(t => (t.pnl || 0) > 0).length
+        const pnl = trades.reduce((s, t) => s + (t.pnl || 0), 0)
+        setJournalStats({ total: trades.length, wins, pnl, winRate: trades.length ? (wins/trades.length*100).toFixed(0) : 0 })
+      }
+    } catch (e) { console.log('User data error:', e.message) }
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 32, animation: 'spin 1.2s linear infinite', display: 'inline-block' }}>⚡</div>
-      <div style={{ color: '#4a5c7a', fontSize: 12, fontFamily: '"DM Mono",monospace', letterSpacing: '0.1em' }}>LOADING DASHBOARD</div>
-      <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
+  async function loadMacroEvents() {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const twoWeeks = new Date(Date.now() + 14*86400000).toISOString().split('T')[0]
+      const { data } = await supabase
+        .from('macro_events')
+        .select('event_date,event_type,title,impact_level')
+        .gte('event_date', today)
+        .lte('event_date', twoWeeks)
+        .order('event_date')
+        .limit(6)
+      setMacroEvents(data || [])
+    } catch (e) {}
+  }
+
+  async function generateAISnapshot() {
+    setAiLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const r = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session?.access_token || '') },
+        body: JSON.stringify({
+          type: 'market_snapshot',
+          context: {
+            spy: market?.spy?.price, spyChange: market?.spy?.changePercent,
+            vix: market?.vix?.current, mood: market?.marketMood?.mood,
+            advancing: market?.marketMood?.advancing, declining: market?.marketMood?.declining,
+            topSectors: sectors.slice(0, 3).map(s => s.name + ' ' + (s.change >= 0 ? '+' : '') + (s.change || 0).toFixed(2) + '%').join(', '),
+            openSetups: openSetups.length
+          }
+        })
+      })
+      if (r.ok) {
+        const d = await r.json()
+        setAiSnapshot(d.response || d.content || d.message || JSON.stringify(d).substring(0, 300))
+      }
+    } catch (e) {}
+    setAiLoading(false)
+  }
+
+  const vix = market?.vix?.current || 0
+  const vixColor = vix > 30 ? '#ef4444' : vix > 20 ? '#f59e0b' : vix > 15 ? '#10b981' : '#a5b4fc'
+  const spyChange = market?.spy?.changePercent || 0
+  const mood = market?.marketMood?.mood || 'Loading...'
+
+  const etHour = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })
+  const etDay = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short' })
+  const isOpen = !['Sat','Sun'].includes(etDay) && parseInt(etHour) >= 9 && parseInt(etHour) < 16
+  const greeting = parseInt(etHour) < 12 ? 'Good Morning' : parseInt(etHour) < 17 ? 'Good Afternoon' : 'Good Evening'
+  const now = new Date()
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/New_York' })
 
   return (
-    <div style={{ padding: '28px 32px', fontFamily: '"DM Sans",sans-serif', color: '#e2e8f0', maxWidth: 1200 }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
-        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.3)}}
-        .ov-row:hover{background:rgba(255,255,255,0.02)!important}
-        .ov-action:hover{opacity:1!important;transform:translateY(-2px)!important}
-        .ov-section{animation:fadeUp 0.4s ease forwards}
-      `}</style>
-
-      {/* ── Header ── */}
-      <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+    <div style={{ padding:'20px 24px', minHeight:'100vh', background:'#080c14', color:'#f0f6ff', fontFamily:'"DM Sans",sans-serif' }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div>
-          <div style={{ color: '#4a5c7a', fontSize: 11, fontFamily: '"DM Mono",monospace', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 6 }}>
-            {greeting}
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, fontFamily: '"Syne",sans-serif', color: '#f0f4ff', marginBottom: 4 }}>
-            {name.charAt(0).toUpperCase() + name.slice(1)} ⚡
-          </div>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-              background: sessColor + '18', border: `1px solid ${sessColor}40`,
-              borderRadius: 100, fontSize: 10, fontFamily: '"DM Mono",monospace',
-              letterSpacing: '0.1em', color: sessColor, fontWeight: 600,
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: sessColor, display: 'inline-block', animation: session === 'regular' ? 'pulse-dot 2s infinite' : 'none' }} />
-              {sessLabel}
-            </span>
-            {lastUpdate && (
-              <span style={{ color: '#2d3d50', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>
-                Last sync {lastUpdate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            {streak > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 100, fontSize: 10, fontFamily: '"DM Mono",monospace', color: '#fbbf24', fontWeight: 600 }}>
-                🔥 {streak} trade win streak
-              </span>
-            )}
+          <div style={{ color:'#3d4e62', fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:4 }}>{greeting}</div>
+          <h1 style={{ fontFamily:'"Syne",sans-serif', fontSize:28, fontWeight:800, margin:'0 0 4px' }}>
+            {loading ? 'Loading...' : mood === 'Fear' ? '⚠️ Markets Under Pressure' : mood === 'Risk On' ? '🚀 Risk On — Markets Running' : '📊 Market Overview'}
+          </h1>
+          <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:isOpen?'#10b981':'#4a5c7a', boxShadow:isOpen?'0 0 8px #10b981':'none' }} />
+            <span style={{ color:'#4a5c7a', fontSize:11 }}>{isOpen ? 'Market Open' : 'Market Closed'} · {timeStr} ET</span>
+            {lastUpdated && <span style={{ color:'#2d3d50', fontSize:10 }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, fontFamily: '"DM Mono",monospace', color: '#f0f4ff', letterSpacing: '0.05em' }}>{timeStr}</div>
-          <div style={{ color: '#4a5c7a', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── KPI Grid ── */}
-      <div className="ov-section" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14, marginBottom: 28, animationDelay: '0.05s' }}>
-        <StatCard
-          label="Market Mood"
-          value={marketMood}
-          sub={`${upCount} advancing · ${downCount} declining`}
-          color={moodColor}
-          icon={upCount > downCount ? '📈' : upCount < downCount ? '📉' : '⚖️'}
-        />
-        <StatCard
-          label="SPY"
-          value={spy ? `$${spy.price?.toFixed(2)}` : '—'}
-          sub={spy ? `${spy.changePct >= 0 ? '+' : ''}${spy.changePct?.toFixed(2)}% today` : 'Loading...'}
-          color={spy ? (spy.changePct >= 0 ? '#10b981' : '#ef4444') : '#4a5c7a'}
-          icon="🇺🇸"
-          trend={spy?.changePct}
-        />
-        <StatCard
-          label="Total P&L"
-          value={totalPnl.toFixed(2)}
-          sub={`${closed.length} closed trades`}
-          color={totalPnl >= 0 ? '#10b981' : '#ef4444'}
-          icon="💰"
-          sparkData={pnlHistory.slice(-20)}
-        />
-        <StatCard
-          label="Win Rate"
-          value={winRate}
-          sub={`${wins.length}W · ${losses.length}L · ${open.length} open`}
-          color={winRate >= 60 ? '#10b981' : winRate >= 45 ? '#f59e0b' : '#ef4444'}
-          icon="🎯"
-        />
-        <StatCard
-          label="Profit Factor"
-          value={profitFactor}
-          sub={`Avg W $${avgWin.toFixed(0)} · Avg L $${avgLoss.toFixed(0)}`}
-          color="#8b5cf6"
-          icon="⚡"
-        />
-        <StatCard
-          label="QQQ"
-          value={qqq ? `$${qqq.price?.toFixed(2)}` : '—'}
-          sub={qqq ? `${qqq.changePct >= 0 ? '+' : ''}${qqq.changePct?.toFixed(2)}%` : 'Loading...'}
-          color={qqq ? (qqq.changePct >= 0 ? '#10b981' : '#ef4444') : '#4a5c7a'}
-          icon="💻"
-          trend={qqq?.changePct}
-        />
-      </div>
-
-      {/* ── Market Snapshot ── */}
-      <div className="ov-section" style={{ background: 'linear-gradient(135deg, #0d1420, #0a0f1a)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '22px 0', marginBottom: 20, animationDelay: '0.1s' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, padding: '0 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, fontFamily: '"Syne",sans-serif', color: '#f0f4ff' }}>Market Snapshot</div>
-            {session === 'regular' && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 100, fontSize: 9, color: '#10b981', fontFamily: '"DM Mono",monospace', fontWeight: 700 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
-                LIVE
-              </span>
-            )}
-          </div>
-          <button onClick={() => navigate('/app/signals')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: 12, cursor: 'pointer', fontFamily: '"DM Mono",monospace', letterSpacing: '0.05em' }}>
-            Full analysis →
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <MoodBadge mood={mood} />
+          <span style={{ background:vixColor+'15', border:`1px solid ${vixColor}30`, borderRadius:6, padding:'3px 10px', color:vixColor, fontSize:11, fontFamily:'"DM Mono",monospace', fontWeight:700 }}>VIX {fmt(vix)}</span>
+          <button onClick={generateAISnapshot} disabled={aiLoading} style={{ padding:'6px 14px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:11, cursor:aiLoading?'default':'pointer', opacity:aiLoading?.7:1, fontFamily:'"DM Mono",monospace' }}>
+            {aiLoading ? '⟳ Thinking...' : '⚡ AI Snapshot'}
           </button>
         </div>
-
-        {mktLoading || !quoteList.length ? (
-          <div style={{ padding: '20px 22px', color: '#4a5c7a', fontSize: 12, fontFamily: '"DM Mono",monospace' }}>
-            <span style={{ animation: 'spin 1.2s linear infinite', display: 'inline-block', marginRight: 8 }}>⚡</span>
-            Fetching live market data...
-          </div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Symbol', 'Price', 'Change', 'Volume', 'Status'].map(h => (
-                  <th key={h} style={{ padding: '8px 14px', textAlign: 'left', color: '#2d3d50', fontSize: 9, fontFamily: '"DM Mono",monospace', letterSpacing: '0.12em', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {quoteList.map(q => <TickerRow key={q.symbol} q={q} onClick={(sym) => navigate('/app/signals')} />)}
-            </tbody>
-          </table>
-        )}
       </div>
 
-      {/* ── Bottom row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+      {/* AI Snapshot */}
+      {aiSnapshot && (
+        <div style={{ background:'rgba(37,99,235,0.05)', border:'1px solid rgba(37,99,235,0.15)', borderRadius:12, padding:'14px 16px', marginBottom:16 }}>
+          <div style={{ color:'#60a5fa', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em', marginBottom:8 }}>⚡ AI MARKET SNAPSHOT</div>
+          <div style={{ color:'#8b9fc0', fontSize:12, lineHeight:1.7 }}>{aiSnapshot}</div>
+        </div>
+      )}
 
-        {/* Recent trades */}
-        <div className="ov-section" style={{ background: 'linear-gradient(135deg, #0d1420, #0a0f1a)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 22, animationDelay: '0.15s' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: '"Syne",sans-serif', color: '#f0f4ff' }}>Recent Trades</div>
-            <button onClick={() => navigate('/app/journal')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: 11, cursor: 'pointer', fontFamily: '"DM Mono",monospace' }}>View all →</button>
+      {/* Main index cards */}
+      <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
+        <IndexCard symbol="SPY" label="S&P 500 ETF" data={market?.spy} onClick={() => navigate('/app/charts?symbol=SPY')} />
+        <IndexCard symbol="QQQ" label="Nasdaq 100 ETF" data={market?.qqq} onClick={() => navigate('/app/charts?symbol=QQQ')} />
+        <IndexCard symbol="IWM" label="Russell 2000 ETF" data={market?.iwm} onClick={() => navigate('/app/charts?symbol=IWM')} />
+        <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', flex:1, minWidth:140 }}>
+          <div style={{ color:'#3d4e62', fontSize:10, marginBottom:6 }}>VIX — Fear Index</div>
+          <div style={{ color:vixColor, fontSize:20, fontWeight:800, fontFamily:'"DM Mono",monospace', marginBottom:4 }}>{fmt(vix)}</div>
+          <div style={{ color:'#4a5c7a', fontSize:10 }}>
+            {vix > 30 ? '🔴 Extreme fear' : vix > 20 ? '🟡 Elevated anxiety' : vix > 15 ? '🟢 Normal' : '🟣 Complacency'}
           </div>
-          {journal.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: '#2d3d50', fontSize: 12, fontFamily: '"DM Mono",monospace' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>📓</div>
-              No trades logged yet
+          <div style={{ height:3, background:'rgba(255,255,255,0.05)', borderRadius:2, marginTop:8, overflow:'hidden' }}>
+            <div style={{ width:Math.min(100, vix*2.5)+'%', height:'100%', background:vixColor, borderRadius:2 }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Main grid */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12 }}>
+
+        {/* Sector performance */}
+        <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>SECTOR PERFORMANCE</div>
+            <button onClick={() => navigate('/app/sectors')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>View all →</button>
+          </div>
+          {sectors.length === 0 ? (
+            <div style={{ color:'#3d4e62', fontSize:11 }}>Loading sectors...</div>
+          ) : (
+            sectors.slice(0, 8).map((s, i) => <SectorBar key={i} sector={s} />)
+          )}
+          <div style={{ display:'flex', gap:8, marginTop:10, paddingTop:8, borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ color:'#10b981', fontSize:10 }}>▲ {market?.marketMood?.advancing || 0} advancing</div>
+            <div style={{ color:'#ef4444', fontSize:10 }}>▼ {market?.marketMood?.declining || 0} declining</div>
+          </div>
+        </div>
+
+        {/* Open setups */}
+        <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>OPEN SETUPS ({openSetups.length})</div>
+            <button onClick={() => navigate('/app/setups')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Scan →</button>
+          </div>
+          {openSetups.length === 0 ? (
+            <div style={{ color:'#3d4e62', fontSize:11, textAlign:'center', padding:'20px 0' }}>
+              No open setups tracked yet.<br />
+              <button onClick={() => navigate('/app/setups')} style={{ marginTop:8, padding:'6px 14px', background:'rgba(37,99,235,0.1)', border:'1px solid rgba(37,99,235,0.2)', borderRadius:6, color:'#60a5fa', fontSize:10, cursor:'pointer' }}>Run a scan →</button>
             </div>
           ) : (
-            <div>
-              {journal.slice(0, 6).map((j, i) => {
-                const pnl = parseFloat(j.pnl || 0)
-                const isWin = pnl > 0
-                const isOpen = j.status === 'open'
-                return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < 5 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: isOpen ? 'rgba(59,130,246,0.1)' : isWin ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: isOpen ? '#3b82f6' : isWin ? '#10b981' : '#ef4444', fontFamily: '"DM Mono",monospace' }}>
-                        {j.ticker?.substring(0, 3)}
-                      </div>
-                      <div>
-                        <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{j.ticker}</div>
-                        <div style={{ color: '#4a5c7a', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>{j.strategy || 'Manual'}</div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ color: isOpen ? '#3b82f6' : isWin ? '#10b981' : '#ef4444', fontSize: 13, fontFamily: '"DM Mono",monospace', fontWeight: 600 }}>
-                        {isOpen ? 'OPEN' : `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`}
-                      </div>
-                      <div style={{ color: '#2d3d50', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>{j.created_at?.split('T')[0]}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            openSetups.map((s, i) => <OpenSetupRow key={s.id || i} setup={s} onChart={sym => navigate('/app/charts?symbol=' + sym)} />)
           )}
         </div>
 
-        {/* Performance ring + quick stats */}
-        <div className="ov-section" style={{ background: 'linear-gradient(135deg, #0d1420, #0a0f1a)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 22, animationDelay: '0.2s' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: '"Syne",sans-serif', color: '#f0f4ff', marginBottom: 20 }}>Performance</div>
-          <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 24 }}>
-            <Gauge value={winRate} max={100} color={winRate >= 60 ? '#10b981' : winRate >= 45 ? '#f59e0b' : '#ef4444'} size={72} />
-            <div>
-              <div style={{ color: winRate >= 60 ? '#10b981' : winRate >= 45 ? '#f59e0b' : '#ef4444', fontSize: 28, fontWeight: 800, fontFamily: '"Syne",sans-serif' }}>{winRate}%</div>
-              <div style={{ color: '#4a5c7a', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>win rate</div>
-              {streak > 0 && <div style={{ color: '#fbbf24', fontSize: 11, fontFamily: '"DM Mono",monospace', marginTop: 4 }}>🔥 {streak} in a row</div>}
+        {/* Right column: P&L + Macro + Journal */}
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {/* Portfolio P&L */}
+          <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>PORTFOLIO</div>
+              <button onClick={() => navigate('/app/portfolio')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Manage →</button>
             </div>
-            {pnlHistory.length > 2 && (
-              <div style={{ flex: 1 }}>
-                <Sparkline data={pnlHistory} color={totalPnl >= 0 ? '#10b981' : '#ef4444'} width={120} height={50} />
-                <div style={{ color: '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace', marginTop: 4, textAlign: 'center', letterSpacing: '0.08em' }}>EQUITY CURVE</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div>
+                <div style={{ color:'#4a5c7a', fontSize:10, marginBottom:2 }}>Value</div>
+                <div style={{ color:'#f0f6ff', fontSize:17, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{fmtDollar(portfolio.value)}</div>
               </div>
-            )}
+              <div>
+                <div style={{ color:'#4a5c7a', fontSize:10, marginBottom:2 }}>Total Return</div>
+                <div style={{ color:portfolio.return>=0?'#10b981':'#ef4444', fontSize:17, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{fmtPct(portfolio.pct)}</div>
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              { label: 'Profit Factor', val: profitFactor, color: '#8b5cf6' },
-              { label: 'Avg Win', val: `$${avgWin.toFixed(0)}`, color: '#10b981' },
-              { label: 'Avg Loss', val: `$${avgLoss.toFixed(0)}`, color: '#ef4444' },
-              { label: 'Total Trades', val: closed.length, color: '#3b82f6' },
-            ].map(({ label, val, color }) => (
-              <div key={label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ color: '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                <div style={{ color, fontSize: 17, fontWeight: 700, fontFamily: '"DM Mono",monospace' }}>{val}</div>
+
+          {/* Journal stats */}
+          <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>TRADING PERFORMANCE</div>
+              <button onClick={() => navigate('/app/journal')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Journal →</button>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ color: journalStats.winRate >= 60 ? '#10b981' : journalStats.winRate >= 50 ? '#f59e0b' : '#ef4444', fontSize:18, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{journalStats.winRate || 0}%</div>
+                <div style={{ color:'#3d4e62', fontSize:9 }}>Win Rate</div>
               </div>
-            ))}
+              <div style={{ textAlign:'center' }}>
+                <div style={{ color:journalStats.pnl>=0?'#10b981':'#ef4444', fontSize:18, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{fmtDollar(journalStats.pnl)}</div>
+                <div style={{ color:'#3d4e62', fontSize:9 }}>Total P&L</div>
+              </div>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ color:'#f0f6ff', fontSize:18, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{journalStats.total}</div>
+                <div style={{ color:'#3d4e62', fontSize:9 }}>Trades</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Macro events */}
+          <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', flex:1 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>MACRO CALENDAR</div>
+              <button onClick={() => navigate('/app/earnings')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Earnings →</button>
+            </div>
+            {macroEvents.length === 0 ? (
+              <div style={{ color:'#3d4e62', fontSize:10 }}>No upcoming events</div>
+            ) : (
+              macroEvents.map((e, i) => <MacroRow key={i} event={e} />)
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Quick Actions ── */}
-      <div className="ov-section" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, animationDelay: '0.25s' }}>
+      {/* Quick action bar */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
         {[
-          { label: 'Signals', sub: 'Live feed', href: '/app/signals', icon: '📡', color: '#2563eb', grad: 'rgba(37,99,235,0.12)' },
-          { label: 'Journal', sub: 'Log trades', href: '/app/journal', icon: '📓', color: '#10b981', grad: 'rgba(16,185,129,0.12)' },
-          { label: 'Portfolio', sub: 'P&L tracker', href: '/app/portfolio', icon: '💼', color: '#8b5cf6', grad: 'rgba(139,92,246,0.12)' },
-          { label: 'AI Coach', sub: 'Get insight', href: '/app/journal', icon: '🤖', color: '#f59e0b', grad: 'rgba(245,158,11,0.12)' },
-        ].map(({ label, sub, href, icon, color, grad }) => (
-          <button
-            key={href}
-            className="ov-action"
-            onClick={() => navigate(href)}
-            style={{ background: grad, border: `1px solid ${color}30`, borderRadius: 12, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', opacity: 0.92 }}
-          >
-            <div style={{ fontSize: 22, marginBottom: 8 }}>{icon}</div>
-            <div style={{ color: '#f0f4ff', fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{label}</div>
-            <div style={{ color: '#4a5c7a', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>{sub}</div>
+          ['🎯 Run Scan', '/app/setups'],
+          ['📅 Earnings', '/app/earnings'],
+          ['🌡 Sectors', '/app/sectors'],
+          ['⚖ Risk Calc', '/app/risk'],
+          ['🌙 EOD Debrief', '/app/eod'],
+          ['🧠 Intelligence', '/app/intelligence'],
+        ].map(([label, path]) => (
+          <button key={path} onClick={() => navigate(path)} style={{ padding:'7px 14px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:8, color:'#6b7a90', fontSize:11, cursor:'pointer', transition:'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(96,165,250,0.3)'; e.currentTarget.style.color='#60a5fa'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(255,255,255,0.07)'; e.currentTarget.style.color='#6b7a90'; }}>
+            {label}
           </button>
         ))}
       </div>
