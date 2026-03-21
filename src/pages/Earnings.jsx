@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
-const fmt = (n, dec=2) => n == null ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
-const fmtPct = n => n == null ? '—' : (n > 0 ? '+' : '') + fmt(n, 2) + '%'
+const fmt = (n, dec=2) => n == null ? 'â' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
+const fmtPct = n => n == null ? 'â' : (n > 0 ? '+' : '') + fmt(n, 2) + '%'
 
 // Key earnings for the next 4 weeks - seeded with known names, refreshed via API
 const KEY_SYMBOLS = ['NVDA','AMD','MSFT','AAPL','AMZN','GOOGL','META','TSLA','NFLX','CRM','ORCL','INTC','JPM','BAC','GS','MS','WMT','COST','HD','TGT','SPY','QQQ']
@@ -50,8 +50,8 @@ function EarningsCard({ item, onViewChart }) {
               IV Rank {item.ivRank}
             </span>
           )}
-          {item.expectedMove && <span style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 5, padding: '2px 8px', color: '#a5b4fc', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>±{item.expectedMove}% exp move</span>}
-          {item.avgMove && <span style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: '2px 8px', color: '#4a5c7a', fontSize: 10 }}>Avg ±{item.avgMove}% historical</span>}
+          {item.expectedMove && <span style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 5, padding: '2px 8px', color: '#a5b4fc', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>Â±{item.expectedMove}% exp move</span>}
+          {item.avgMove && <span style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: '2px 8px', color: '#4a5c7a', fontSize: 10 }}>Avg Â±{item.avgMove}% historical</span>}
         </div>
       )}
 
@@ -68,7 +68,7 @@ function EarningsCard({ item, onViewChart }) {
       {/* Options strategy recommendation */}
       {item.strategy && (
         <div style={{ background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.15)', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
-          <div style={{ color: '#60a5fa', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>💡 {item.strategy}</div>
+          <div style={{ color: '#60a5fa', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>ð¡ {item.strategy}</div>
         </div>
       )}
 
@@ -94,16 +94,16 @@ export default function Earnings() {
 
   // Hardcoded near-term earnings with known data (refreshed by cron from Supabase)
   const SEEDED_EARNINGS = [
-    { symbol: 'NKE', name: 'Nike Inc', date: dateStr(addDays(TODAY, 1)), time: 'amc', epsEstimate: 0.29, beatsLast8: 75, expectedMove: 8.2, avgMove: 9.1, ivRank: 72, strategy: 'High IV → Sell iron condor, avoid buying premium' },
-    { symbol: 'MU', name: 'Micron Technology', date: dateStr(addDays(TODAY, 2)), time: 'amc', epsEstimate: 1.43, beatsLast8: 62, expectedMove: 9.8, avgMove: 11.2, ivRank: 81, strategy: 'IV rank 81 — sell credit spread, target IV crush' },
-    { symbol: 'ORCL', name: 'Oracle Corp', date: dateStr(addDays(TODAY, 3)), time: 'amc', epsEstimate: 1.47, beatsLast8: 87, expectedMove: 7.1, avgMove: 6.8, ivRank: 58, strategy: 'Strong beat history — buy calls 2 weeks before, close before earnings' },
-    { symbol: 'ACN', name: 'Accenture', date: dateStr(addDays(TODAY, 4)), time: 'bmo', epsEstimate: 2.82, beatsLast8: 100, expectedMove: 4.2, avgMove: 4.8, ivRank: 38, strategy: 'Consistent beater — consider buying calls if IV rank < 40' },
-    { symbol: 'FDX', name: 'FedEx Corp', date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 4.01, beatsLast8: 62, expectedMove: 6.3, avgMove: 7.9, ivRank: 44, strategy: 'Mixed history — wait for reaction, trade the move post-earnings' },
+    { symbol: 'NKE', name: 'Nike Inc', date: dateStr(addDays(TODAY, 1)), time: 'amc', epsEstimate: 0.29, beatsLast8: 75, expectedMove: 8.2, avgMove: 9.1, ivRank: 72, strategy: 'High IV â Sell iron condor, avoid buying premium' },
+    { symbol: 'MU', name: 'Micron Technology', date: dateStr(addDays(TODAY, 2)), time: 'amc', epsEstimate: 1.43, beatsLast8: 62, expectedMove: 9.8, avgMove: 11.2, ivRank: 81, strategy: 'IV rank 81 â sell credit spread, target IV crush' },
+    { symbol: 'ORCL', name: 'Oracle Corp', date: dateStr(addDays(TODAY, 3)), time: 'amc', epsEstimate: 1.47, beatsLast8: 87, expectedMove: 7.1, avgMove: 6.8, ivRank: 58, strategy: 'Strong beat history â buy calls 2 weeks before, close before earnings' },
+    { symbol: 'ACN', name: 'Accenture', date: dateStr(addDays(TODAY, 4)), time: 'bmo', epsEstimate: 2.82, beatsLast8: 100, expectedMove: 4.2, avgMove: 4.8, ivRank: 38, strategy: 'Consistent beater â consider buying calls if IV rank < 40' },
+    { symbol: 'FDX', name: 'FedEx Corp', date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 4.01, beatsLast8: 62, expectedMove: 6.3, avgMove: 7.9, ivRank: 44, strategy: 'Mixed history â wait for reaction, trade the move post-earnings' },
     { symbol: 'LULU', name: 'lululemon', date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 5.92, beatsLast8: 87, expectedMove: 8.9, avgMove: 10.2, ivRank: 69, strategy: 'Consider debit spread to limit IV crush risk' },
-    { symbol: 'WBA', name: 'Walgreens Boots', date: dateStr(addDays(TODAY, 8)), time: 'bmo', epsEstimate: -0.06, beatsLast8: 37, expectedMove: 5.1, avgMove: 6.8, ivRank: 45, strategy: 'Turnaround story — high uncertainty, avoid directional options' },
-    { symbol: 'COST', name: 'Costco', date: dateStr(addDays(TODAY, 10)), time: 'amc', epsEstimate: 4.11, beatsLast8: 87, expectedMove: 3.8, avgMove: 4.1, ivRank: 31, strategy: 'Reliable compounder — low expected move, buy calls if IV cheap' },
-    { symbol: 'PAYX', name: 'Paychex', date: dateStr(addDays(TODAY, 11)), time: 'bmo', epsEstimate: 1.41, beatsLast8: 75, expectedMove: 3.1, avgMove: 3.8, ivRank: 22, strategy: 'IV rank 22 — buy options if needed, very cheap premium' },
-    { symbol: 'PVH', name: 'PVH Corp', date: dateStr(addDays(TODAY, 12)), time: 'amc', epsEstimate: 2.89, beatsLast8: 62, expectedMove: 7.2, avgMove: 9.4, ivRank: 53, strategy: 'Volatile name — iron condor at edges of expected move' },
+    { symbol: 'WBA', name: 'Walgreens Boots', date: dateStr(addDays(TODAY, 8)), time: 'bmo', epsEstimate: -0.06, beatsLast8: 37, expectedMove: 5.1, avgMove: 6.8, ivRank: 45, strategy: 'Turnaround story â high uncertainty, avoid directional options' },
+    { symbol: 'COST', name: 'Costco', date: dateStr(addDays(TODAY, 10)), time: 'amc', epsEstimate: 4.11, beatsLast8: 87, expectedMove: 3.8, avgMove: 4.1, ivRank: 31, strategy: 'Reliable compounder â low expected move, buy calls if IV cheap' },
+    { symbol: 'PAYX', name: 'Paychex', date: dateStr(addDays(TODAY, 11)), time: 'bmo', epsEstimate: 1.41, beatsLast8: 75, expectedMove: 3.1, avgMove: 3.8, ivRank: 22, strategy: 'IV rank 22 â buy options if needed, very cheap premium' },
+    { symbol: 'PVH', name: 'PVH Corp', date: dateStr(addDays(TODAY, 12)), time: 'amc', epsEstimate: 2.89, beatsLast8: 62, expectedMove: 7.2, avgMove: 9.4, ivRank: 53, strategy: 'Volatile name â iron condor at edges of expected move' },
   ]
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export default function Earnings() {
     // Fetch live quotes for all symbols
     const syms = earningsData.map(e => e.symbol).join(',')
     try {
-      const r = await fetch('/api/market?type=quotes&symbols=' + syms)
+      const r = await fetch('/api/market?action=quotes&symbols=' + syms)
       if (r.ok) setQuotes(await r.json())
     } catch (e) {}
     
@@ -158,8 +158,8 @@ export default function Earnings() {
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}`}</style>
 
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>📅 Earnings Calendar</h1>
-        <div style={{ color: '#3d4e62', fontSize: 11 }}>IV rank · Expected moves · Historical beat rates · Options strategy suggestions</div>
+        <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>ð Earnings Calendar</h1>
+        <div style={{ color: '#3d4e62', fontSize: 11 }}>IV rank Â· Expected moves Â· Historical beat rates Â· Options strategy suggestions</div>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
