@@ -4,411 +4,424 @@ import { supabase } from '../lib/supabase'
 const TFS = [
   { label: '1D', ts: 'minute', m: 1, days: 1, lim: 390 },
   { label: '5D', ts: 'minute', m: 5, days: 5, lim: 390 },
-  { label: '1M', ts: 'day', m: 1, days: 30, lim: 30 },
+  { label: '1M', ts: 'hour', m: 1, days: 30, lim: 720 },
   { label: '3M', ts: 'day', m: 1, days: 90, lim: 90 },
   { label: '6M', ts: 'day', m: 1, days: 180, lim: 180 },
   { label: '1Y', ts: 'day', m: 1, days: 365, lim: 365 },
-  { label: '2Y', ts: 'week', m: 1, days: 730, lim: 104 },
 ]
-const OVS = ['EMA9','EMA21','EMA50','EMA200','VWAP']
-const COLS = { EMA9:'#f59e0b', EMA21:'#3b82f6', EMA50:'#8b5cf6', EMA200:'#ef4444', VWAP:'#10b981' }
 
-function calcEMA(data, p) {
-  const k = 2/(p+1); let e = data[0]?.close
-  return data.map((d,i) => { if(i===0) return {time:d.time,value:e}; e=d.close*k+e*(1-k); return {time:d.time,value:parseFloat(e.toFixed(4))} })
-}
-function calcVWAP(data) {
-  let cPV=0,cV=0
-  return data.map(c => { const tp=(c.high+c.low+c.close)/3; cPV+=tp*(c.volume||1); cV+=(c.volume||1); return {time:c.time,value:parseFloat((cPV/cV).toFixed(4))} })
-}
-
-function Section({ title, icon, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-      <button onClick={() => setOpen(o => !o)} style={{ width:'100%',background:'none',border:'none',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',color:'#8b9fc0' }}>
-        <span style={{ fontFamily:'"DM Mono",monospace',fontSize:10,letterSpacing:'.08em',display:'flex',alignItems:'center',gap:6 }}>
-          <span>{icon}</span>{title}
-        </span>
-        <span style={{ fontSize:10 }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && <div style={{ padding:'0 16px 14px' }}>{children}</div>}
-    </div>
+// ── Indicator math ──────────────────────────────────────────────────────────
+function calcSMA(closes, period) {
+  return closes.map((_, i) =>
+    i < period - 1 ? null : closes.slice(i - period + 1, i + 1).reduce((a, b) => a + b) / period
   )
 }
-
-function DataRow({ label, value, color }) {
-  return (
-    <div style={{ display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.03)' }}>
-      <span style={{ color:'#4a5c7a',fontSize:11 }}>{label}</span>
-      <span style={{ color:color||'#c4cfe0',fontSize:12,fontFamily:'"DM Mono",monospace',fontWeight:600 }}>{value}</span>
-    </div>
+function calcEMA(closes, period) {
+  const k = 2 / (period + 1)
+  const result = Array(closes.length).fill(null)
+  const start = closes.findIndex((_, i) => i >= period - 1)
+  if (start < 0) return result
+  result[start] = closes.slice(0, start + 1).reduce((a, b) => a + b) / (start + 1)
+  for (let i = start + 1; i < closes.length; i++) result[i] = closes[i] * k + result[i - 1] * (1 - k)
+  return result
+}
+function calcRSI(closes, period = 14) {
+  const result = Array(closes.length).fill(null)
+  if (closes.length < period + 1) return result
+  let gains = 0, losses = 0
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1]
+    if (d > 0) gains += d; else losses -= d
+  }
+  let avgGain = gains / period, avgLoss = losses / period
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1]
+    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period
+    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)
+  }
+  return result
+}
+function calcMACD(closes, fast = 12, slow = 26, signal = 9) {
+  const emaFast = calcEMA(closes, fast)
+  const emaSlow = calcEMA(closes, slow)
+  const macdLine = closes.map((_, i) =>
+    emaFast[i] != null && emaSlow[i] != null ? emaFast[i] - emaSlow[i] : null
   )
+  const validMacd = macdLine.filter(v => v != null)
+  const signalLine = Array(macdLine.length).fill(null)
+  const firstValidIdx = macdLine.findIndex(v => v != null)
+  if (firstValidIdx < 0 || validMacd.length < signal) return { macdLine, signalLine, histogram: macdLine.map(() => null) }
+  const sigEMA = calcEMA(validMacd, signal)
+  let vi = 0
+  for (let i = firstValidIdx; i < macdLine.length; i++) {
+    if (sigEMA[vi] != null) signalLine[i] = sigEMA[vi]
+    vi++
+  }
+  const histogram = macdLine.map((v, i) =>
+    v != null && signalLine[i] != null ? v - signalLine[i] : null
+  )
+  return { macdLine, signalLine, histogram }
+}
+function calcBollinger(closes, period = 20, mult = 2) {
+  const sma = calcSMA(closes, period)
+  return closes.map((_, i) => {
+    if (sma[i] == null) return { upper: null, middle: null, lower: null }
+    const slice = closes.slice(i - period + 1, i + 1)
+    const std = Math.sqrt(slice.reduce((a, v) => a + Math.pow(v - sma[i], 2), 0) / period)
+    return { upper: sma[i] + mult * std, middle: sma[i], lower: sma[i] - mult * std }
+  })
 }
 
-function AnalysisPanel({ symbol, onClose }) {
-  const [data, setData] = useState(null)
-  const [analysis, setAnalysis] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+// ── Mini canvas chart components ─────────────────────────────────────────────
+function IndicatorPanel({ label, data, color = '#60a5fa', height = 80, type = 'line', overbought, oversold, zeroline }) {
+  const ref = useRef(null)
 
   useEffect(() => {
-    if (!symbol) return
-    setData(null); setAnalysis(''); setLoading(true); setError(null)
-    const NL = '\n'
-    ;(async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const r = await fetch('/api/analysis?type=analyze&symbol=' + symbol, {
-          headers: { 'Authorization': 'Bearer ' + session?.access_token }
-        })
-        const reader = r.body.getReader()
-        const dec = new TextDecoder()
-        let txt = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = dec.decode(value)
-          const lines = chunk.split(NL).filter(l => l.startsWith('data: '))
-          for (const line of lines) {
-            try {
-              const d = JSON.parse(line.slice(6))
-              if (d.type === 'data') { setData(d.tickerData); setLoading(false) }
-              else if (d.type === 'text') { txt += d.text; setAnalysis(txt) }
-              else if (d.type === 'error') setError(d.error)
-            } catch(e) {}
-          }
-        }
-      } catch(err) { setError(err.message); setLoading(false) }
-    })()
-  }, [symbol])
+    const canvas = ref.current
+    if (!canvas || !data?.length) return
+    const ctx = canvas.getContext('2d')
+    const dpr = window.devicePixelRatio || 1
+    const W = canvas.offsetWidth, H = height
+    canvas.width = W * dpr; canvas.height = H * dpr
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px'
+    ctx.scale(dpr, dpr)
+    ctx.clearRect(0, 0, W, H)
 
-  const td = data
-  const steps = ['Fetching price data', 'Calculating indicators', 'Loading options chain', 'Running AI synthesis']
+    const valid = data.filter(v => v != null && !isNaN(v))
+    if (!valid.length) return
+    const min = Math.min(...valid), max = Math.max(...valid)
+    const range = max - min || 1
+    const pad = { t: 6, b: 6, l: 50, r: 8 }
+    const w = W - pad.l - pad.r, h = H - pad.t - pad.b
+    const x = i => pad.l + (i / (data.length - 1)) * w
+    const y = v => pad.t + h - ((v - min) / range) * h
 
-  return (
-    <div style={{ width:340,borderLeft:'1px solid rgba(255,255,255,0.07)',background:'#090e18',display:'flex',flexDirection:'column',flexShrink:0,height:'100%',overflowY:'auto' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
-      <div style={{ padding:'14px 16px',borderBottom:'1px solid rgba(255,255,255,0.07)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,position:'sticky',top:0,background:'#090e18',zIndex:10 }}>
-        <div>
-          <div style={{ fontFamily:'"Syne",sans-serif',fontSize:16,fontWeight:800,color:'#f0f4ff' }}>{symbol} Analysis</div>
-          <div style={{ color:'#4a5c7a',fontSize:10,fontFamily:'"DM Mono",monospace' }}>100 ANALYST FRAMEWORKS</div>
-        </div>
-        <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)',border:'none',color:'#8b9fc0',width:28,height:28,borderRadius:7,cursor:'pointer',fontSize:14 }}>✕</button>
-      </div>
-      {loading && !td && (
-        <div style={{ padding:20 }}>
-          <div style={{ color:'#4a5c7a',fontSize:12,fontFamily:'"DM Mono",monospace',marginBottom:12 }}>⚡ Loading market intelligence...</div>
-          {steps.map((s,i) => (
-            <div key={s} style={{ color:'#2d3d50',fontSize:11,padding:'4px 0',animation:'pulse 1.5s infinite',animationDelay:(i*0.4)+'s' }}>▸ {s}</div>
-          ))}
-        </div>
-      )}
-      {error && <div style={{ padding:'16px',color:'#fca5a5',fontSize:12,background:'rgba(239,68,68,0.05)' }}>{error}</div>}
-      {td && (
-        <>
-          <div style={{ padding:'12px 16px',background:'rgba(255,255,255,0.02)' }}>
-            <div style={{ display:'flex',alignItems:'baseline',gap:8 }}>
-              <span style={{ fontSize:24,fontWeight:700,color:'#f0f4ff',fontFamily:'"DM Mono",monospace' }}>${td.current?.toFixed(2)}</span>
-              <span style={{ fontSize:13,color:td.changePct>=0?'#10b981':'#ef4444',fontFamily:'"DM Mono",monospace' }}>
-                {td.changePct >= 0 ? '➲ ' : '➼ '}{Math.abs(td.changePct||0).toFixed(2)}%
-              </span>
-            </div>
-            <div style={{ color:'#4a5c7a',fontSize:11 }}>{td.name}</div>
-            <div style={{ marginTop:8 }}>
-              <div style={{ display:'flex',justifyContent:'space-between',fontSize:10,color:'#2d3d50',marginBottom:4 }}>
-                <span>52W Low ${td.low52w?.toFixed(0)}</span>
-                <span style={{ color:'#8b9fc0' }}>{td.pricePosition52w}% of range</span>
-                <span>High ${td.high52w?.toFixed(0)}</span>
-              </div>
-              <div style={{ height:3,background:'rgba(255,255,255,0.06)',borderRadius:2,overflow:'hidden' }}>
-                <div style={{ width:(td.pricePosition52w||50)+'%',height:'100%',background:td.pricePosition52w>80?'#ef4444':td.pricePosition52w<20?'#10b981':'#3b82f6',borderRadius:2 }}/>
-              </div>
-            </div>
-          </div>
-          <Section title="PRICE ACTION & TECHNICALS" icon="📈" defaultOpen={true}>
-            <DataRow label="RSI(14)" value={td.technicals?.rsi14} color={td.technicals?.rsi14>70?'#ef4444':td.technicals?.rsi14<30?'#10b981':'#c4cfe0'} />
-            <DataRow label="EMA Alignment" value={(td.technicals?.emaAlignment||'').replace('_',' ').toUpperCase()} color={td.technicals?.emaAlignment==='bullish_stacked'?'#10b981':td.technicals?.emaAlignment==='bearish_stacked'?'#ef4444':'#f59e0b'} />
-            <DataRow label="vs EMA50" value={(td.technicals?.distFromEMA50>0?'+':'')+td.technicals?.distFromEMA50+'%'} color={td.technicals?.distFromEMA50>0?'#10b981':'#ef4444'} />
-            <DataRow label="vs EMA200" value={(td.technicals?.distFromEMA200>0?'+':'')+td.technicals?.distFromEMA200+'%'} color={td.technicals?.distFromEMA200>0?'#10b981':'#ef4444'} />
-            <DataRow label="Volume" value={td.volumeRatio+'x avg'} color={parseFloat(td.volumeRatio)>1.5?'#f59e0b':'#c4cfe0'} />
-            <div style={{ marginTop:8 }}>
-              <div style={{ color:'#2d3d50',fontSize:10,fontFamily:'"DM Mono",monospace',marginBottom:6 }}>EMA LEVELS</div>
-              {[['EMA9',td.technicals?.ema9,'#f59e0b'],['EMA21',td.technicals?.ema21,'#3b82f6'],['EMA50',td.technicals?.ema50,'#8b5cf6'],['EMA200',td.technicals?.ema200,'#ef4444']].map(([name,val,col]) => (
-                <div key={name} style={{ display:'flex',justifyContent:'space-between',padding:'3px 0' }}>
-                  <span style={{ color:col,fontSize:10,fontFamily:'"DM Mono",monospace' }}>{name}</span>
-                  <span style={{ color:'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace' }}>${val?.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-          </Section>
-          <Section title="FIBONACCI LEVELS" icon="🔢">
-            {td.fibonacci && Object.entries(td.fibonacci).map(([pct, price]) => {
-              const isNear = Math.abs(td.current - price) / td.current < 0.015
-              return (
-                <div key={pct} style={{ display:'flex',justifyContent:'space-between',padding:'4px 8px',borderBottom:'1px solid rgba(255,255,255,0.03)',background:isNear?'rgba(245,158,11,0.05)':'transparent',marginLeft:-16,marginRight:-16 }}>
-                  <span style={{ color:isNear?'#f59e0b':'#4a5c7a',fontSize:11 }}>{pct}</span>
-                  <span style={{ color:isNear?'#f59e0b':'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace',fontWeight:isNear?700:400 }}>
-                    ${price?.toFixed(2)}{isNear ? ' ← NEAR' : ''}
-                  </span>
-                </div>
-              )
-            })}
-          </Section>
-          {td.options?.expirations?.length > 0 && (
-            <Section title="OPTIONS INTELLIGENCE" icon="⚩">
-              <div style={{ color:'#4a5c7a',fontSize:10,marginBottom:8 }}>UPCOMING EXPIRATIONS</div>
-              {(td.options.expirations||[]).slice(0,3).map(exp => (
-                <div key={exp} style={{ color:'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace',padding:'2px 0' }}>{exp}</div>
-              ))}
-              {td.options.atmCalls?.length > 0 && (
-                <>
-                  <div style={{ color:'#10b981',fontSize:10,fontFamily:'"DM Mono",monospace',marginTop:10,marginBottom:6 }}>ATM CALLS</div>
-                  {td.options.atmCalls.slice(0,2).map((c,i) => (
-                    <div key={i} style={{ background:'rgba(16,185,129,0.05)',borderRadius:6,padding:'6px 8px',marginBottom:4 }}>
-                      <div style={{ display:'flex',justifyContent:'space-between' }}>
-                        <span style={{ color:'#10b981',fontSize:11,fontFamily:'"DM Mono",monospace' }}>${c.strike} call</span>
-                        <span style={{ color:'#8b9fc0',fontSize:11 }}>ask: ${c.ask?.toFixed(2)}</span>
-                      </div>
-                      {c.iv && <div style={{ color:'#2d3d50',fontSize:10 }}>IV: {(c.iv*100).toFixed(0)}% | OI: {c.oi}</div>}
-                    </div>
-                  ))}
-                </>
-              )}
-              {td.options.atmPuts?.length > 0 && (
-                <>
-                  <div style={{ color:'#ef4444',fontSize:10,fontFamily:'"DM Mono",monospace',marginTop:8,marginBottom:6 }}>ATM PUTS</div>
-                  {td.options.atmPuts.slice(0,2).map((p,i) => (
-                    <div key={i} style={{ background:'rgba(239,68,68,0.05)',borderRadius:6,padding:'6px 8px',marginBottom:4 }}>
-                      <div style={{ display:'flex',justifyContent:'space-between' }}>
-                        <span style={{ color:'#ef4444',fontSize:11,fontFamily:'"DM Mono",monospace' }}>${p.strike} put</span>
-                        <span style={{ color:'#8b9fc0',fontSize:11 }}>ask: ${p.ask?.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-            </Section>
-          )}
-          {td.news?.length > 0 && (
-            <Section title="NEWS & SENTIMENT" icon="📰">
-              {td.news.map((n, i) => (
-                <div key={i} style={{ paddingBottom:10,marginBottom:10,borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ color:'#c4cfe0',fontSize:11,lineHeight:1.5,marginBottom:3 }}>{n.title}</div>
-                  <div style={{ color:'#2d3d50',fontSize:10 }}>{n.publisher} · {n.age}</div>
-                </div>
-              ))}
-            </Section>
-          )}
-          <Section title="AI SYNTHESIS" icon="🧠">
-            {!analysis && (
-              <div style={{ color:'#4a5c7a',fontSize:12,fontFamily:'"DM Mono",monospace',animation:'pulse 1.5s infinite' }}>
-                Running 100 analyst frameworks...
-              </div>
-            )}
-            {analysis && (
-              <div style={{ color:'#c4cfe0',fontSize:12,lineHeight:1.7,whiteSpace:'pre-wrap' }}>{analysis}</div>
-            )}
-          </Section>
-        </>
-      )}
-    </div>
-  )
+    // Background
+    ctx.fillStyle = 'rgba(13,20,32,0.5)'
+    ctx.fillRect(0, 0, W, H)
+
+    // Gridlines + levels
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.lineWidth = 1
+    if (overbought != null) {
+      ctx.beginPath(); ctx.moveTo(pad.l, y(overbought)); ctx.lineTo(W - pad.r, y(overbought)); ctx.strokeStyle = 'rgba(239,68,68,0.25)'; ctx.stroke()
+      ctx.fillStyle = 'rgba(239,68,68,0.5)'; ctx.font = '9px DM Mono, monospace'; ctx.fillText(overbought, 2, y(overbought) + 3)
+    }
+    if (oversold != null) {
+      ctx.beginPath(); ctx.moveTo(pad.l, y(oversold)); ctx.lineTo(W - pad.r, y(oversold)); ctx.strokeStyle = 'rgba(16,185,129,0.25)'; ctx.stroke()
+      ctx.fillStyle = 'rgba(16,185,129,0.5)'; ctx.font = '9px DM Mono, monospace'; ctx.fillText(oversold, 2, y(oversold) + 3)
+    }
+    if (zeroline) {
+      const zy = y(0)
+      if (zy > pad.t && zy < H - pad.b) {
+        ctx.beginPath(); ctx.moveTo(pad.l, zy); ctx.lineTo(W - pad.r, zy); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([])
+      }
+    }
+
+    // Draw data
+    if (type === 'histogram') {
+      data.forEach((v, i) => {
+        if (v == null) return
+        const barX = x(i), barW = Math.max(1, w / data.length - 1)
+        const barY = v >= 0 ? y(v) : y(0), barH = Math.abs(y(v) - y(0))
+        ctx.fillStyle = v >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'
+        ctx.fillRect(barX - barW / 2, barY, barW, barH || 1)
+      })
+    } else {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5
+      let started = false
+      data.forEach((v, i) => {
+        if (v == null) { started = false; return }
+        if (!started) { ctx.moveTo(x(i), y(v)); started = true } else ctx.lineTo(x(i), y(v))
+      })
+      ctx.stroke()
+    }
+
+    // Label + current value
+    const last = [...data].reverse().find(v => v != null)
+    ctx.fillStyle = '#4a5c7a'; ctx.font = 'bold 9px DM Mono, monospace'
+    ctx.fillText(label, pad.l + 4, 14)
+    if (last != null) {
+      const valColor = overbought && last > overbought ? '#ef4444' : oversold && last < oversold ? '#10b981' : color
+      ctx.fillStyle = valColor; ctx.font = 'bold 10px DM Mono, monospace'
+      ctx.fillText(last.toFixed(2), W - pad.r - 40, 14)
+    }
+  }, [data, height, type, overbought, oversold, zeroline, color, label])
+
+  return <canvas ref={ref} style={{ width: '100%', height, display: 'block', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
 }
 
+// ── Main Charts page ──────────────────────────────────────────────────────────
 export default function Charts() {
-  const [sym, setSym] = useState('SPY')
-  const [inp, setInp] = useState('SPY')
-  const [tf, setTf] = useState(TFS[3])
-  const [candles, setCandles] = useState([])
-  const [quote, setQuote] = useState(null)
+  const [symbol, setSymbol] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('symbol') || 'SPY'
+  })
+  const [input, setInput] = useState(symbol)
+  const [tf, setTf] = useState('3M')
+  const [bars, setBars] = useState([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [results, setResults] = useState([])
-  const [overlays, setOverlays] = useState(['EMA21','EMA50'])
-  const [showPanel, setShowPanel] = useState(true)
-  const chartDiv = useRef(null)
+  const [quote, setQuote] = useState(null)
+  const [indicators, setIndicators] = useState({ ema20: true, ema50: true, ema200: false, bb: false, volume: true, rsi: true, macd: false })
+  const [analysis, setAnalysis] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
   const chartRef = useRef(null)
-  const candleRef = useRef(null)
-  const ovRef = useRef({})
-  const stRef = useRef(null)
+  const chartInstance = useRef(null)
+  const seriesRef = useRef({})
 
-  useEffect(() => {
-    if (window.LightweightCharts) { initChart(); return }
-    const s = document.createElement('script')
-    s.src = 'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js'
-    s.onload = () => initChart()
-    document.head.appendChild(s)
+  // Fetch OHLCV data
+  const fetchBars = useCallback(async (sym, tfLabel) => {
+    setLoading(true)
+    setBars([])
+    const tfObj = TFS.find(t => t.label === tfLabel) || TFS[3]
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const headers = session ? { 'Authorization': 'Bearer ' + session.access_token } : {}
+      const r = await fetch(`/api/market?action=history&symbol=${sym}&timespan=${tfObj.ts}&multiplier=${tfObj.m}&days=${tfObj.days}&limit=${tfObj.lim}`, { headers })
+      if (!r.ok) throw new Error('HTTP ' + r.status)
+      const d = await r.json()
+      const rawBars = d.bars || d.results || []
+      if (rawBars.length > 0) {
+        setBars(rawBars)
+        setQuote({ symbol: sym, price: rawBars[rawBars.length - 1].c, change: rawBars[rawBars.length - 1].c - rawBars[rawBars.length - 2]?.c || 0 })
+      }
+    } catch (e) {
+      console.error('Chart fetch error:', e.message)
+    }
+    setLoading(false)
   }, [])
 
-  function initChart() {
-    if (!chartDiv.current || chartRef.current) return
-    const { createChart } = window.LightweightCharts
-    chartRef.current = createChart(chartDiv.current, {
-      layout: { background: { color: '#0d1420' }, textColor: '#8b9fc0' },
+  useEffect(() => { fetchBars(symbol, tf) }, [symbol, tf])
+
+  // Build lightweight-charts
+  useEffect(() => {
+    if (!chartRef.current || bars.length === 0) return
+    if (typeof window.LightweightCharts === 'undefined') return
+
+    // Clean up previous
+    if (chartInstance.current) { try { chartInstance.current.remove() } catch(e) {} }
+    chartInstance.current = null; seriesRef.current = {}
+
+    const chart = window.LightweightCharts.createChart(chartRef.current, {
+      width: chartRef.current.clientWidth,
+      height: 420,
+      layout: { background: { color: '#080c14' }, textColor: '#4a5c7a' },
       grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
       crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
-      timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true, secondsVisible: false },
-      handleScroll: true, handleScale: true,
+      rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
+      timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true },
     })
-    candleRef.current = chartRef.current.addCandlestickSeries({
-      upColor:'#10b981', downColor:'#ef4444', borderUpColor:'#10b981',
-      borderDownColor:'#ef4444', wickUpColor:'#10b981', wickDownColor:'#ef4444',
+    chartInstance.current = chart
+
+    // Candlestick series
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#10b981', downColor: '#ef4444',
+      borderUpColor: '#10b981', borderDownColor: '#ef4444',
+      wickUpColor: '#10b981', wickDownColor: '#ef4444',
     })
+    const candleData = bars.map(b => ({
+      time: Math.floor((b.t || b.timestamp) / 1000),
+      open: b.o, high: b.h, low: b.l, close: b.c
+    })).filter(b => b.open && b.close).sort((a, b) => a.time - b.time)
+    candleSeries.setData(candleData)
+    seriesRef.current.candle = candleSeries
+
+    const closes = candleData.map(b => b.close)
+    const times = candleData.map(b => b.time)
+    const toSeries = (arr) => arr.map((v, i) => v != null ? { time: times[i], value: v } : null).filter(Boolean)
+
+    // Volume
+    if (indicators.volume) {
+      const volSeries = chart.addHistogramSeries({ color: 'rgba(96,165,250,0.3)', priceFormat: { type: 'volume' }, priceScaleId: 'vol', scaleMargins: { top: 0.85, bottom: 0 } })
+      volSeries.setData(bars.map((b, i) => ({
+        time: times[i],
+        value: b.v || b.volume || 0,
+        color: b.c >= b.o ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'
+      })).filter(b => b.time))
+    }
+
+    // EMAs
+    if (indicators.ema20) {
+      const ema20 = chart.addLineSeries({ color: '#60a5fa', lineWidth: 1, priceLineVisible: false })
+      ema20.setData(toSeries(calcEMA(closes, 20)))
+    }
+    if (indicators.ema50) {
+      const ema50 = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false })
+      ema50.setData(toSeries(calcEMA(closes, 50)))
+    }
+    if (indicators.ema200) {
+      const ema200 = chart.addLineSeries({ color: '#a78bfa', lineWidth: 1, priceLineVisible: false })
+      ema200.setData(toSeries(calcEMA(closes, 200)))
+    }
+
+    // Bollinger Bands
+    if (indicators.bb) {
+      const bb = calcBollinger(closes)
+      const upper = chart.addLineSeries({ color: 'rgba(99,102,241,0.5)', lineWidth: 1, priceLineVisible: false })
+      const lower = chart.addLineSeries({ color: 'rgba(99,102,241,0.5)', lineWidth: 1, priceLineVisible: false })
+      upper.setData(toSeries(bb.map(b => b.upper)))
+      lower.setData(toSeries(bb.map(b => b.lower)))
+    }
+
+    chart.timeScale().fitContent()
+
     const ro = new ResizeObserver(() => {
-      if (chartDiv.current && chartRef.current)
-        chartRef.current.applyOptions({ width: chartDiv.current.clientWidth, height: chartDiv.current.clientHeight })
-    })
-    ro.observe(chartDiv.current)
-  }
-
-  const fetchData = useCallback(async () => {
-    if (!sym) return
-    setLoading(true); setError(null)
-    try {
-      const to = new Date().toISOString().split('T')[0]
-      const fr = new Date(Date.now()-tf.days*24*60*60*1000).toISOString().split('T')[0]
-      const [aggs, snap] = await Promise.all([
-        fetch('/api/market?type=aggs&symbol='+sym+'&timespan='+tf.ts+'&multiplier='+tf.m+'&from='+fr+'&to='+to+'&limit='+tf.lim).then(r=>r.json()),
-        fetch('/api/market?type=snapshot&symbol='+sym).then(r=>r.json()),
-      ])
-      setCandles(aggs.candles||[]); setQuote(snap)
-      if (!chartRef.current) { initChart(); await new Promise(r=>setTimeout(r,100)) }
-      if (!candleRef.current) return
-      candleRef.current.setData(aggs.candles||[])
-      Object.values(ovRef.current).forEach(s=>{try{chartRef.current.removeSeries(s)}catch(e){}})
-      ovRef.current = {}
-      overlays.forEach(o => {
-        if (!aggs.candles?.length) return
-        const data = o.startsWith('EMA') ? calcEMA(aggs.candles, parseInt(o.replace('EMA',''))) : o==='VWAP' ? calcVWAP(aggs.candles) : []
-        if (data.length) {
-          const s = chartRef.current.addLineSeries({color:COLS[o],lineWidth:1.5,priceLineVisible:false,lastValueVisible:true,title:o})
-          s.setData(data); ovRef.current[o] = s
-        }
-      })
-      chartRef.current.timeScale().fitContent()
-    } catch(err) { setError(err.message) }
-    finally { setLoading(false) }
-  }, [sym, tf, overlays])
-
-  useEffect(() => { fetchData() }, [fetchData])
-
-  useEffect(() => {
-    if (!candles.length || !chartRef.current) return
-    Object.values(ovRef.current).forEach(s=>{try{chartRef.current.removeSeries(s)}catch(e){}})
-    ovRef.current = {}
-    overlays.forEach(o => {
-      const data = o.startsWith('EMA') ? calcEMA(candles, parseInt(o.replace('EMA',''))) : o==='VWAP' ? calcVWAP(candles) : []
-      if (data.length && chartRef.current) {
-        const s = chartRef.current.addLineSeries({color:COLS[o],lineWidth:1.5,priceLineVisible:false,lastValueVisible:true,title:o})
-        s.setData(data); ovRef.current[o] = s
+      if (chartRef.current && chartInstance.current) {
+        chartInstance.current.applyOptions({ width: chartRef.current.clientWidth })
       }
     })
-  }, [overlays])
+    ro.observe(chartRef.current)
+    return () => ro.disconnect()
+  }, [bars, indicators])
 
-  function doSearch(v) {
-    setInp(v); clearTimeout(stRef.current)
-    if (v.length < 2) { setResults([]); return }
-    stRef.current = setTimeout(async () => {
-      const r = await fetch('/api/market?type=search&q='+v).then(r=>r.json()).catch(()=>({results:[]}))
-      setResults(r.results||[])
-    }, 280)
+  // Computed indicator data for canvas panels
+  const closes = bars.map(b => b.c)
+  const rsiData = closes.length >= 15 ? calcRSI(closes) : []
+  const macdData = closes.length >= 30 ? calcMACD(closes) : { macdLine: [], signalLine: [], histogram: [] }
+
+  async function runAnalysis() {
+    setAnalyzing(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const r = await fetch(`/api/analysis?type=single&symbol=${symbol}`, {
+        headers: session ? { 'Authorization': 'Bearer ' + session.access_token } : {}
+      })
+      if (r.ok) { const d = await r.json(); setAnalysis(d) }
+    } catch (e) { console.error(e) }
+    setAnalyzing(false)
   }
 
-  const isUp = quote ? quote.change >= 0 : true
-  const chgCol = isUp ? '#10b981' : '#ef4444'
+  const btnStyle = (active) => ({
+    padding: '4px 10px', background: active ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.04)',
+    border: `1px solid ${active ? 'rgba(37,99,235,0.4)' : 'rgba(255,255,255,0.08)'}`,
+    borderRadius: 5, color: active ? '#60a5fa' : '#4a5c7a',
+    fontSize: 10, cursor: 'pointer', fontFamily: '"DM Mono", monospace',
+  })
+  const toggle = (key) => setIndicators(p => ({ ...p, [key]: !p[key] }))
 
   return (
-    <div style={{ display:'flex',height:'100%',background:'#080c14',overflow:'hidden' }}>
-      <style>{`.tfb{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:7px;padding:5px 12px;color:#8b9fc0;font-family:"DM Mono",monospace;font-size:11px;cursor:pointer}.tfb:hover,.tfb.act{background:rgba(37,99,235,.15);border-color:rgba(37,99,235,.4);color:#60a5fa}.ovb{border:1px solid rgba(255,255,255,.06);border-radius:6px;padding:4px 10px;font-family:"DM Mono",monospace;font-size:10px;cursor:pointer}.ovb.on{border-color:currentColor}.sr{padding:8px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;display:flex;align-items:center;justify-content:space-between}.sr:hover{background:rgba(255,255,255,.04)}`}</style>
-      <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden' }}>
-        <div style={{ padding:'20px 24px 16px',flexShrink:0 }}>
-          <div style={{ display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,gap:16,flexWrap:'wrap' }}>
-            <div>
-              <h1 style={{ fontFamily:'"Syne",sans-serif',fontSize:24,fontWeight:800,margin:'0 0 4px' }}>Charts</h1>
-              {quote && (
-                <div style={{ display:'flex',alignItems:'center',gap:12 }}>
-                  <span style={{ fontSize:24,fontWeight:700 }}>${quote.price?.toFixed(2)}</span>
-                  <span style={{ color:chgCol,fontSize:13,fontFamily:'"DM Mono",monospace' }}>
-                    {isUp ? '➲ ' : '➼ '}{Math.abs(quote.change||0).toFixed(2)} ({Math.abs(quote.changePct||0).toFixed(2)}%)
-                  </span>
-                  {quote.volume > 0 && <span style={{ color:'#4a5c7a',fontSize:11,fontFamily:'"DM Mono",monospace' }}>Vol: {(quote.volume/1e6).toFixed(1)}M</span>}
-                </div>
-              )}
-            </div>
-            <div style={{ display:'flex',gap:10,alignItems:'center' }}>
-              <div style={{ position:'relative',minWidth:180 }}>
-                <input
-                  value={inp}
-                  onChange={e => doSearch(e.target.value)}
-                  onKeyDown={e => { if(e.key==='Enter') { setSym(inp.toUpperCase()); setResults([]) } }}
-                  placeholder="Search ticker..."
-                  style={{ width:'100%',background:'#111927',border:'1.5px solid rgba(255,255,255,.1)',borderRadius:10,padding:'9px 14px',color:'#f0f4ff',fontSize:13,outline:'none',fontFamily:'"DM Mono",monospace',textTransform:'uppercase' }}
-                />
-                {results.length > 0 && (
-                  <div style={{ position:'absolute',top:'100%',left:0,right:0,background:'#111927',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,zIndex:100,maxHeight:220,overflowY:'auto',marginTop:4,boxShadow:'0 8px 32px rgba(0,0,0,.5)' }}>
-                    {results.map(r => (
-                      <div key={r.symbol} className="sr" onClick={() => { setSym(r.symbol); setInp(r.symbol); setResults([]) }}>
-                        <span style={{ color:'#f0f4ff',fontFamily:'"DM Mono",monospace',fontWeight:600 }}>{r.symbol}</span>
-                        <span style={{ color:'#4a5c7a',fontSize:11 }}>{r.name?.substring(0,22)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => setShowPanel(p => !p)}
-                style={{ padding:'9px 16px',background:showPanel?'rgba(37,99,235,0.15)':'rgba(255,255,255,0.04)',border:'1px solid '+(showPanel?'rgba(37,99,235,0.4)':'rgba(255,255,255,0.1)'),borderRadius:9,color:showPanel?'#60a5fa':'#8b9fc0',fontSize:12,cursor:'pointer',fontFamily:'"DM Mono",monospace',whiteSpace:'nowrap' }}
-              >
-                🧠 �{showPanel ? 'Hide Analysis' : 'Show Analysis'}
-              </button>
-            </div>
-          </div>
-          <div style={{ display:'flex',alignItems:'center',gap:10,flexWrap:'wrap' }}>
-            <div style={{ display:'flex',gap:4 }}>
-              {TFS.map(t => <button key={t.label} className={'tfb'+(tf.label===t.label?' act':'')} onClick={() => setTf(t)}>{t.label}</button>)}
-            </div>
-            <div style={{ width:1,height:20,background:'rgba(255,255,255,.07)' }}/>
-            <div style={{ display:'flex',gap:4,alignItems:'center' }}>
-              <span style={{ color:'#2d3d50',fontSize:10,fontFamily:'"DM Mono",monospace' }}>OVERLAYS</span>
-              {OVS.map(o => (
-                <button key={o} className={'ovb'+(overlays.includes(o)?' on':'')} style={{ color:overlays.includes(o)?COLS[o]:'#4a5c7a' }}
-                  onClick={() => setOverlays(p => p.includes(o) ? p.filter(x=>x!==o) : [...p,o])}>
-                  {o}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div style={{ flex:1,position:'relative',margin:'0 24px',borderRadius:14,overflow:'hidden',border:'1px solid rgba(255,255,255,.07)',minHeight:0 }}>
-          {loading && (
-            <div style={{ position:'absolute',inset:0,background:'rgba(8,12,20,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:10,color:'#8b9fc0',fontFamily:'"DM Mono",monospace',}}>
-              Loading {sym}...
+    <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans", sans-serif' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 2px' }}>Charts</h1>
+          {quote && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontFamily: '"DM Mono",monospace', fontSize: 22, fontWeight: 700 }}>${quote.price?.toFixed(2)}</span>
+              <span style={{ color: quote.change >= 0 ? '#10b981' : '#ef4444', fontSize: 13, fontFamily: '"DM Mono",monospace' }}>
+                {quote.change >= 0 ? '+' : ''}{quote.change?.toFixed(2)}
+              </span>
             </div>
           )}
-          <div ref={chartDiv} style={{ width:'100%',height:'100%' }}/>
         </div>
-        {candles.length > 0 && (
-          <div style={{ margin:'8px 24px 16px',background:'#0d1420',border:'1px solid rgba(255,255,255,.07)',borderRadius:12,padding:'12px 16px',flexShrink:0 }}>
-            <div style={{ color:'#2d3d50',fontSize:10,fontFamily:'"DM Mono",monospace',marginBottom:8 }}>VOLUME</div>
-            <div style={{ display:'flex',alignItems:'flex-end',gap:1,height:48 }}>
-              {candles.slice(-60).map((c,i) => {
-                const mx = Math.max(...candles.slice(-60).map(x=>x.volume||0))
-                const h = mx > 0 ? (c.volume/mx)*48 : 0
-                const g = i > 0 && c.close >= candles[candles.length-60+i-1]?.close
-                return <div key={i} style={{ flex:1,height:h,background:g?'rgba(16,185,129,.4)':'rgba(239,68,68,.4)',borderRadius:'2px 2px 0 0',alignSelf:'flex-end',minWidth:1 }}/>
-              })}
-            </div>
+
+        {/* Symbol search */}
+        <form onSubmit={e => { e.preventDefault(); setSymbol(input.toUpperCase().trim()) }} style={{ display: 'flex', gap: 6 }}>
+          <input value={input} onChange={e => setInput(e.target.value.toUpperCase())}
+            style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#f0f6ff', fontSize: 14, fontFamily: '"DM Mono",monospace', width: 110, outline: 'none' }}
+            placeholder="SYMBOL" />
+          <button type="submit" style={{ padding: '8px 16px', background: 'rgba(37,99,235,0.2)', border: '1px solid rgba(37,99,235,0.3)', borderRadius: 8, color: '#60a5fa', fontSize: 12, cursor: 'pointer', fontFamily: '"DM Mono",monospace' }}>Go</button>
+        </form>
+      </div>
+
+      {/* Timeframe + Indicator toggles */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        {TFS.map(t => (
+          <button key={t.label} style={btnStyle(tf === t.label)} onClick={() => setTf(t.label)}>{t.label}</button>
+        ))}
+        <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
+        {[['EMA20','ema20'],['EMA50','ema50'],['EMA200','ema200'],['BB','bb'],['Vol','volume'],['RSI','rsi'],['MACD','macd']].map(([lbl,key]) => (
+          <button key={key} style={btnStyle(indicators[key])} onClick={() => toggle(key)}>{lbl}</button>
+        ))}
+        <button onClick={runAnalysis} disabled={analyzing} style={{ ...btnStyle(false), marginLeft: 'auto', color: '#10b981', borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.08)' }}>
+          {analyzing ? '⟳ Analyzing...' : '⚡ AI Analysis'}
+        </button>
+      </div>
+
+      {/* Main chart */}
+      <div style={{ background: '#080c14', borderRadius: 12, border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', marginBottom: 0 }}>
+        {loading && (
+          <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3d4e62', fontFamily: '"DM Mono",monospace', fontSize: 12 }}>
+            Loading {symbol}...
           </div>
         )}
-        {error && (
-          <div style={{ margin:'0 24px 16px',background:'rgba(239,68,68,.08)',border:'1px solid rgba(239,68,68,.2)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:12,flexShrink:0 }}>
-            {error}
-          </div>
+        <div ref={chartRef} style={{ width: '100%', display: loading ? 'none' : 'block' }} />
+
+        {/* RSI panel */}
+        {indicators.rsi && rsiData.length > 0 && (
+          <IndicatorPanel label="RSI(14)" data={rsiData} color="#a78bfa" height={80} overbought={70} oversold={30} />
+        )}
+
+        {/* MACD panels */}
+        {indicators.macd && macdData.macdLine.length > 0 && (
+          <>
+            <div style={{ position: 'relative' }}>
+              <IndicatorPanel label="MACD" data={macdData.macdLine} color="#60a5fa" height={70} zeroline />
+              {/* Signal line drawn on same panel — overlay with second canvas is complex so we show separately */}
+            </div>
+            <IndicatorPanel label="Signal" data={macdData.signalLine} color="#f59e0b" height={40} zeroline />
+            <IndicatorPanel label="Histogram" data={macdData.histogram} color="#10b981" height={60} type="histogram" zeroline />
+          </>
         )}
       </div>
-      {showPanel && <AnalysisPanel symbol={sym} onClose={() => setShowPanel(false)} />}
+
+      {/* Current indicator readings */}
+      {(indicators.rsi || indicators.macd) && closes.length > 0 && (
+        <div style={{ display: 'flex', gap: 16, padding: '10px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          {indicators.rsi && rsiData.length > 0 && (() => {
+            const rsiVal = [...rsiData].reverse().find(v => v != null)
+            return rsiVal && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: '#3d4e62', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>RSI(14)</span>
+                <span style={{ fontFamily: '"DM Mono",monospace', fontWeight: 700, fontSize: 14, color: rsiVal > 70 ? '#ef4444' : rsiVal < 30 ? '#10b981' : '#a78bfa' }}>{rsiVal.toFixed(1)}</span>
+                <span style={{ fontSize: 9, color: rsiVal > 70 ? '#ef4444' : rsiVal < 30 ? '#10b981' : '#4a5c7a' }}>{rsiVal > 70 ? 'OVERBOUGHT' : rsiVal < 30 ? 'OVERSOLD' : 'NEUTRAL'}</span>
+              </div>
+            )
+          })()}
+          {indicators.macd && macdData.histogram.length > 0 && (() => {
+            const hist = [...macdData.histogram].reverse().find(v => v != null)
+            const macdVal = [...macdData.macdLine].reverse().find(v => v != null)
+            return hist != null && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: '#3d4e62', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>MACD</span>
+                <span style={{ fontFamily: '"DM Mono",monospace', fontWeight: 700, fontSize: 14, color: hist >= 0 ? '#10b981' : '#ef4444' }}>{macdVal?.toFixed(3)}</span>
+                <span style={{ fontSize: 9, color: hist >= 0 ? '#10b981' : '#ef4444' }}>{hist >= 0 ? 'BULLISH' : 'BEARISH'}</span>
+              </div>
+            )
+          })()}
+          {(() => {
+            const ema20 = calcEMA(closes, 20)
+            const ema50 = calcEMA(closes, 50)
+            const e20 = [...ema20].reverse().find(v => v != null)
+            const e50 = [...ema50].reverse().find(v => v != null)
+            const last = closes[closes.length - 1]
+            if (!e20 || !e50 || !last) return null
+            const trend = last > e20 && e20 > e50 ? 'BULLISH STACK' : last < e20 && e20 < e50 ? 'BEARISH STACK' : 'MIXED'
+            return (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ color: '#3d4e62', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>EMA TREND</span>
+                <span style={{ fontSize: 10, fontFamily: '"DM Mono",monospace', color: trend.includes('BULL') ? '#10b981' : trend.includes('BEAR') ? '#ef4444' : '#f59e0b' }}>{trend}</span>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* AI Analysis panel */}
+      {analysis && (
+        <div style={{ marginTop: 10, padding: '14px 16px', background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.15)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontFamily: '"DM Mono",monospace', fontSize: 11, color: '#60a5fa', fontWeight: 700 }}>⚡ AI Analysis — {symbol}</span>
+            <button onClick={() => setAnalysis(null)} style={{ background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 14 }}>✕</button>
+          </div>
+          <div style={{ color: '#9ab', fontSize: 12, lineHeight: 1.7 }}>
+            {analysis.analysis || analysis.summary || JSON.stringify(analysis).substring(0, 400)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
