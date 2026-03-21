@@ -1,161 +1,274 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
-const POPULAR = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD','PLTR','CRWD','COIN','JPM','GS']
+const QUICK = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD','PLTR','CRWD','COIN','JPM','GS','IWM','XLK','MSTR']
+const TF = ['1m','5m','15m','1h','4h','1D','1W','1M']
+const TF_TV = { '1m':'1','5m':'5','15m':'15','1h':'60','4h':'240','1D':'D','1W':'W','1M':'M' }
 
-export default function Charts() {
-  const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const initSymbol = (searchParams.get('symbol') || 'SPY').toUpperCase()
-  const [symbol, setSymbol] = useState(initSymbol)
-  const [input, setInput] = useState(initSymbol)
-  const [interval, setIntervalState] = useState('D')
-  const [aiAnalysis, setAiAnalysis] = useState(null)
-  const [aiLoading, setAiLoading] = useState(false)
-  const containerRef = useRef(null)
+function TVChart({ symbol, interval }) {
+  const ref = useRef(null)
   const widgetRef = useRef(null)
 
-  const INTERVALS = [
-    {label:'1m',  tv:'1'},
-    {label:'5m',  tv:'5'},
-    {label:'15m', tv:'15'},
-    {label:'1h',  tv:'60'},
-    {label:'4h',  tv:'240'},
-    {label:'1D',  tv:'D'},
-    {label:'1W',  tv:'W'},
-    {label:'1M',  tv:'M'},
-  ]
-
-  const loadWidget = useCallback((sym, iv) => {
-    if (!containerRef.current) return
-    // Clear previous
-    containerRef.current.innerHTML = ''
-    const script = document.createElement('script')
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
-    script.async = true
-    script.type = 'text/javascript'
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol: sym,
-      interval: iv,
+  useEffect(() => {
+    if (!ref.current) return
+    // Remove old widget
+    if (widgetRef.current) { ref.current.innerHTML = '' }
+    const s = document.createElement('script')
+    s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
+    s.async = true
+    s.innerHTML = JSON.stringify({
+      symbol: symbol,
+      interval: TF_TV[interval] || 'D',
       timezone: 'America/New_York',
       theme: 'dark',
       style: '1',
       locale: 'en',
-      backgroundColor: 'rgba(13,13,17,1)',
-      gridColor: 'rgba(255,255,255,0.04)',
       hide_top_toolbar: false,
       hide_legend: false,
-      allow_symbol_change: true,
+      allow_symbol_change: false,
       save_image: false,
-      calendar: false,
-      studies: ['STD;RSI','STD;MACD','STD;Volume'],
-      support_host: 'https://www.tradingview.com',
-      container_id: 'tv_chart_container',
+      backgroundColor: 'rgba(8,11,18,1)',
+      gridColor: 'rgba(30,40,64,0.3)',
+      width: '100%',
+      height: '100%',
     })
-    const div = document.createElement('div')
-    div.className = 'tradingview-widget-container__widget'
-    div.style.cssText = 'height:calc(100% - 32px);width:100%'
-    const copyright = document.createElement('div')
-    copyright.className = 'tradingview-widget-copyright'
-    copyright.innerHTML = '<a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span style="color:#6b7280;font-size:11px">Charts by TradingView</span></a>'
-    containerRef.current.appendChild(div)
-    containerRef.current.appendChild(copyright)
-    containerRef.current.appendChild(script)
-    widgetRef.current = script
-  }, [])
+    const container = document.createElement('div')
+    container.className = 'tradingview-widget-container'
+    container.style.cssText = 'width:100%;height:100%;'
+    const inner = document.createElement('div')
+    inner.className = 'tradingview-widget-container__widget'
+    inner.style.cssText = 'width:100%;height:100%;'
+    container.appendChild(inner)
+    container.appendChild(s)
+    ref.current.innerHTML = ''
+    ref.current.appendChild(container)
+    widgetRef.current = container
+  }, [symbol, interval])
 
-  useEffect(() => { loadWidget(symbol, interval) }, [symbol, interval, loadWidget])
+  return <div ref={ref} style={{ width:'100%', height:'100%' }} />
+}
 
-  const handleGo = () => {
-    const sym = input.trim().toUpperCase()
-    if (!sym) return
-    setSymbol(sym)
-    navigate(`/app/charts?symbol=${sym}`, {replace:true})
-  }
+function AnalysisPanel({ symbol, onClose }) {
+  const [loading, setLoading] = useState(false)
+  const [analysis, setAnalysis] = useState(null)
+  const [error, setError] = useState(null)
+  const [autoLoad, setAutoLoad] = useState(false)
 
-  const runAiAnalysis = async () => {
-    setAiLoading(true)
-    setAiAnalysis(null)
+  const run = useCallback(async () => {
+    setLoading(true); setError(null); setAnalysis(null)
     try {
-      const r = await fetch(`/api/analysis?type=single&symbol=${symbol}`, {signal:AbortSignal.timeout(60000)})
+      const r = await fetch('/api/analysis?action=snapshot&symbol=' + symbol, { signal: AbortSignal.timeout(90000) })
       const d = await r.json()
-      setAiAnalysis(d.analysis || d.error || 'No analysis returned')
-    } catch(e) { setAiAnalysis('Error: '+e.message) }
-    setAiLoading(false)
-  }
+      d.error ? setError(d.error) : setAnalysis(d)
+    } catch(e) { setError(e.message) }
+    setLoading(false)
+  }, [symbol])
 
-  const s = {
-    page: {background:'var(--bg-base)',minHeight:'100vh',padding:'12px 16px',fontFamily:'var(--font)',color:'var(--text-primary)',display:'flex',flexDirection:'column',gap:12},
-    header: {display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'},
-    symbolInput: {background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:8,color:'var(--text-primary)',padding:'8px 14px',fontSize:16,fontWeight:700,width:120,letterSpacing:1,textTransform:'uppercase'},
-    goBtn: {background:'var(--accent)',color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',cursor:'pointer',fontWeight:600,fontSize:14},
-    intervalRow: {display:'flex',gap:4,flexWrap:'wrap'},
-    ivBtn: (active) => ({background: active?'var(--accent)':'var(--bg-card)',color: active?'#fff':'var(--text-secondary)',border:'1px solid '+(active?'var(--accent)':'var(--border)'),borderRadius:6,padding:'5px 10px',cursor:'pointer',fontSize:12,fontWeight:active?700:400}),
-    aiBtn: {background:'linear-gradient(135deg,#7c3aed,#2563eb)',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',cursor:'pointer',fontWeight:600,fontSize:13,marginLeft:'auto'},
-    chartContainer: {flex:1,minHeight:600,borderRadius:12,overflow:'hidden',border:'1px solid var(--border)'},
-    aiPanel: {background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:12,padding:16},
-    aiTitle: {fontSize:14,fontWeight:700,color:'var(--accent)',marginBottom:8},
-    aiText: {fontSize:13,color:'var(--text-secondary)',lineHeight:1.7,whiteSpace:'pre-wrap'},
-    quickSymbols: {display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'},
-    qsLabel: {fontSize:12,color:'var(--text-muted)',marginRight:4},
-    qsBtn: {background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-secondary)',padding:'3px 8px',cursor:'pointer',fontSize:12},
+  useEffect(() => { if (autoLoad) run() }, [symbol])
+
+  const sc = analysis && analysis.sentiment
+    ? (analysis.sentiment === 'bullish' ? '#10b981' : analysis.sentiment === 'bearish' ? '#ef4444' : '#f59e0b')
+    : 'var(--text-muted)'
+
+  return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', background:'var(--bg-card)', borderLeft:'1px solid var(--border)' }}>
+      {/* Panel header */}
+      <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+        <div>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)' }}>AI Analysis</div>
+          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{symbol}</div>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <button onClick={run} disabled={loading}
+                  style={{ background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', border:'none',
+                           borderRadius:7, padding:'6px 14px', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+            {loading ? 'Analyzing...' : 'Analyze'}
+          </button>
+          <button onClick={onClose}
+                  style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:16, padding:'4px 6px', lineHeight:1 }}>
+            x
+          </button>
+        </div>
+      </div>
+
+      {/* Panel body — scrollable */}
+      <div style={{ flex:1, overflowY:'auto', padding:'14px' }}>
+        {!analysis && !loading && !error && (
+          <div style={{ textAlign:'center', padding:'40px 20px' }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>AI</div>
+            <div style={{ fontSize:14, fontWeight:600, color:'var(--text-primary)', marginBottom:8 }}>AnkushAI Analysis</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.7, marginBottom:20 }}>
+              Get AI-powered technical analysis,<br/>key levels, and trade setups for {symbol}
+            </div>
+            <button onClick={run}
+                    style={{ background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', border:'none',
+                             borderRadius:8, padding:'10px 24px', cursor:'pointer', fontSize:13, fontWeight:600 }}>
+              Run Analysis
+            </button>
+          </div>
+        )}
+
+        {loading && (
+          <div style={{ textAlign:'center', padding:'40px 20px', color:'var(--text-muted)' }}>
+            <div style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:8 }}>Analyzing {symbol}...</div>
+            <div style={{ fontSize:12, lineHeight:1.8 }}>
+              Scanning technicals<br/>Checking market context<br/>Building trade thesis
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)',
+                        borderRadius:8, padding:12, color:'#ef4444', fontSize:12 }}>
+            {error}
+          </div>
+        )}
+
+        {analysis && !loading && (
+          <div>
+            {/* Sentiment + price */}
+            <div style={{ background:'var(--bg-elevated)', borderRadius:8, padding:12, marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <span style={{ fontSize:16, fontWeight:700 }}>{symbol}</span>
+                <span style={{ fontSize:11, fontWeight:700, padding:'3px 8px', borderRadius:4, textTransform:'uppercase',
+                               background: sc + '20', color:sc }}>{analysis.sentiment}</span>
+              </div>
+              {analysis.price && (
+                <div style={{ fontSize:20, fontWeight:700, fontFamily:'var(--font-mono)', color:'var(--text-primary)', marginBottom:4 }}>
+                  ${Number(analysis.price).toFixed(2)}
+                </div>
+              )}
+              {analysis.confidence && (
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>Confidence: <span style={{color:'var(--text-secondary)',fontWeight:600}}>{analysis.confidence}%</span></div>
+              )}
+            </div>
+
+            {/* Summary */}
+            {analysis.summary && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Analysis</div>
+                <div style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.7 }}>{analysis.summary}</div>
+              </div>
+            )}
+
+            {/* Key levels */}
+            {(analysis.keyLevels || analysis.support || analysis.resistance) && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Key Levels</div>
+                {analysis.resistance && (
+                  <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid var(--border-dim)', fontSize:12 }}>
+                    <span style={{color:'var(--text-muted)'}}>Resistance</span>
+                    <span style={{color:'#ef4444', fontFamily:'var(--font-mono)', fontWeight:600}}>${Number(analysis.resistance).toFixed(2)}</span>
+                  </div>
+                )}
+                {analysis.support && (
+                  <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', fontSize:12 }}>
+                    <span style={{color:'var(--text-muted)'}}>Support</span>
+                    <span style={{color:'#10b981', fontFamily:'var(--font-mono)', fontWeight:600}}>${Number(analysis.support).toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Setup */}
+            {analysis.setup && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Trade Setup</div>
+                <div style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>{analysis.setup}</div>
+              </div>
+            )}
+
+            {/* Risk */}
+            {(analysis.entry || analysis.target || analysis.stop) && (
+              <div style={{ background:'var(--bg-elevated)', borderRadius:8, padding:10 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Levels</div>
+                {[['Entry', analysis.entry, 'var(--text-primary)'], ['Target', analysis.target, '#10b981'], ['Stop', analysis.stop, '#ef4444']].filter(([,v])=>v).map(([l,v,c])=>(
+                  <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', fontSize:12 }}>
+                    <span style={{color:'var(--text-muted)'}}>{l}</span>
+                    <span style={{color:c, fontFamily:'var(--font-mono)', fontWeight:600}}>${Number(v).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:12, textAlign:'right' }}>
+              {analysis.timestamp ? new Date(analysis.timestamp).toLocaleTimeString() : ''}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function Charts() {
+  const [params] = useSearchParams()
+  const [sym, setSym] = useState(params.get('symbol') || 'SPY')
+  const [input, setInput] = useState(params.get('symbol') || 'SPY')
+  const [tf, setTf] = useState('1D')
+  const [showAnalysis, setShowAnalysis] = useState(true)
+
+  function go(s) {
+    const v = (s || input).trim().toUpperCase()
+    if (!v) return
+    setSym(v); setInput(v)
   }
 
   return (
-    <div style={s.page}>
-      {/* Header */}
-      <div style={s.header}>
-        <input
-          style={s.symbolInput}
-          value={input}
-          onChange={e=>setInput(e.target.value.toUpperCase())}
-          onKeyDown={e=>e.key==='Enter'&&handleGo()}
-          placeholder="NVDA"
-        />
-        <button style={s.goBtn} onClick={handleGo}>Go</button>
-        {/* Interval selector */}
-        <div style={s.intervalRow}>
-          {INTERVALS.map(iv => (
-            <button key={iv.tv} style={s.ivBtn(interval===iv.tv)} onClick={()=>setIntervalState(iv.tv)}>
-              {iv.label}
-            </button>
+    // Fill entire viewport height minus the 200px sidebar header area
+    // Use dvh for mobile compatibility
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'var(--bg-base)', fontFamily:'var(--font)', color:'var(--text-primary)', overflow:'hidden' }}>
+
+      {/* Top control bar — compact, fixed height */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'var(--bg-card)', flexShrink:0, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <input value={input} onChange={e=>setInput(e.target.value.toUpperCase())}
+                 onKeyDown={e=>e.key==='Enter'&&go()} placeholder='SPY'
+                 style={{ width:80, padding:'5px 10px', background:'var(--bg-elevated)', border:'1px solid var(--border)',
+                          borderRadius:6, color:'var(--text-primary)', fontSize:14, fontWeight:700, textTransform:'uppercase' }} />
+          <button onClick={()=>go()} style={{ padding:'5px 14px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Go</button>
+        </div>
+        <div style={{ display:'flex', gap:3 }}>
+          {TF.map(t => (
+            <button key={t} onClick={()=>setTf(t)}
+                    style={{ padding:'4px 10px', borderRadius:5, border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
+                             background: tf===t ? 'var(--accent)' : 'var(--bg-elevated)',
+                             color: tf===t ? '#fff' : 'var(--text-muted)' }}>{t}</button>
           ))}
         </div>
-        <button style={s.aiBtn} onClick={runAiAnalysis} disabled={aiLoading}>
-          {aiLoading ? '⏳ Analyzing...' : '⚡ AI Analysis'}
+        <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+          {QUICK.map(s => (
+            <button key={s} onClick={()=>go(s)}
+                    style={{ padding:'3px 8px', borderRadius:5, border:'1px solid var(--border)', cursor:'pointer', fontSize:11,
+                             background: sym===s ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                             color: sym===s ? 'var(--accent)' : 'var(--text-muted)',
+                             fontWeight: sym===s ? 700 : 400 }}>{s}</button>
+          ))}
+        </div>
+        <button onClick={()=>setShowAnalysis(v=>!v)}
+                style={{ marginLeft:'auto', padding:'5px 14px', borderRadius:6, border:'1px solid rgba(124,58,237,0.4)',
+                         cursor:'pointer', fontSize:12, fontWeight:600,
+                         background: showAnalysis ? 'rgba(124,58,237,0.15)' : 'var(--bg-elevated)',
+                         color: showAnalysis ? '#a78bfa' : 'var(--text-muted)' }}>
+          {showAnalysis ? 'Hide AI' : 'AI Analysis'}
         </button>
       </div>
 
-      {/* Quick symbols */}
-      <div style={s.quickSymbols}>
-        <span style={s.qsLabel}>Quick:</span>
-        {POPULAR.map(sym => (
-          <button key={sym} style={s.qsBtn} onClick={()=>{setInput(sym);setSymbol(sym);navigate(`/app/charts?symbol=${sym}`,{replace:true})}}>
-            {sym}
-          </button>
-        ))}
-      </div>
+      {/* Main content — flex row, fills remaining height */}
+      <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
 
-      {/* TradingView Chart */}
-      <div
-        ref={containerRef}
-        style={s.chartContainer}
-        className="tradingview-widget-container"
-        id="tv_chart_container"
-      />
-
-      {/* AI Analysis Panel */}
-      {(aiAnalysis || aiLoading) && (
-        <div style={s.aiPanel}>
-          <div style={s.aiTitle}>⚡ AI Analysis — {symbol}</div>
-          {aiLoading ? (
-            <div style={{...s.aiText,color:'var(--text-muted)'}}>Fetching real prices and analyzing {symbol}...</div>
-          ) : (
-            <div style={s.aiText}>{aiAnalysis}</div>
-          )}
+        {/* LEFT: TradingView chart — fills all available space */}
+        <div style={{ flex:1, minWidth:0, position:'relative', overflow:'hidden' }}>
+          <TVChart symbol={sym} interval={tf} />
         </div>
-      )}
+
+        {/* RIGHT: AI Analysis panel — fixed 340px, full height, slides in/out */}
+        {showAnalysis && (
+          <div style={{ width:340, flexShrink:0, height:'100%', overflow:'hidden' }}>
+            <AnalysisPanel symbol={sym} onClose={()=>setShowAnalysis(false)} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
