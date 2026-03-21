@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react'
 
-const fmt = (n, dec=2) => n == null ? 'â' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
-const fmtVol = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n?.toFixed(0) || 'â'
+const fmt = (n, dec=2) => n == null ? '--' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
+const fmtVol = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n?.toFixed(0) || '--'
 
 const SECTOR_ETFS = [
-  { ticker: 'XLK', name: 'Technology', icon: 'ð»', subSymbols: ['NVDA','MSFT','AAPL','AVGO','ORCL'] },
-  { ticker: 'XLF', name: 'Financials', icon: 'ð¦', subSymbols: ['JPM','BAC','WFC','GS','MS'] },
-  { ticker: 'XLV', name: 'Healthcare', icon: 'ð¥', subSymbols: ['LLY','UNH','JNJ','ABBV','MRK'] },
-  { ticker: 'XLE', name: 'Energy', icon: 'â¡', subSymbols: ['XOM','CVX','COP','SLB','PSX'] },
-  { ticker: 'XLY', name: 'Consumer Disc', icon: 'ð', subSymbols: ['AMZN','TSLA','HD','MCD','NKE'] },
-  { ticker: 'XLP', name: 'Consumer Stpl', icon: 'ð', subSymbols: ['PG','KO','PEP','WMT','COST'] },
-  { ticker: 'XLI', name: 'Industrials', icon: 'ð', subSymbols: ['GE','CAT','RTX','HON','UNP'] },
-  { ticker: 'XLB', name: 'Materials', icon: 'â', subSymbols: ['LIN','SHW','APD','ECL','NEM'] },
-  { ticker: 'XLRE', name: 'Real Estate', icon: 'ð¢', subSymbols: ['PLD','AMT','EQIX','PSA','WELL'] },
-  { ticker: 'XLU', name: 'Utilities', icon: 'ð¡', subSymbols: ['NEE','DUK','SO','D','AEP'] },
-  { ticker: 'XLC', name: 'Communication', icon: 'ð¡', subSymbols: ['META','GOOGL','NFLX','DIS','T'] },
+  { ticker: 'XLK',  name: 'Technology',     icon: 'TEC', subSymbols: ['NVDA','MSFT','AAPL','AVGO','ORCL'] },
+  { ticker: 'XLF',  name: 'Financials',     icon: 'FIN', subSymbols: ['JPM','BAC','WFC','GS','MS'] },
+  { ticker: 'XLV',  name: 'Healthcare',     icon: 'HLT', subSymbols: ['LLY','UNH','JNJ','ABBV','MRK'] },
+  { ticker: 'XLE',  name: 'Energy',         icon: 'NRG', subSymbols: ['XOM','CVX','COP','SLB','EOG'] },
+  { ticker: 'XLY',  name: 'Consumer Disc',  icon: 'CSM', subSymbols: ['AMZN','TSLA','HD','MCD','NKE'] },
+  { ticker: 'XLP',  name: 'Consumer Stpl',  icon: 'STL', subSymbols: ['WMT','PG','KO','COST','PM'] },
+  { ticker: 'XLI',  name: 'Industrials',    icon: 'IND', subSymbols: ['GE','RTX','HON','CAT','UNP'] },
+  { ticker: 'XLB',  name: 'Materials',      icon: 'MAT', subSymbols: ['LIN','APD','SHW','FCX','NEM'] },
+  { ticker: 'XLRE', name: 'Real Estate',    icon: 'REI', subSymbols: ['PLD','AMT','EQIX','SPG','DLR'] },
+  { ticker: 'XLU',  name: 'Utilities',      icon: 'UTL', subSymbols: ['NEE','DUK','SO','D','AEP'] },
+  { ticker: 'XLC',  name: 'Communication',  icon: 'COM', subSymbols: ['META','GOOGL','NFLX','DIS','VZ'] },
 ]
 
 function getColor(change) {
