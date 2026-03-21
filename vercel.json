@@ -15,5 +15,15 @@
     "api/ai.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/cron/weekly",
+      "schedule": "0 11 * * 0"
+    }
+  ]
 }
