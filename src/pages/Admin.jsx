@@ -1,141 +1,136 @@
 import { useState, useEffect } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
-import { useAuth } from '../lib/auth'
-
-const ADMIN_EMAIL = 'ankushtasildar2@gmail.com'
-const LS_KEY = 'aai_admin'
-const ADMIN_SECRET = 'ankushai-admin-2024'
-
-async function adminFetch(action, body) {
-  const url = '/api/admin' + (action ? '?action=' + action : '');
-  const opts = {
-    headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
-  };
-  if (body) { opts.method = 'POST'; opts.body = JSON.stringify(body); }
-  const r = await fetch(url, opts);
-  return r.json();
-}
+import { supabase } from '../lib/supabase'
 
 export default function Admin() {
-  const { user, loading } = useAuth()
-  const localAuth = localStorage.getItem(LS_KEY) === 'true'
-
-  if (!localAuth && loading) {
-    return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#080c14',color:'#4a5c7a',fontFamily:'"DM Mono",monospace',fontSize:12 }}>Loading...</div>
-  }
-
-  if (!localAuth && user?.email !== ADMIN_EMAIL) {
-    return <Navigate to="/admin/login" replace />
-  }
-
-  return <AdminDashboard localAuth={localAuth} email={user?.email} />
-}
-
-function AdminDashboard({ localAuth, email }) {
-  const navigate = useNavigate()
+  const [stats, setStats] = useState({})
   const [users, setUsers] = useState([])
-  const [stats, setStats] = useState({ total: 0, pro: 0, free: 0 })
-  const [dataLoading, setDataLoading] = useState(true)
-  const [codeInput, setCodeInput] = useState('')
-  const [codeMsg, setCodeMsg] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [action, setAction] = useState(null)
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadAll() }, [])
 
-  async function loadData() {
-    setDataLoading(true)
-    const data = await adminFetch('users')
-    if (Array.isArray(data)) {
-      setUsers(data)
-      const pro = data.filter(p => p.plan === 'pro').length
-      setStats({ total: data.length, pro, free: data.length - pro })
-    }
-    setDataLoading(false)
+  async function loadAll() {
+    setLoading(true)
+    const [scanR, setupR, subR, alertR, journalR] = await Promise.all([
+      supabase.from('scan_cache').select('id,setup_count,market_mood,vix,created_at').order('created_at',{ascending:false}).limit(5),
+      supabase.from('setup_records').select('id,symbol,bias,outcome,scan_date').order('created_at',{ascending:false}).limit(20),
+      supabase.from('subscriptions').select('user_id,status,plan,current_period_end'),
+      supabase.from('price_alerts').select('id,symbol,alert_type,is_active').eq('is_active',true),
+      supabase.from('journal_entries').select('id,symbol,status,pnl_dollar').order('created_at',{ascending:false}).limit(10),
+    ])
+    setStats({
+      scanCache: scanR.data||[], 
+      setups: setupR.data||[], 
+      subs: subR.data||[],
+      alerts: alertR.data||[],
+      journal: journalR.data||[],
+    })
+    setLoading(false)
   }
 
-  async function createCode() {
-    const code = codeInput.trim().toUpperCase()
-    if (!code) return
-    const r = await adminFetch('create-code', { code })
-    setCodeMsg(r.ok ? '✓ Created: ' + code : 'Error: ' + r.error)
-    setCodeInput('')
-    setTimeout(() => setCodeMsg(''), 4000)
+  async function triggerScan() { setAction('scan'); await fetch('/api/analysis?type=scan'); await loadAll(); setAction(null) }
+  async function triggerEOD() { setAction('eod'); await fetch('/api/cron/eod'); await loadAll(); setAction(null) }
+  async function triggerPremarket() { setAction('premarket'); await fetch('/api/cron/premarket'); await loadAll(); setAction(null) }
+  async function clearOldCache() {
+    setAction('clear')
+    const cutoff = new Date(Date.now() - 24*60*60000).toISOString()
+    await supabase.from('scan_cache').delete().lt('created_at', cutoff)
+    await loadAll(); setAction(null)
   }
 
-  async function togglePlan(userId, plan) {
-    await adminFetch('toggle-plan', { userId, plan })
-    loadData()
-  }
+  const card = (title, value, color='#60a5fa') => (
+    <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:10,padding:'14px 16px',textAlign:'center'}}>
+      <div style={{color:color,fontFamily:'"DM Mono",monospace',fontSize:24,fontWeight:800}}>{value}</div>
+      <div style={{color:'#3d4e62',fontSize:9,fontFamily:'"DM Mono",monospace',marginTop:4}}>{title}</div>
+    </div>
+  )
 
-  function logout() {
-    localStorage.removeItem(LS_KEY)
-    navigate('/', { replace: true })
-  }
-
-  const th = { color:'#4a5c7a',fontSize:11,padding:'8px 12px',textAlign:'left',borderBottom:'1px solid #1e2d3d',textTransform:'uppercase',letterSpacing:'0.05em' }
-  const td = { color:'#8b9fc0',fontSize:12,padding:'10px 12px',borderBottom:'1px solid #0d1520' }
+  const btn = (label, fn, color='#2563eb', busy) => (
+    <button onClick={fn} disabled={!!action} style={{padding:'8px 16px',background:action===busy?'rgba(255,255,255,0.05)':`${color}15`,border:`1px solid ${color}40`,borderRadius:7,color:action===busy?'#4a5c7a':color,fontSize:11,cursor:'pointer',fontFamily:'"DM Mono",monospace',fontWeight:700}}>
+      {action===busy?'⟳ Running...':label}
+    </button>
+  )
 
   return (
-    <div style={{ minHeight:'100vh',background:'#080c14',padding:'28px 32px',fontFamily:'"DM Mono",monospace' }}>
-      <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:28 }}>
-        <div>
-          <h1 style={{ color:'#e2e8f0',fontSize:20,margin:0 }}>⚡ AnkushAI Admin</h1>
-          <div style={{ color:'#4a5c7a',fontSize:11,marginTop:4 }}>{localAuth ? 'Password login' : email} · {new Date().toLocaleDateString()}</div>
-        </div>
-        <div style={{ display:'flex',gap:8 }}>
-          <button onClick={loadData} style={{ padding:'7px 12px',borderRadius:6,border:'none',fontSize:11,cursor:'pointer',fontFamily:'inherit',background:'#1e2d3d',color:'#8b9fc0' }}>↻</button>
-          <button onClick={logout} style={{ padding:'7px 12px',borderRadius:6,border:'none',fontSize:11,cursor:'pointer',fontFamily:'inherit',background:'rgba(239,68,68,0.15)',color:'#ef4444' }}>Logout</button>
+    <div style={{padding:'20px 24px',minHeight:'100vh',background:'#080c14',color:'#f0f6ff',fontFamily:'"DM Sans",sans-serif'}}>
+      <div style={{marginBottom:20}}>
+        <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:22,fontWeight:800,margin:'0 0 2px'}}>Admin Console</h1>
+        <div style={{color:'#3d4e62',fontSize:11}}>System health · cron controls · cache management</div>
+      </div>
+
+      {/* Stats grid */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:8,marginBottom:20}}>
+        {card('SCAN CACHE ENTRIES', stats.scanCache?.length||0, '#a78bfa')}
+        {card('SETUPS TRACKED', stats.setups?.length||0, '#60a5fa')}
+        {card('ACTIVE ALERTS', stats.alerts?.length||0, '#f59e0b')}
+        {card('SUBSCRIPTIONS', stats.subs?.length||0, '#10b981')}
+        {card('JOURNAL TRADES', stats.journal?.length||0, '#60a5fa')}
+        {card('WIN RATE', stats.setups?.filter(s=>s.outcome==='win').length ? Math.round(stats.setups.filter(s=>s.outcome==='win').length/stats.setups.filter(s=>s.outcome).length*100)+'%' : '—', '#10b981')}
+      </div>
+
+      {/* Controls */}
+      <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:16,marginBottom:16}}>
+        <div style={{fontFamily:'"DM Mono",monospace',fontSize:10,color:'#4a5c7a',marginBottom:10}}>CRON CONTROLS</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {btn('⚡ Force Scan', triggerScan, '#2563eb', 'scan')}
+          {btn('🌅 Premarket Warm', triggerPremarket, '#10b981', 'premarket')}
+          {btn('🌙 EOD Debrief', triggerEOD, '#f59e0b', 'eod')}
+          {btn('🗑 Clear Old Cache', clearOldCache, '#ef4444', 'clear')}
+          <button onClick={loadAll} style={{padding:'8px 16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:7,color:'#6b7a90',fontSize:11,cursor:'pointer'}}>↻ Refresh</button>
         </div>
       </div>
 
-      <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24 }}>
-        {[['Total Users',stats.total,'#e2e8f0'],['Pro',stats.pro,'#60a5fa'],['Free',stats.free,'#e2e8f0'],['MRR','$'+(stats.pro*29).toLocaleString(),'#10b981']].map(([l,v,c])=>(
-          <div key={l} style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:10,padding:20 }}>
-            <div style={{ color:'#4a5c7a',fontSize:11,marginBottom:8,textTransform:'uppercase' }}>{l}</div>
-            <div style={{ color:c,fontSize:24,fontWeight:700 }}>{v}</div>
+      {/* Latest scan cache */}
+      {stats.scanCache?.length > 0 && (
+        <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{fontFamily:'"DM Mono",monospace',fontSize:10,color:'#4a5c7a',marginBottom:8}}>SCAN CACHE (LATEST 5)</div>
+          <div style={{display:'flex',flexDirection:'column',gap:4}}>
+            {stats.scanCache.map((s,i) => (
+              <div key={i} style={{display:'flex',gap:16,alignItems:'center',padding:'6px 8px',background:'rgba(255,255,255,0.02)',borderRadius:6,fontSize:11}}>
+                <span style={{fontFamily:'"DM Mono",monospace',color:'#60a5fa',fontWeight:700}}>{s.setup_count||0} setups</span>
+                <span style={{color:'#f59e0b'}}>{s.market_mood||'—'}</span>
+                <span style={{fontFamily:'"DM Mono",monospace',color:'#6b7a90'}}>VIX {s.vix?.toFixed(1)||'—'}</span>
+                <span style={{color:'#3d4e62',fontSize:10}}>{new Date(s.created_at).toLocaleTimeString()}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:10,padding:20,marginBottom:20 }}>
-        <div style={{ color:'#e2e8f0',fontSize:14,marginBottom:14,fontWeight:600 }}>Create Access Code</div>
-        <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-          <input style={{ background:'#141b24',border:'1px solid #1e2d3d',borderRadius:6,padding:'9px 12px',color:'#e2e8f0',fontSize:12,fontFamily:'inherit',width:260,outline:'none' }} value={codeInput} onChange={e=>setCodeInput(e.target.value.toUpperCase())} placeholder="BETA-TRADER-001" onKeyDown={e=>e.key==='Enter'&&createCode()} />
-          <button onClick={createCode} style={{ padding:'9px 16px',borderRadius:6,border:'none',fontSize:11,cursor:'pointer',fontFamily:'inherit',background:'#2563eb',color:'white' }}>+ Create</button>
-          {codeMsg && <span style={{ color:'#10b981',fontSize:12 }}>{codeMsg}</span>}
         </div>
-      </div>
+      )}
 
-      <div style={{ background:'#0d1117',border:'1px solid #1e2d3d',borderRadius:10,padding:20 }}>
-        <div style={{ color:'#e2e8f0',fontSize:14,marginBottom:14,fontWeight:600 }}>Users ({dataLoading?'...':users.length})</div>
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%',borderCollapse:'collapse' }}>
-            <thead><tr>{['Email','Name','Plan','Status','Joined','Action'].map(h=><th key={h} style={th}>{h}</th>)}</tr></thead>
-            <tbody>
-              {users.length===0&&!dataLoading
-                ?<tr><td colSpan={6} style={{...td,textAlign:'center',padding:32,color:'#4a5c7a'}}>No users yet.</td></tr>
-                :users.map(u=>(
-                  <tr key={u.id}>
-                    <td style={{...td,color:'#e2e8f0'}}>{u.email||'—'}</td>
-                    <td style={td}>{u.full_name||'—'}</td>
-                    <td style={td}>
-                      <span style={{ display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:11,fontWeight:600,background:u.plan==='pro'?'rgba(37,99,235,0.2)':'transparent',color:u.plan==='pro'?'#60a5fa':'#4a5c7a',border:'1px solid '+(u.plan==='pro'?'rgba(37,99,235,0.3)':'#1e2d3d') }}>
-                        {(u.plan||'free').toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={td}>{u.subscription_status||'—'}</td>
-                    <td style={td}>{u.created_at?new Date(u.created_at).toLocaleDateString():'—'}</td>
-                    <td style={td}>
-                      <button onClick={()=>togglePlan(u.id,u.plan)} style={{ padding:'5px 10px',borderRadius:5,border:'none',fontSize:11,cursor:'pointer',fontFamily:'inherit',background:u.plan==='pro'?'rgba(239,68,68,0.15)':'rgba(37,99,235,0.2)',color:u.plan==='pro'?'#ef4444':'#60a5fa' }}>
-                        {u.plan==='pro'?'Revoke':'Grant Pro'}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              }
-            </tbody>
-          </table>
+      {/* Recent setups */}
+      {stats.setups?.length > 0 && (
+        <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{fontFamily:'"DM Mono",monospace',fontSize:10,color:'#4a5c7a',marginBottom:8}}>RECENT SETUPS</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:4}}>
+            {stats.setups.slice(0,12).map((s,i) => (
+              <div key={i} style={{padding:'6px 8px',background:'rgba(255,255,255,0.02)',borderRadius:5,fontSize:10}}>
+                <span style={{fontFamily:'"DM Mono",monospace',fontWeight:700}}>{s.symbol}</span>
+                <span style={{color:s.bias==='bullish'?'#10b981':'#ef4444',marginLeft:6}}>{s.bias==='bullish'?'▲':'▼'}</span>
+                {s.outcome && <span style={{color:s.outcome==='win'?'#10b981':'#ef4444',marginLeft:4,fontSize:9}}>●{s.outcome}</span>}
+                <div style={{color:'#3d4e62',fontSize:8,fontFamily:'"DM Mono",monospace',marginTop:2}}>{s.scan_date}</div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Active subscriptions */}
+      {stats.subs?.length > 0 && (
+        <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:16}}>
+          <div style={{fontFamily:'"DM Mono",monospace',fontSize:10,color:'#4a5c7a',marginBottom:8}}>SUBSCRIPTIONS</div>
+          <div style={{display:'flex',flexDirection:'column',gap:4}}>
+            {stats.subs.map((s,i) => (
+              <div key={i} style={{display:'flex',gap:12,alignItems:'center',padding:'6px 8px',background:'rgba(255,255,255,0.02)',borderRadius:5,fontSize:11}}>
+                <span style={{fontFamily:'"DM Mono",monospace',color:'#6b7a90',fontSize:9}}>{s.user_id?.substring(0,8)}...</span>
+                <span style={{color:s.status==='active'?'#10b981':'#f59e0b',fontFamily:'"DM Mono",monospace',fontSize:10,fontWeight:700}}>{s.status}</span>
+                <span style={{color:'#4a5c7a',fontSize:10}}>{s.plan}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {loading && <div style={{color:'#3d4e62',textAlign:'center',padding:20}}>Loading...</div>}
     </div>
   )
 }
