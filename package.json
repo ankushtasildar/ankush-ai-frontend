@@ -11,7 +11,8 @@
     "lucide-react": "^0.303.0",
     "clsx": "^2.0.0",
     "date-fns": "^3.0.0",
-    "stripe": "^14.0.0"
+    "stripe": "^14.0.0",
+    "@anthropic-ai/sdk": "^0.20.0"
   },
   "devDependencies": {
     "vite": "^5.0.0",
