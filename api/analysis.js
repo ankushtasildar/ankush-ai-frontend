@@ -197,14 +197,36 @@ Return ONLY valid JSON array, no markdown:
 async function analyzeSingle(symbol) {
   const prices = await fetchRealPrices([symbol])
   const rp = prices[symbol]?.price
-  const ctx = rp?'REAL PRICE: '+symbol+'=$'+rp.toFixed(2)+'. ALL levels MUST be based on this exact price. Do NOT use any other price.':'WARNING: real price unavailable.'
-  const priceStr = rp ? rp.toFixed(2) : 'unknown'
-  const prompt = ctx+'\n\nAnalyze '+symbol+' (current price: ,"summary":"2-3 sentence analysis","setup":"specific setup description","entry":number,"target":number,"target2":number,"stop":number,"rr":"2.5:1","support":number,"resistance":number,"optionsPlay":"specific options strategy e.g. Buy SPY $640 calls exp 2 weeks","timeframe":"days/weeks","catalyst":"key driver"}'
-  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})
-  const raw = msg.content[0]?.text || '{}'
-  let parsed
-  try { parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()) } catch(e) { parsed = {summary:raw} }
-  return {symbol, currentPrice:rp, price:rp, sentiment:parsed.sentiment||'neutral', confidence:parsed.confidence||50, summary:parsed.summary||'', setup:parsed.setup||'', entry:parsed.entry||rp, target:parsed.target||null, target2:parsed.target2||null, stop:parsed.stop||null, rr:parsed.rr||'', support:parsed.support||null, resistance:parsed.resistance||null, optionsPlay:parsed.optionsPlay||'', timeframe:parsed.timeframe||'', catalyst:parsed.catalyst||'', generatedAt:new Date().toISOString()}
+  const priceTag = rp ? symbol + '=$' + rp.toFixed(2) : symbol + '=unknown'
+  const priceWarn = rp
+    ? 'REAL PRICE: ' + priceTag + '. ALL levels MUST be within 15% of ' + rp.toFixed(2) + '. Do NOT use prices from training data.'
+    : 'WARNING: real price unavailable, use recent market prices for ' + symbol
+  const jsonTemplate = '{"sentiment":"bullish|bearish|neutral","confidence":50-95,"price":' + (rp ? rp.toFixed(2) : 'null') + ',"summary":"2-3 sentences","setup":"setup name","entry":0,"target":0,"target2":0,"stop":0,"rr":"2:1","support":0,"resistance":0,"optionsPlay":"strategy","timeframe":"days","catalyst":"driver"}'
+  const userMsg = priceWarn + '\n\nAnalyze ' + symbol + ' for a swing trade now. Current price is ' + (rp ? '$' + rp.toFixed(2) : 'unknown') + '. Entry within 2% of current price, stop 3-8% away, target 2x+ risk. Respond ONLY with valid JSON matching this structure exactly:\n' + jsonTemplate
+  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:userMsg}]})
+  const raw = (msg.content[0]?.text || '{}').replace(/```json|```/g,'').trim()
+  let parsed = {}
+  try { parsed = JSON.parse(raw) } catch(e) { console.error('[parse err]', e.message, raw.substring(0,100)) }
+  return {
+    symbol,
+    currentPrice: rp,
+    price: parsed.price || rp,
+    sentiment: parsed.sentiment || 'neutral',
+    confidence: parsed.confidence || 50,
+    summary: parsed.summary || '',
+    setup: parsed.setup || '',
+    entry: parsed.entry || null,
+    target: parsed.target || null,
+    target2: parsed.target2 || null,
+    stop: parsed.stop || null,
+    rr: parsed.rr || '',
+    support: parsed.support || null,
+    resistance: parsed.resistance || null,
+    optionsPlay: parsed.optionsPlay || '',
+    timeframe: parsed.timeframe || '',
+    catalyst: parsed.catalyst || '',
+    generatedAt: new Date().toISOString()
+  }
 }
 
 export default async function handler(req,res) {
