@@ -210,8 +210,55 @@ export default async function handler(req,res) {
   const symbol=req.query.symbol?.toUpperCase()
   try {
     if(type==='scan') return res.json(await runScan())
-    if(type==='single'&&symbol) return res.json(await analyzeSingle(symbol))
+    if((type==='single'||type==='snapshot')&&symbol) return res.json(await analyzeSingleCached(symbol, req.query.force==='1'))
     if(type==='cache_status'){const c=await getCache();return res.json({hasCachedScan:!!c,cacheAge:c?.cacheAge,setupCount:c?.setups?.length||0})}
-    return res.status(400).json({error:'Use: scan, single, cache_status'})
+    if(type==='warm'){const results={};for(const s of WARM_SYMBOLS.slice(0,10)){try{const r=await analyzeSingleCached(s,false);results[s]=r._cached?'cached':'fresh'}catch(e){results[s]='err:'+e.message}}return res.json({warmed:Object.keys(results).length,results})}
+    return res.status(400).json({error:'Use: scan, single, snapshot, cache_status, warm'})
   } catch(e){console.error('[v9]',e.message);return res.status(500).json({error:e.message})}
 }
+
+// ── Symbol analysis cache (4h TTL, shared across all users) ──────────────────
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
+
+async function getCachedAnalysis(symbol) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('symbol_analysis')
+      .select('result, updated_at')
+      .eq('symbol', symbol.toUpperCase())
+      .single()
+    if (error || !data) return null
+    const age = Date.now() - new Date(data.updated_at).getTime()
+    if (age > CACHE_TTL_MS) return null // stale
+    return { ...data.result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
+  } catch (e) { return null }
+}
+
+async function setCachedAnalysis(symbol, result) {
+  try {
+    await supabaseAdmin.from('symbol_analysis').upsert({
+      symbol: symbol.toUpperCase(),
+      result,
+      price: result.price || null,
+      sentiment: result.sentiment || null,
+      confidence: result.confidence || null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'symbol' })
+  } catch (e) { console.error('[cache write]', e.message) }
+}
+
+async function analyzeSingleCached(symbol, force = false) {
+  if (!force) {
+    const cached = await getCachedAnalysis(symbol)
+    if (cached) return cached
+  }
+  const result = await analyzeSingle(symbol)
+  await setCachedAnalysis(symbol, result)
+  return result
+}
+
+// Top symbols to warm — covers 95%+ of user requests
+const WARM_SYMBOLS = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD',
+  'PLTR','CRWD','JPM','GS','IWM','XLK','MSTR','COIN','AVGO','CRM','NFLX','MU','V','MA']
+
+
