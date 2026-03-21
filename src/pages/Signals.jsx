@@ -1,339 +1,242 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useMarket } from '../lib/useMarket.jsx'
-import { useAuth } from '../lib/auth'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const TIMEFRAMES = ['1D', '5D', '1M', '3M']
+const fmt = (n, dec=2) => n == null ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
+const fmtPct = n => n == null ? '—' : (n > 0 ? '+' : '') + fmt(n, 2) + '%'
+const fmtVol = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n?.toFixed(0) || '—'
 
-// Confidence ring SVG
-function ConfidenceRing({ score = 75, size = 52 }) {
-  const r = 20, c = 2 * Math.PI * r
-  const color = score >= 75 ? '#10b981' : score >= 55 ? '#f59e0b' : '#ef4444'
-  return (
-    <svg width={size} height={size} viewBox="0 0 52 52">
-      <circle cx="26" cy="26" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3.5"/>
-      <circle cx="26" cy="26" r={r} fill="none" stroke={color} strokeWidth="3.5"
-        strokeDasharray={c} strokeDashoffset={c * (1 - score / 100)}
-        strokeLinecap="round" transform="rotate(-90 26 26)"
-        style={{ transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34,1.56,0.64,1)' }}/>
-      <text x="26" y="31" textAnchor="middle" fill={color} fontSize="11" fontWeight="700" fontFamily="DM Mono">{score}</text>
-    </svg>
-  )
-}
+const WATCHLIST_KEY = 'ankushai_signals_wl'
 
-// Signal card
-function SignalCard({ signal, onTrade }) {
-  const { symbol, price, changePct, direction, confidence, strategy, timeframe, volume } = signal
-  const isLong = direction === 'LONG'
-  const [hovered, setHovered] = useState(false)
+// Price alerts stored in localStorage
+function getAlerts() { try { return JSON.parse(localStorage.getItem('ankushai_alerts') || '[]') } catch { return [] } }
+function saveAlerts(a) { localStorage.setItem('ankushai_alerts', JSON.stringify(a)) }
+
+function SignalCard({ signal, onAddAlert }) {
+  const isCall = signal.type === 'call' || signal.sentiment === 'bullish'
+  const isBullish = signal.sentiment === 'bullish' || signal.change > 0
+  const urgency = signal.confidence >= 8 ? 'high' : signal.confidence >= 6 ? 'medium' : 'low'
+  const urgencyColor = urgency === 'high' ? '#ef4444' : urgency === 'medium' ? '#f59e0b' : '#6b7a90'
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: hovered
-          ? `linear-gradient(135deg, #0f1825, #0d1420)`
-          : 'linear-gradient(135deg, #0d1420, #0a0f1a)',
-        border: `1px solid ${hovered ? (isLong ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)') : 'rgba(255,255,255,0.07)'}`,
-        borderRadius: 14,
-        padding: '20px 22px',
-        transition: 'all 0.2s',
-        transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
-        boxShadow: hovered ? `0 8px 30px ${isLong ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'}` : 'none',
-        cursor: 'pointer',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Direction accent line */}
-      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 2, background: isLong ? 'linear-gradient(90deg, #10b981, transparent)' : 'linear-gradient(90deg, #ef4444, transparent)' }} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 10,
-            background: isLong ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-            border: `1px solid ${isLong ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: isLong ? '#10b981' : '#ef4444',
-            fontFamily: '"DM Mono",monospace',
-          }}>{symbol?.substring(0, 3)}</div>
-          <div>
-            <div style={{ color: '#f0f4ff', fontSize: 16, fontWeight: 700, fontFamily: '"Syne",sans-serif' }}>{symbol}</div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
-              <span style={{
-                padding: '2px 7px', borderRadius: 5,
-                background: isLong ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-                color: isLong ? '#10b981' : '#ef4444',
-                fontSize: 9, fontFamily: '"DM Mono",monospace', fontWeight: 700, letterSpacing: '0.08em',
-              }}>{isLong ? '▲ LONG' : '▼ SHORT'}</span>
-              <span style={{ color: '#2d3d50', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>{timeframe}</span>
-            </div>
-          </div>
+    <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '14px 16px', cursor: 'default', transition: 'border-color .15s' }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(96,165,250,0.3)'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'}>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: '"DM Mono",monospace', fontSize: 16, fontWeight: 800, color: '#f0f6ff' }}>{signal.symbol}</span>
+          <span style={{ background: isBullish ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', border: `1px solid ${isBullish ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: 5, padding: '2px 8px', color: isBullish ? '#10b981' : '#ef4444', fontSize: 10, fontFamily: '"DM Mono",monospace', fontWeight: 700 }}>
+            {isCall ? '▲ CALL' : '▼ PUT'}
+          </span>
+          {urgency === 'high' && <span style={{ fontSize: 9, color: urgencyColor, fontFamily: '"DM Mono",monospace', animation: 'pulse 1.5s infinite' }}>⚡ URGENT</span>}
         </div>
-        <ConfidenceRing score={confidence} />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 10px' }}>
-          <div style={{ color: '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace', letterSpacing: '0.1em', marginBottom: 3 }}>PRICE</div>
-          <div style={{ color: '#f0f4ff', fontSize: 15, fontWeight: 700, fontFamily: '"DM Mono",monospace' }}>${parseFloat(price || 0).toFixed(2)}</div>
-        </div>
-        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 10px' }}>
-          <div style={{ color: '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace', letterSpacing: '0.1em', marginBottom: 3 }}>CHANGE</div>
-          <div style={{ color: changePct >= 0 ? '#10b981' : '#ef4444', fontSize: 15, fontWeight: 700, fontFamily: '"DM Mono",monospace' }}>
-            {changePct >= 0 ? '+' : ''}{parseFloat(changePct || 0).toFixed(2)}%
-          </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ color: isBullish ? '#10b981' : '#ef4444', fontFamily: '"DM Mono",monospace', fontSize: 14, fontWeight: 700 }}>{fmtPct(signal.changePercent)}</div>
+          <div style={{ color: '#3d4e62', fontSize: 10 }}>${fmt(signal.price)}</div>
         </div>
       </div>
 
-      <div style={{ marginBottom: 14, padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, borderLeft: `3px solid ${isLong ? '#10b981' : '#ef4444'}40` }}>
-        <div style={{ color: '#8b9fc0', fontSize: 12, lineHeight: 1.5 }}>{strategy}</div>
+      <div style={{ color: '#8b9fc0', fontSize: 11, marginBottom: 10, lineHeight: 1.5 }}>{signal.description || signal.reason || 'Technical signal detected'}</div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        {signal.optionsStrike && <span style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 5, padding: '2px 8px', color: '#a5b4fc', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>${signal.optionsStrike} strike</span>}
+        {signal.expiry && <span style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: '2px 8px', color: '#6b7a90', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>{signal.expiry}</span>}
+        {signal.volume && <span style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: '2px 8px', color: '#6b7a90', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>Vol: {fmtVol(signal.volume)}</span>}
+        {signal.unusualVolume && <span style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 5, padding: '2px 8px', color: '#f59e0b', fontSize: 10, fontFamily: '"DM Mono",monospace' }}>🔥 {signal.unusualVolume}x avg vol</span>}
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          onClick={(e) => { e.stopPropagation(); onTrade?.({ symbol, direction, price }) }}
-          style={{
-            flex: 1, padding: '10px', borderRadius: 8,
-            background: isLong ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-            border: `1px solid ${isLong ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
-            color: isLong ? '#10b981' : '#ef4444',
-            fontSize: 11, fontFamily: '"DM Mono",monospace', fontWeight: 700,
-            cursor: 'pointer', transition: 'all 0.15s', letterSpacing: '0.05em',
-          }}
-        >
-          {isLong ? '+ LOG LONG' : '+ LOG SHORT'}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => onAddAlert(signal.symbol, signal.price)} style={{ flex: 1, padding: '5px 0', background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 6, color: '#60a5fa', fontSize: 10, cursor: 'pointer', fontFamily: '"DM Mono",monospace' }}>
+          + Set Alert
         </button>
-        <button
-          style={{
-            padding: '10px 14px', borderRadius: 8,
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-            color: '#8b9fc0', fontSize: 11, cursor: 'pointer', fontFamily: '"DM Mono",monospace',
-            transition: 'all 0.15s',
-          }}
-        >
-          ⋯
+        <button onClick={() => window.location.href = '/app/charts?symbol=' + signal.symbol} style={{ flex: 1, padding: '5px 0', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#6b7a90', fontSize: 10, cursor: 'pointer', fontFamily: '"DM Mono",monospace' }}>
+          View Chart
         </button>
       </div>
     </div>
   )
 }
 
-// Generate AI signals from market data
-function generateSignals(quotes) {
-  const tickers = Object.values(quotes)
-  if (!tickers.length) return []
+function AlertRow({ alert, quotes, onDelete }) {
+  const quote = quotes[alert.symbol]
+  const currentPrice = quote?.price || 0
+  const isTriggered = alert.direction === 'above' ? currentPrice >= alert.targetPrice : currentPrice <= alert.targetPrice
+  const pctAway = currentPrice && alert.targetPrice ? ((alert.targetPrice - currentPrice) / currentPrice * 100) : 0
 
-  const strategies = [
-    'RSI oversold bounce — momentum divergence detected on 1H chart',
-    'Golden cross forming — 50MA crossing above 200MA, volume confirming',
-    'Earnings breakout setup — IV expanding, historical move suggests entry',
-    'VWAP reclaim — institutional buying pressure above key level',
-    'Gap fill opportunity — previous resistance becoming support',
-    'Options flow unusual — large call sweeps indicating bullish positioning',
-    'Sector rotation signal — relative strength vs sector improving',
-    'Multi-timeframe confluence — daily, 4H and 1H all aligned',
-  ]
-
-  return tickers.map((q, i) => ({
-    id: q.symbol,
-    symbol: q.symbol,
-    price: q.effectivePrice ?? q.price,
-    changePct: q.effectiveChangePct ?? q.changePct ?? 0,
-    direction: (q.effectiveChangePct ?? q.changePct ?? 0) >= 0 ? 'LONG' : 'SHORT',
-    confidence: Math.min(95, Math.max(45, Math.round(55 + Math.abs(q.changePct || 0) * 8 + (i % 3) * 7))),
-    strategy: strategies[i % strategies.length],
-    timeframe: TIMEFRAMES[i % TIMEFRAMES.length],
-    volume: q.volume,
-    session: q.session,
-  })).sort((a, b) => b.confidence - a.confidence)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <div style={{ background: isTriggered ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${isTriggered ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 5, padding: '2px 8px', color: isTriggered ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace', minWidth: 65, textAlign: 'center' }}>
+        {isTriggered ? '✓ TRIGGERED' : (alert.direction === 'above' ? '▲ ABOVE' : '▼ BELOW')}
+      </div>
+      <span style={{ fontFamily: '"DM Mono",monospace', fontWeight: 700, color: '#f0f6ff', minWidth: 55 }}>{alert.symbol}</span>
+      <span style={{ color: '#8b9fc0', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>${fmt(alert.targetPrice)}</span>
+      <span style={{ color: '#4a5c7a', fontSize: 10 }}>now ${fmt(currentPrice)}</span>
+      <span style={{ color: Math.abs(pctAway) < 1 ? '#f59e0b' : '#3d4e62', fontSize: 10, marginLeft: 'auto', fontFamily: '"DM Mono",monospace' }}>{Math.abs(pctAway) < 0.1 ? 'AT TARGET' : fmtPct(pctAway) + ' away'}</span>
+      <button onClick={() => onDelete(alert.id)} style={{ background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 12, padding: '0 4px' }}>✕</button>
+    </div>
+  )
 }
 
 export default function Signals() {
-  const { quotes, loading: mktLoading, lastUpdate, session } = useMarket()
-  const { user } = useAuth()
-  const [filter, setFilter] = useState('ALL') // ALL, LONG, SHORT
-  const [sortBy, setSortBy] = useState('confidence')
-  const [quickEntry, setQuickEntry] = useState(null)
-  const [logging, setLogging] = useState(false)
-  const [logSuccess, setLogSuccess] = useState(null)
+  const [signals, setSignals] = useState([])
+  const [alerts, setAlerts] = useState(getAlerts())
+  const [quotes, setQuotes] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('signals')
+  const [alertModal, setAlertModal] = useState(null) // {symbol, price}
+  const [alertPrice, setAlertPrice] = useState('')
+  const [alertDir, setAlertDir] = useState('above')
+  const [filter, setFilter] = useState('all')
+  const intervalRef = useRef(null)
 
-  const signals = generateSignals(quotes)
-  const filtered = signals.filter(s => filter === 'ALL' || s.direction === filter)
-  const sorted = [...filtered].sort((a, b) => sortBy === 'confidence' ? b.confidence - a.confidence : (Math.abs(b.changePct) - Math.abs(a.changePct)))
+  useEffect(() => {
+    loadSignals()
+    const interval = setInterval(refreshPrices, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
-  const longCount = signals.filter(s => s.direction === 'LONG').length
-  const shortCount = signals.filter(s => s.direction === 'SHORT').length
-  const avgConf = signals.length ? Math.round(signals.reduce((s, x) => s + x.confidence, 0) / signals.length) : 0
-
-  async function handleLogTrade(data) {
-    setQuickEntry(data)
-  }
-
-  async function submitEntry(ticker, direction, price, notes) {
-    if (!user) return
-    setLogging(true)
+  async function loadSignals() {
+    setLoading(true)
     try {
-      await supabase.from('journal_entries').insert({
-        user_id: user.id,
-        ticker,
-        direction,
-        entry_price: parseFloat(price),
-        status: 'open',
-        strategy: `Signal: ${direction} from Signals feed`,
-        notes: notes || '',
-        created_at: new Date().toISOString(),
+      // Load from Supabase signals table
+      const { data: { session } } = await supabase.auth.getSession()
+      const r = await fetch('/api/analysis?type=signals', {
+        headers: session ? { 'Authorization': 'Bearer ' + session.access_token } : {}
       })
-      setLogSuccess(ticker)
-      setQuickEntry(null)
-      setTimeout(() => setLogSuccess(null), 3000)
-    } catch(e) {}
-    setLogging(false)
+      if (r.ok) {
+        const d = await r.json()
+        setSignals(d.signals || d || [])
+      }
+    } catch (e) {
+      // Fallback: generate signals from setup_records
+      const { data } = await supabase.from('setup_records').select('*').eq('status', 'open').order('created_at', { ascending: false }).limit(20)
+      if (data) {
+        setSignals(data.map(s => ({
+          id: s.id, symbol: s.symbol, type: s.bias === 'bullish' ? 'call' : 'put',
+          sentiment: s.bias, price: s.price_at_generation, changePercent: 0,
+          description: s.setup_type, confidence: s.confidence,
+          optionsStrike: s.options_strike, expiry: s.options_expiry,
+          frameworks: s.frameworks, created_at: s.created_at
+        })))
+      }
+    }
+    setLoading(false)
+    await refreshPrices()
   }
 
-  return (
-    <div style={{ padding: '28px 32px', fontFamily: '"DM Sans",sans-serif', color: '#e2e8f0' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
-        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-        @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.3)}}
-        .sig-filter:hover{background:rgba(255,255,255,0.08)!important;color:#f0f4ff!important}
-        .sig-filter.active{background:rgba(37,99,235,0.15)!important;border-color:rgba(37,99,235,0.4)!important;color:#60a5fa!important}
-      `}</style>
+  async function refreshPrices() {
+    const allSymbols = [...new Set([...signals.map(s => s.symbol), ...alerts.map(a => a.symbol)])]
+    if (!allSymbols.length) return
+    try {
+      const r = await fetch('/api/market?type=quotes&symbols=' + allSymbols.join(','))
+      if (r.ok) setQuotes(await r.json())
+    } catch (e) {}
+  }
 
-      {/* Header */}
-      <div style={{ marginBottom: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
+  function addAlert(symbol, currentPrice) {
+    setAlertModal({ symbol, price: currentPrice })
+    setAlertPrice(currentPrice?.toFixed(2) || '')
+    setAlertDir('above')
+  }
+
+  function confirmAlert() {
+    if (!alertModal || !alertPrice) return
+    const newAlert = { id: Date.now(), symbol: alertModal.symbol, targetPrice: parseFloat(alertPrice), direction: alertDir, created: Date.now() }
+    const updated = [...alerts, newAlert]
+    setAlerts(updated)
+    saveAlerts(updated)
+    setAlertModal(null)
+  }
+
+  function deleteAlert(id) {
+    const updated = alerts.filter(a => a.id !== id)
+    setAlerts(updated)
+    saveAlerts(updated)
+  }
+
+  const filtered = filter === 'all' ? signals : signals.filter(s => filter === 'bullish' ? s.sentiment === 'bullish' : s.sentiment === 'bearish')
+  const tabStyle = (t) => ({ padding: '6px 14px', background: activeTab === t ? 'rgba(37,99,235,0.12)' : 'none', border: '1px solid ' + (activeTab === t ? 'rgba(37,99,235,0.3)' : 'rgba(255,255,255,0.06)'), borderRadius: 6, color: activeTab === t ? '#60a5fa' : '#4a5c7a', fontSize: 10, cursor: 'pointer', fontFamily: '"DM Mono",monospace' })
+
+  return (
+    <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}`}</style>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ color: '#4a5c7a', fontSize: 10, fontFamily: '"DM Mono",monospace', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 6 }}>Intelligence Feed</div>
-          <div style={{ fontSize: 26, fontWeight: 800, fontFamily: '"Syne",sans-serif', color: '#f0f4ff', marginBottom: 6 }}>
-            Live Signals 📡
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-              background: session === 'regular' ? 'rgba(16,185,129,0.1)' : 'rgba(74,92,122,0.1)',
-              border: `1px solid ${session === 'regular' ? 'rgba(16,185,129,0.25)' : 'rgba(74,92,122,0.2)'}`,
-              borderRadius: 100, fontSize: 10, fontFamily: '"DM Mono",monospace', letterSpacing: '0.08em',
-              color: session === 'regular' ? '#10b981' : '#4a5c7a', fontWeight: 600,
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: session === 'regular' ? '#10b981' : '#4a5c7a', display: 'inline-block', animation: session === 'regular' ? 'pulse 2s infinite' : 'none' }} />
-              {signals.length} signals active
-            </span>
-            {lastUpdate && <span style={{ color: '#2d3d50', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>Updated {lastUpdate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>}
-          </div>
+          <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>⚡ Signals & Alerts</h1>
+          <div style={{ color: '#3d4e62', fontSize: 11 }}>Live signals from open setups · Set price alerts · Track unusual activity</div>
         </div>
-        <div style={{ display: 'flex', gap: 20 }}>
-          {[
-            { label: 'Bullish', val: longCount, color: '#10b981' },
-            { label: 'Bearish', val: shortCount, color: '#ef4444' },
-            { label: 'Avg Score', val: `${avgConf}`, color: '#8b5cf6' },
-          ].map(({ label, val, color }) => (
-            <div key={label} style={{ textAlign: 'center' }}>
-              <div style={{ color, fontSize: 22, fontWeight: 800, fontFamily: '"Syne",sans-serif' }}>{val}</div>
-              <div style={{ color: '#4a5c7a', fontSize: 10, fontFamily: '"DM Mono",monospace', letterSpacing: '0.08em' }}>{label}</div>
-            </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['all','bullish','bearish'].map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{ ...tabStyle(f), background: filter === f ? (f === 'bullish' ? 'rgba(16,185,129,0.1)' : f === 'bearish' ? 'rgba(239,68,68,0.1)' : 'rgba(37,99,235,0.12)') : 'none', border: `1px solid ${filter === f ? (f === 'bullish' ? 'rgba(16,185,129,0.3)' : f === 'bearish' ? 'rgba(239,68,68,0.3)' : 'rgba(37,99,235,0.3)') : 'rgba(255,255,255,0.06)'}`, color: filter === f ? (f === 'bullish' ? '#10b981' : f === 'bearish' ? '#ef4444' : '#60a5fa') : '#4a5c7a' }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
           ))}
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-        {['ALL', 'LONG', 'SHORT'].map(f => (
-          <button
-            key={f}
-            className={`sig-filter${filter === f ? ' active' : ''}`}
-            onClick={() => setFilter(f)}
-            style={{
-              padding: '8px 18px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#8b9fc0', fontSize: 11,
-              fontFamily: '"DM Mono",monospace', cursor: 'pointer',
-              transition: 'all 0.15s', letterSpacing: '0.08em',
-            }}
-          >{f}</button>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[['signals', `Signals (${signals.length})`], ['alerts', `Alerts (${alerts.length})`]].map(([t, label]) => (
+          <button key={t} style={tabStyle(t)} onClick={() => setActiveTab(t)}>{label}</button>
         ))}
-        <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ color: '#4a5c7a', fontSize: 11, fontFamily: '"DM Mono",monospace' }}>Sort:</span>
-          {[{ val: 'confidence', label: 'Score' }, { val: 'change', label: 'Move' }].map(s => (
-            <button key={s.val} onClick={() => setSortBy(s.val)}
-              style={{ padding: '6px 12px', borderRadius: 6, background: sortBy === s.val ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.04)', border: sortBy === s.val ? '1px solid rgba(37,99,235,0.3)' : '1px solid rgba(255,255,255,0.07)', color: sortBy === s.val ? '#60a5fa' : '#8b9fc0', fontSize: 11, fontFamily: '"DM Mono",monospace', cursor: 'pointer', transition: 'all 0.15s' }}>
-              {s.label}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Success toast */}
-      {logSuccess && (
-        <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeUp 0.3s ease' }}>
-          <span>✅</span>
-          <span style={{ color: '#10b981', fontSize: 13 }}><strong>{logSuccess}</strong> logged to your journal</span>
+      {activeTab === 'signals' && (
+        loading ? (
+          <div style={{ textAlign: 'center', color: '#4a5c7a', padding: 40 }}>Loading signals...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#3d4e62', padding: 40 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚡</div>
+            <div style={{ fontSize: 14 }}>No signals yet — signals populate from Top Setups scans</div>
+            <button onClick={() => window.location.href='/app/setups'} style={{ marginTop: 12, padding: '8px 16px', background: 'rgba(37,99,235,0.12)', border: '1px solid rgba(37,99,235,0.3)', borderRadius: 8, color: '#60a5fa', fontSize: 11, cursor: 'pointer' }}>→ Go to Top Setups</button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 12 }}>
+            {filtered.map((s, i) => <SignalCard key={s.id || i} signal={s} onAddAlert={addAlert} />)}
+          </div>
+        )
+      )}
+
+      {activeTab === 'alerts' && (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ color: '#3d4e62', fontSize: 9, fontFamily: '"DM Mono",monospace', letterSpacing: '.06em' }}>PRICE ALERTS ({alerts.length})</div>
+            <button onClick={() => setAlertModal({ symbol: '', price: '' })} style={{ padding: '4px 10px', background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 6, color: '#60a5fa', fontSize: 10, cursor: 'pointer' }}>+ New Alert</button>
+          </div>
+          {alerts.length === 0 ? (
+            <div style={{ color: '#3d4e62', fontSize: 12, textAlign: 'center', padding: 24 }}>No alerts set — click "+ New Alert" or "Set Alert" on any signal card</div>
+          ) : (
+            alerts.map(a => <AlertRow key={a.id} alert={a} quotes={quotes} onDelete={deleteAlert} />)
+          )}
         </div>
       )}
 
-      {/* Loading */}
-      {mktLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 32, animation: 'spin 1.2s linear infinite', display: 'inline-block' }}>⚡</div>
-          <div style={{ color: '#4a5c7a', fontSize: 12, fontFamily: '"DM Mono",monospace', letterSpacing: '0.1em' }}>FETCHING LIVE DATA</div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-          {sorted.map((s, i) => (
-            <div key={s.id} style={{ animation: `fadeUp 0.3s ease ${i * 0.04}s both` }}>
-              <SignalCard signal={s} onTrade={handleLogTrade} />
+      {/* Alert modal */}
+      {alertModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 24, width: 320 }}>
+            <div style={{ fontFamily: '"Syne",sans-serif', fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Set Price Alert</div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: '#4a5c7a', fontSize: 11, marginBottom: 6 }}>Symbol</div>
+              <input value={alertModal.symbol} onChange={e => setAlertModal(m => ({...m, symbol: e.target.value.toUpperCase()}))} placeholder="AAPL" style={{ width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#f0f6ff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
             </div>
-          ))}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: '#4a5c7a', fontSize: 11, marginBottom: 6 }}>Alert when price is</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['above','below'].map(d => (
+                  <button key={d} onClick={() => setAlertDir(d)} style={{ flex: 1, padding: '8px', background: alertDir === d ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${alertDir === d ? 'rgba(37,99,235,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, color: alertDir === d ? '#60a5fa' : '#6b7a90', fontSize: 11, cursor: 'pointer' }}>{d === 'above' ? '▲ Above' : '▼ Below'}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: '#4a5c7a', fontSize: 11, marginBottom: 6 }}>Target Price ($)</div>
+              <input type="number" value={alertPrice} onChange={e => setAlertPrice(e.target.value)} placeholder="0.00" style={{ width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#f0f6ff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setAlertModal(null)} style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#6b7a90', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={confirmAlert} style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Set Alert</button>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Quick entry modal */}
-      {quickEntry && (
-        <QuickEntryModal
-          data={quickEntry}
-          onSubmit={submitEntry}
-          onClose={() => setQuickEntry(null)}
-          loading={logging}
-        />
-      )}
-    </div>
-  )
-}
-
-function QuickEntryModal({ data, onSubmit, onClose, loading }) {
-  const [notes, setNotes] = useState('')
-  const isLong = data.direction === 'LONG'
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 400 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, fontFamily: '"Syne",sans-serif', color: '#f0f4ff', marginBottom: 6 }}>
-          Log {data.direction} — {data.symbol}
-        </div>
-        <div style={{ color: '#4a5c7a', fontSize: 12, fontFamily: '"DM Mono",monospace', marginBottom: 24 }}>
-          Entry price: ${parseFloat(data.price || 0).toFixed(2)}
-        </div>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="Notes, thesis, risk level..."
-          style={{ width: '100%', background: '#111927', border: '1.5px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 14px', color: '#f0f4ff', fontSize: 13, fontFamily: '"DM Sans",sans-serif', resize: 'vertical', minHeight: 80, outline: 'none', boxSizing: 'border-box', marginBottom: 16 }}
-        />
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#8b9fc0', fontSize: 12, cursor: 'pointer', fontFamily: '"DM Mono",monospace' }}>Cancel</button>
-          <button
-            onClick={() => onSubmit(data.symbol, data.direction, data.price, notes)}
-            disabled={loading}
-            style={{ flex: 2, padding: 12, background: isLong ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', border: `1px solid ${isLong ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 8, color: isLong ? '#10b981' : '#ef4444', fontSize: 12, cursor: 'pointer', fontFamily: '"DM Mono",monospace', fontWeight: 700, opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Logging...' : '+ Log to Journal'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
