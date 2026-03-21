@@ -15,6 +15,7 @@ import Sectors from './pages/Sectors'
 import RiskCalc from './pages/RiskCalc'
 import EODDebrief from './pages/EODDebrief'
 import Intelligence from './pages/Intelligence'
+import Billing from './pages/Billing'
 import Admin from './pages/Admin'
 import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
@@ -183,7 +184,8 @@ export default function App() {
                 <Route path="risk" element={<RiskCalc />} />
                 <Route path="eod" element={<EODDebrief />} />
                 <Route path="intelligence" element={<Intelligence />} />
-                <Route path="*" element={<Navigate to="/app/overview" replace />} />
+                <Route path="billing" element={<Billing />} />
+          <Route path="*" element={<Navigate to="/app/overview" replace />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>
