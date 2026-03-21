@@ -1,403 +1,238 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-const fmt = (n, d=2) => n==null?'Ã¢ÂÂ':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
-const fmtPct = n => n==null?'Ã¢ÂÂ':(n>0?'+':'')+fmt(n,2)+'%'
-const fmtDollar = (n,d=2) => n==null?'Ã¢ÂÂ':'$'+fmt(n,d)
-const fmtVol = n => n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':n?.toFixed(0)||'Ã¢ÂÂ'
+const fmt = (n, d=2) => n == null ? '--' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+const fmtPct = n => n == null ? '--' : (n >= 0 ? '+' : '') + Number(n).toFixed(2) + '%'
+const pctColor = n => !n ? 'var(--text-muted)' : n > 0 ? 'var(--green)' : 'var(--red)'
+const vixColor = v => !v ? 'var(--text-muted)' : v > 30 ? 'var(--red)' : v > 20 ? 'var(--yellow)' : 'var(--green)'
 
-function IndexCard({ symbol, label, data, onClick }) {
-  const change = data?.changePercent || 0
-  const isPos = change >= 0
+function TickerCard({ symbol, name, price, change, changePct, onClick }) {
+  const up = changePct > 0, down = changePct < 0
+  const border = up ? 'rgba(16,185,129,0.25)' : down ? 'rgba(239,68,68,0.25)' : 'var(--border)'
   return (
-    <div onClick={onClick} style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', cursor:'pointer', flex:1, minWidth:140, transition:'border-color .15s' }}
-      onMouseEnter={e=>e.currentTarget.style.borderColor='rgba(96,165,250,0.3)'}
-      onMouseLeave={e=>e.currentTarget.style.borderColor='rgba(255,255,255,0.07)'}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+    <div onClick={onClick} style={{ background:'var(--bg-card)', border:'1px solid '+border, borderRadius:10, padding:'14px 16px', cursor:'pointer', flex:1, minWidth:150, position:'relative', overflow:'hidden', transition:'border-color 0.15s' }}>
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background: up?'var(--green)':down?'var(--red)':'var(--border)' }} />
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
         <div>
-          <div style={{color:'#f0f6ff',fontSize:15,fontWeight:700,fontFamily:'"DM Mono",monospace'}}>{symbol}</div>
-          <div style={{color:'#3d4e62',fontSize:10}}>{label}</div>
+          <div style={{ fontSize:13, fontWeight:700, letterSpacing:0.5 }}>{symbol}</div>
+          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:1 }}>{name}</div>
         </div>
-        <div style={{textAlign:'right'}}>
-          <div style={{color:isPos?'#10b981':'#ef4444',fontFamily:'"DM Mono",monospace',fontSize:13,fontWeight:700}}>{fmtPct(change)}</div>
+        <span style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:4, background: up?'var(--green-dim)':down?'var(--red-dim)':'rgba(255,255,255,0.04)', color: up?'var(--green)':down?'var(--red)':'var(--text-muted)' }}>
+          {fmtPct(changePct)}
+        </span>
+      </div>
+      <div style={{ fontSize:22, fontWeight:700, fontFamily:'var(--font-mono)', letterSpacing:-0.5 }}>
+        {price ? '$'+fmt(price) : '--'}
+      </div>
+      {change != null && <div style={{ fontSize:11, color: up?'var(--green)':down?'var(--red)':'var(--text-muted)', marginTop:2, fontFamily:'var(--font-mono)' }}>{change>=0?'+':''}{fmt(change)}</div>}
+    </div>
+  )
+}
+
+function SectorRow({ name, change }) {
+  const up = change > 0
+  return (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:'1px solid var(--border-dim)' }}>
+      <span style={{ fontSize:12, color:'var(--text-secondary)' }}>{name}</span>
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <div style={{ width:44, height:4, background:'rgba(255,255,255,0.05)', borderRadius:2, overflow:'hidden' }}>
+          <div style={{ height:'100%', width:Math.min(Math.abs(change||0)*10,100)+'%', background: up?'var(--green)':'var(--red)', borderRadius:2 }} />
         </div>
-      </div>
-      <div style={{color:'#f0f6ff',fontSize:20,fontWeight:800,fontFamily:'"DM Mono",monospace',marginBottom:4}}>
-        {data?.price ? fmtDollar(data.price) : 'Ã¢ÂÂ'}
-      </div>
-      <div style={{display:'flex',gap:8,fontSize:9,color:'#3d4e62',fontFamily:'"DM Mono",monospace'}}>
-        {data?.high && <span>H:{fmtDollar(data.high)}</span>}
-        {data?.low && <span>L:{fmtDollar(data.low)}</span>}
-        {data?.volume && <span>Vol:{fmtVol(data.volume)}</span>}
+        <span style={{ fontSize:12, fontWeight:600, fontFamily:'var(--font-mono)', width:52, textAlign:'right', color: up?'var(--green)':'var(--red)' }}>{fmtPct(change)}</span>
       </div>
     </div>
   )
 }
 
-function MoodBadge({ mood }) {
-  const colors = {
-    'Risk On':['#10b981','rgba(16,185,129,0.1)'],
-    'Mildly Bullish':['#34d399','rgba(52,211,153,0.08)'],
-    'Mixed':['#f59e0b','rgba(245,158,11,0.08)'],
-    'Fear':['#f97316','rgba(249,115,22,0.1)'],
-    'Mildly Bearish':['#f87171','rgba(248,113,113,0.08)'],
-    'Risk Off':['#ef4444','rgba(239,68,68,0.1)'],
-    'Complacency':['#a78bfa','rgba(167,139,250,0.08)'],
-  }
-  const [text, bg] = colors[mood] || ['#8b9fc0','rgba(255,255,255,0.04)']
+function SetupRow({ setup, onClick }) {
+  const dir = (setup.direction||'long').toLowerCase()
+  const conf = setup.confidence || setup.score || 75
+  const c = dir==='long' ? 'var(--green)' : dir==='short' ? 'var(--red)' : 'var(--yellow)'
   return (
-    <span style={{background:bg,border:`1px solid ${text}30`,borderRadius:6,padding:'3px 10px',color:text,fontSize:11,fontFamily:'"DM Mono",monospace',fontWeight:700}}>{mood}</span>
-  )
-}
-
-function SectorBar({ sector }) {
-  const isPos = sector.change >= 0
-  const barWidth = Math.min(100, Math.abs(sector.change) * 15)
-  return (
-    <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
-      <div style={{color:'#6b7a90',fontSize:10,fontFamily:'"DM Mono",monospace',minWidth:36}}>{sector.ticker}</div>
-      <div style={{flex:1,height:4,background:'rgba(255,255,255,0.04)',borderRadius:2,overflow:'hidden'}}>
-        <div style={{width:barWidth+'%',height:'100%',background:isPos?'#10b981':'#ef4444',borderRadius:2,marginLeft:isPos?0:'auto'}}/>
-      </div>
-      <div style={{color:isPos?'#10b981':'#ef4444',fontSize:10,fontFamily:'"DM Mono",monospace',minWidth:48,textAlign:'right'}}>{fmtPct(sector.change)}</div>
-    </div>
-  )
-}
-
-function OpenSetupRow({ setup, onChart }) {
-  const isPos = setup.bias === 'bullish'
-  const age = Math.floor((Date.now() - new Date(setup.created_at).getTime()) / 86400000)
-  return (
-    <div style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-      <span style={{background:isPos?'rgba(16,185,129,0.08)':'rgba(239,68,68,0.08)',border:`1px solid ${isPos?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'}`,borderRadius:4,padding:'1px 7px',color:isPos?'#10b981':'#ef4444',fontSize:9,fontFamily:'"DM Mono",monospace',fontWeight:700,minWidth:48,textAlign:'center'}}>{isPos?'Ã¢ÂÂ² BULL':'Ã¢ÂÂ¼ BEAR'}</span>
-      <span style={{fontFamily:'"DM Mono",monospace',fontWeight:700,color:'#f0f6ff',minWidth:50}}>{setup.symbol}</span>
-      <span style={{color:'#4a5c7a',fontSize:10,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{setup.setup_type}</span>
-      <span style={{color:'#3d4e62',fontSize:10,fontFamily:'"DM Mono",monospace'}}>{age}d</span>
-      <span style={{color:setup.confidence>=8?'#10b981':setup.confidence>=6?'#f59e0b':'#6b7a90',fontSize:10,fontFamily:'"DM Mono",monospace'}}>{setup.confidence}/10</span>
-      <button onClick={()=>onChart(setup.symbol)} style={{background:'none',border:'1px solid rgba(255,255,255,0.08)',borderRadius:4,color:'#4a5c7a',fontSize:9,cursor:'pointer',padding:'2px 6px'}}>Chart</button>
-    </div>
-  )
-}
-
-function MacroRow({ event }) {
-  const daysTo = Math.round((new Date(event.event_date+'T00:00:00') - new Date(new Date().toDateString())) / 86400000)
-  const urgency = daysTo <= 1 ? '#ef4444' : daysTo <= 5 ? '#f59e0b' : '#3d4e62'
-  const typeColor = event.event_type === 'fomc' ? '#ef4444' : event.event_type === 'cpi' ? '#f59e0b' : '#6b7a90'
-  return (
-    <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
-      <span style={{background:`${typeColor}15`,border:`1px solid ${typeColor}30`,borderRadius:4,padding:'1px 7px',color:typeColor,fontSize:9,fontFamily:'"DM Mono",monospace',minWidth:50,textAlign:'center'}}>{event.event_type.toUpperCase()}</span>
-      <span style={{color:'#8b9fc0',fontSize:11,flex:1}}>{event.title}</span>
-      <span style={{color:urgency,fontSize:10,fontFamily:'"DM Mono",monospace',whiteSpace:'nowrap'}}>
-        {daysTo === 0 ? 'TODAY' : daysTo === 1 ? 'TOMORROW' : `in ${daysTo}d`}
-      </span>
+    <div onClick={onClick} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer', marginBottom:4 }}>
+      <div style={{ fontSize:13, fontWeight:700, minWidth:52 }}>{setup.symbol}</div>
+      <span style={{ fontSize:10, fontWeight:700, padding:'1px 5px', borderRadius:3, background: dir==='long'?'var(--green-dim)':'var(--red-dim)', color:c, textTransform:'uppercase' }}>{dir}</span>
+      <div style={{ flex:1, fontSize:11, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{(setup.thesis||setup.reasoning||'').substring(0,45)}</div>
+      <div style={{ fontSize:13, fontWeight:700, color: conf>=70?'var(--green)':conf>=50?'var(--yellow)':'var(--red)', fontFamily:'var(--font-mono)', minWidth:36, textAlign:'right' }}>{conf}%</div>
     </div>
   )
 }
 
 export default function Overview() {
-  const navigate = useNavigate()
-  const [market, setMarket] = useState(null)
-  const [sectors, setSectors] = useState([])
-  const [openSetups, setOpenSetups] = useState([])
-  const [macroEvents, setMacroEvents] = useState([])
-  const [portfolio, setPortfolio] = useState({ value: 0, return: 0, pct: 0 })
-  const [journalStats, setJournalStats] = useState({ total: 0, wins: 0, pnl: 0 })
+  const nav = useNavigate()
+  const [mkt, setMkt] = useState(null)
+  const [setups, setSetups] = useState([])
+  const [events, setEvents] = useState([])
+  const [portfolio, setPortfolio] = useState({ trades:0, winRate:0 })
   const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState(null)
-  const [aiSnapshot, setAiSnapshot] = useState(null)
-  const [aiLoading, setAiLoading] = useState(false)
+  const [scanLoading, setScanLoading] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState(null)
 
-  useEffect(() => {
-    loadAll()
-    const interval = setInterval(loadMarket, 60000)
-    return () => clearInterval(interval)
+  const load = useCallback(async () => {
+    try {
+      const [mktR, cacheR, openR, eventsR] = await Promise.allSettled([
+        fetch('/api/market?action=overview').then(r=>r.json()),
+        supabase.from('scan_cache').select('*').order('created_at',{ascending:false}).limit(1),
+        supabase.from('setup_records').select('*').eq('status','open').limit(10),
+        supabase.from('macro_events').select('*').order('event_date',{ascending:true}).limit(4)
+      ])
+      if (mktR.status==='fulfilled' && !mktR.value.error) setMkt(mktR.value)
+      if (cacheR.status==='fulfilled' && cacheR.value.data && cacheR.value.data[0]) setSetups(cacheR.value.data[0].setups||[])
+      if (openR.status==='fulfilled' && openR.value.data) {
+        const o = openR.value.data
+        setPortfolio({ trades: o.length, winRate: o.length ? Math.round(o.filter(s=>(s.pnl||0)>0).length/o.length*100) : 0 })
+      }
+      if (eventsR.status==='fulfilled' && eventsR.value.data) setEvents(eventsR.value.data)
+      setLastUpdate(new Date())
+    } catch(e) { console.error('Overview load:', e) }
+    setLoading(false)
   }, [])
 
-  async function loadAll() {
-    setLoading(true)
-    await Promise.all([loadMarket(), loadUserData(), loadMacroEvents()])
-    setLoading(false)
+  useEffect(() => { load() }, [load])
+
+  async function runScan() {
+    setScanLoading(true)
+    try { await fetch('/api/analysis?action=scan&force=1') } catch(e) {}
+    await load(); setScanLoading(false)
   }
 
-  async function loadMarket() {
-    try {
-      const r = await fetch('/api/market?action=context')
-      if (r.ok) {
-        const raw = await r.json()
-        // Normalise flat API response into the nested shape this component expects
-        const normalised = {
-          ...raw,
-          spy: typeof raw.spy === 'object' ? raw.spy : { price: raw.spy || 0, changePercent: raw.spyChange || 0, change: 0 },
-          qqq: typeof raw.qqq === 'object' ? raw.qqq : { price: raw.qqq || 0, changePercent: raw.qqqChange || 0, change: 0 },
-          iwm: typeof raw.iwm === 'object' ? raw.iwm : { price: raw.iwm || 0, changePercent: raw.iwmChange || 0, change: 0 },
-          vix: typeof raw.vix === 'object' ? raw.vix : { current: raw.vix || 0, change: 0 },
-          marketMood: typeof raw.marketMood === 'object' ? raw.marketMood : { mood: raw.mood || 'Unknown', regime: raw.regime || 'neutral' },
-        }
-        // Fetch QQQ and IWM separately if missing
-        try {
-          const qr = await fetch('/api/market?action=quotes&symbols=QQQ,IWM')
-          if (qr.ok) {
-            const qd = await qr.json()
-            const qqq = qd.find(q => q.symbol === 'QQQ')
-            const iwm = qd.find(q => q.symbol === 'IWM')
-            if (qqq) normalised.qqq = { price: qqq.price, changePercent: qqq.changePercent || 0, change: qqq.change || 0 }
-            if (iwm) normalised.iwm = { price: iwm.price, changePercent: iwm.changePercent || 0, change: iwm.change || 0 }
-          }
-        } catch(e2) {}
-        setMarket(normalised)
-        setSectors(raw.sectors || [])
-        setLastUpdated(new Date())
-      }
-    } catch (e) { console.log('Market fetch error:', e.message) }
-  }
-
-  async function loadUserData() {
-    try {
-      // Open setups from intelligence
-      const { data: setups } = await supabase
-        .from('setup_records')
-        .select('id,symbol,bias,setup_type,confidence,created_at,entry_high,stop_loss,target_1,price_at_generation')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(8)
-      setOpenSetups(setups || [])
-
-      // Portfolio P&L
-      const { data: positions } = await supabase
-        .from('portfolio_positions')
-        .select('current_value,cost_basis,quantity')
-      if (positions?.length) {
-        const totalValue = positions.reduce((s, p) => s + (p.current_value || 0), 0)
-        const totalCost = positions.reduce((s, p) => s + (p.cost_basis * p.quantity || 0), 0)
-        const totalReturn = totalValue - totalCost
-        setPortfolio({ value: totalValue, return: totalReturn, pct: totalCost ? totalReturn/totalCost*100 : 0 })
-      }
-
-      // Journal win rate
-      const { data: trades } = await supabase
-        .from('journal_entries')
-        .select('pnl,outcome')
-        .not('pnl', 'is', null)
-      if (trades?.length) {
-        const wins = trades.filter(t => (t.pnl || 0) > 0).length
-        const pnl = trades.reduce((s, t) => s + (t.pnl || 0), 0)
-        setJournalStats({ total: trades.length, wins, pnl, winRate: trades.length ? (wins/trades.length*100).toFixed(0) : 0 })
-      }
-    } catch (e) { console.log('User data error:', e.message) }
-  }
-
-  async function loadMacroEvents() {
-    try {
-      const today = new Date().toISOString().split('T')[0]
-      const twoWeeks = new Date(Date.now() + 14*86400000).toISOString().split('T')[0]
-      const { data } = await supabase
-        .from('macro_events')
-        .select('event_date,event_type,title,impact_level')
-        .gte('event_date', today)
-        .lte('event_date', twoWeeks)
-        .order('event_date')
-        .limit(6)
-      setMacroEvents(data || [])
-    } catch (e) {}
-  }
-
-  async function generateAISnapshot() {
-    setAiLoading(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const r = await fetch('/api/analysis?type=single', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session?.access_token || '') },
-        body: JSON.stringify({
-          type: 'market_snapshot',
-          context: {
-            spy: market?.spy?.price, spyChange: market?.spy?.changePercent,
-            vix: market?.vix?.current, mood: market?.marketMood?.mood,
-            advancing: market?.marketMood?.advancing, declining: market?.marketMood?.declining,
-            topSectors: sectors.slice(0, 3).map(s => s.name + ' ' + (s.change >= 0 ? '+' : '') + (s.change || 0).toFixed(2) + '%').join(', '),
-            openSetups: openSetups.length
-          }
-        })
-      })
-      if (r.ok) {
-        const d = await r.json()
-        setAiSnapshot(d.response || d.content || d.message || JSON.stringify(d).substring(0, 300))
-      }
-    } catch (e) {}
-    setAiLoading(false)
-  }
-
-  const vix = market?.vix?.current || 0
-  const vixColor = vix > 30 ? '#ef4444' : vix > 20 ? '#f59e0b' : vix > 15 ? '#10b981' : '#a5b4fc'
-  const spyChange = market?.spy?.changePercent || 0
-  const mood = market?.marketMood?.mood || 'Loading...'
-
-  const etHour = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })
-  const etDay = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short' })
-  const isOpen = !['Sat','Sun'].includes(etDay) && parseInt(etHour) >= 9 && parseInt(etHour) < 16
-  const greeting = parseInt(etHour) < 12 ? 'Good Morning' : parseInt(etHour) < 17 ? 'Good Afternoon' : 'Good Evening'
-  const now = new Date()
-  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/New_York' })
+  const sp = mkt?.indices?.spy
+  const qq = mkt?.indices?.qqq
+  const iw = mkt?.indices?.iwm
+  const vix = mkt?.vix
+  const mood = mkt?.mood
+  const sectors = mkt?.sectors || []
+  const isOpen = mkt?.marketOpen
+  const C = { background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:14 }
+  const ST = { fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1.2, marginBottom:10 }
+  const LA = { fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer' }
 
   return (
-    <div style={{ padding:'20px 24px', minHeight:'100vh', background:'#080c14', color:'#f0f6ff', fontFamily:'"DM Sans",sans-serif' }}>
+    <div style={{ background:'var(--bg-base)', minHeight:'100vh', fontFamily:'var(--font)', color:'var(--text-primary)', paddingBottom:40 }}>
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20, flexWrap:'wrap', gap:12 }}>
-        <div>
-          <div style={{ color:'#3d4e62', fontSize:11, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:4 }}>{greeting}</div>
-          <h1 style={{ fontFamily:'"Syne",sans-serif', fontSize:28, fontWeight:800, margin:'0 0 4px' }}>
-            {loading ? 'Loading...' : mood === 'Fear' ? 'Ã¢ÂÂ Ã¯Â¸Â Markets Under Pressure' : mood === 'Risk On' ? 'Ã°ÂÂÂ Risk On Ã¢ÂÂ Markets Running' : 'Ã°ÂÂÂ Market Overview'}
-          </h1>
-          <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:isOpen?'#10b981':'#4a5c7a', boxShadow:isOpen?'0 0 8px #10b981':'none' }} />
-            <span style={{ color:'#4a5c7a', fontSize:11 }}>{isOpen ? 'Market Open' : 'Market Closed'} ÃÂ· {timeStr} ET</span>
-            {lastUpdated && <span style={{ color:'#2d3d50', fontSize:10 }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'13px 20px', borderBottom:'1px solid var(--border)', background:'var(--bg-card)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div>
+            <div style={{ fontSize:17, fontWeight:700, letterSpacing:-0.5 }}>Market Overview</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
+              {isOpen ? <span style={{color:'var(--green)'}}>Market Open</span> : <span>Market Closed</span>}
+              {lastUpdate && ' -- ' + lastUpdate.toLocaleTimeString()}
+            </div>
           </div>
+          {vix && (
+            <div style={{ padding:'4px 10px', borderRadius:6, background: vix>30?'var(--red-dim)':vix>20?'var(--yellow-dim)':'var(--green-dim)' }}>
+              <span style={{ fontSize:10, color:'var(--text-muted)' }}>VIX </span>
+              <span style={{ fontSize:13, fontWeight:700, fontFamily:'var(--font-mono)', color:vixColor(vix) }}>{fmt(vix,2)}</span>
+              {mood && <span style={{ fontSize:10, color:'var(--text-muted)', marginLeft:5 }}>-- {mood}</span>}
+            </div>
+          )}
         </div>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <MoodBadge mood={mood} />
-          <span style={{ background:vixColor+'15', border:`1px solid ${vixColor}30`, borderRadius:6, padding:'3px 10px', color:vixColor, fontSize:11, fontFamily:'"DM Mono",monospace', fontWeight:700 }}>VIX {fmt(vix)}</span>
-          <button onClick={generateAISnapshot} disabled={aiLoading} style={{ padding:'6px 14px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:11, cursor:aiLoading?'default':'pointer', opacity:aiLoading?.7:1, fontFamily:'"DM Mono",monospace' }}>
-            {aiLoading ? 'Ã¢ÂÂ³ Thinking...' : 'Ã¢ÂÂ¡ AI Snapshot'}
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={()=>nav('/app/predict')} style={{ background:'linear-gradient(135deg,#7c3aed,#3b82f6)', color:'#fff', border:'none', borderRadius:7, padding:'7px 14px', fontSize:12, fontWeight:600 }}>
+            Alpha Intelligence
+          </button>
+          <button onClick={runScan} disabled={scanLoading} style={{ background:'var(--bg-elevated)', color:'var(--text-secondary)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 14px', fontSize:12, fontWeight:600 }}>
+            {scanLoading ? 'Scanning...' : 'Run Scan'}
           </button>
         </div>
       </div>
 
-      {/* AI Snapshot */}
-      {aiSnapshot && (
-        <div style={{ background:'rgba(37,99,235,0.05)', border:'1px solid rgba(37,99,235,0.15)', borderRadius:12, padding:'14px 16px', marginBottom:16 }}>
-          <div style={{ color:'#60a5fa', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em', marginBottom:8 }}>Ã¢ÂÂ¡ AI MARKET SNAPSHOT</div>
-          <div style={{ color:'#8b9fc0', fontSize:12, lineHeight:1.7 }}>{aiSnapshot}</div>
-        </div>
-      )}
-
-      {/* Main index cards */}
-      <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
-        <IndexCard symbol="SPY" label="S&P 500 ETF" data={market?.spy} onClick={() => navigate('/app/charts?symbol=SPY')} />
-        <IndexCard symbol="QQQ" label="Nasdaq 100 ETF" data={market?.qqq} onClick={() => navigate('/app/charts?symbol=QQQ')} />
-        <IndexCard symbol="IWM" label="Russell 2000 ETF" data={market?.iwm} onClick={() => navigate('/app/charts?symbol=IWM')} />
-        <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', flex:1, minWidth:140 }}>
-          <div style={{ color:'#3d4e62', fontSize:10, marginBottom:6 }}>VIX Ã¢ÂÂ Fear Index</div>
-          <div style={{ color:vixColor, fontSize:20, fontWeight:800, fontFamily:'"DM Mono",monospace', marginBottom:4 }}>{fmt(vix)}</div>
-          <div style={{ color:'#4a5c7a', fontSize:10 }}>
-            {vix > 30 ? 'Ã°ÂÂÂ´ Extreme fear' : vix > 20 ? 'Ã°ÂÂÂ¡ Elevated anxiety' : vix > 15 ? 'Ã°ÂÂÂ¢ Normal' : 'Ã°ÂÂÂ£ Complacency'}
-          </div>
-          <div style={{ height:3, background:'rgba(255,255,255,0.05)', borderRadius:2, marginTop:8, overflow:'hidden' }}>
-            <div style={{ width:Math.min(100, vix*2.5)+'%', height:'100%', background:vixColor, borderRadius:2 }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Main grid */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12 }}>
-
-        {/* Sector performance */}
-        <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-            <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>SECTOR PERFORMANCE</div>
-            <button onClick={() => navigate('/app/sectors')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>View all Ã¢ÂÂ</button>
-          </div>
-          {sectors.length === 0 ? (
-            <div style={{ color:'#3d4e62', fontSize:11 }}>Loading sectors...</div>
-          ) : (
-            sectors.slice(0, 8).map((s, i) => <SectorBar key={i} sector={s} />)
-          )}
-          <div style={{ display:'flex', gap:8, marginTop:10, paddingTop:8, borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-            <div style={{ color:'#10b981', fontSize:10 }}>Ã¢ÂÂ² {market?.marketMood?.advancing || 0} advancing</div>
-            <div style={{ color:'#ef4444', fontSize:10 }}>Ã¢ÂÂ¼ {market?.marketMood?.declining || 0} declining</div>
-          </div>
-        </div>
-
-        {/* Open setups */}
-        <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-            <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>OPEN SETUPS ({openSetups.length})</div>
-            <button onClick={() => navigate('/app/setups')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Scan Ã¢ÂÂ</button>
-          </div>
-          {openSetups.length === 0 ? (
-            <div style={{ color:'#3d4e62', fontSize:11, textAlign:'center', padding:'20px 0' }}>
-              No open setups tracked yet.<br />
-              <button onClick={() => navigate('/app/setups')} style={{ marginTop:8, padding:'6px 14px', background:'rgba(37,99,235,0.1)', border:'1px solid rgba(37,99,235,0.2)', borderRadius:6, color:'#60a5fa', fontSize:10, cursor:'pointer' }}>Run a scan Ã¢ÂÂ</button>
+      <div style={{ padding:'16px 20px' }}>
+        {/* Index tickers */}
+        <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
+          <TickerCard symbol='SPY' name='S&P 500 ETF' price={sp?.price} change={sp?.change} changePct={sp?.changePct} onClick={()=>nav('/app/charts?symbol=SPY')} />
+          <TickerCard symbol='QQQ' name='Nasdaq 100 ETF' price={qq?.price} change={qq?.change} changePct={qq?.changePct} onClick={()=>nav('/app/charts?symbol=QQQ')} />
+          <TickerCard symbol='IWM' name='Russell 2000 ETF' price={iw?.price} change={iw?.change} changePct={iw?.changePct} onClick={()=>nav('/app/charts?symbol=IWM')} />
+          {vix && (
+            <div style={{ ...C, flex:1, minWidth:150, position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:vixColor(vix)+'88' }} />
+              <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>VIX</div>
+              <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:6 }}>Volatility Index</div>
+              <div style={{ fontSize:22, fontWeight:700, fontFamily:'var(--font-mono)', color:vixColor(vix) }}>{fmt(vix,2)}</div>
+              <div style={{ fontSize:11, color:vixColor(vix), marginTop:2, fontWeight:600 }}>{vix>30?'High Fear':vix>20?'Caution':'Low Fear'}</div>
             </div>
-          ) : (
-            openSetups.map((s, i) => <OpenSetupRow key={s.id || i} setup={s} onChart={sym => navigate('/app/charts?symbol=' + sym)} />)
           )}
         </div>
 
-        {/* Right column: P&L + Macro + Journal */}
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {/* Portfolio P&L */}
-          <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
+        {/* 3-col grid */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
+          {/* Sectors */}
+          <div style={C}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>PORTFOLIO</div>
-              <button onClick={() => navigate('/app/portfolio')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Manage Ã¢ÂÂ</button>
+              <div style={ST}>Sector Performance</div>
+              <button style={LA} onClick={()=>nav('/app/sectors')}>View all</button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <div>
-                <div style={{ color:'#4a5c7a', fontSize:10, marginBottom:2 }}>Value</div>
-                <div style={{ color:'#f0f6ff', fontSize:17, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{fmtDollar(portfolio.value)}</div>
-              </div>
-              <div>
-                <div style={{ color:'#4a5c7a', fontSize:10, marginBottom:2 }}>Total Return</div>
-                <div style={{ color:portfolio.return>=0?'#10b981':'#ef4444', fontSize:17, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{fmtPct(portfolio.pct)}</div>
-              </div>
-            </div>
+            {loading ? [...Array(6)].map((_,i)=>(<div key={i} style={{ height:20, background:'var(--bg-elevated)', borderRadius:4, marginBottom:4 }} />)) : sectors.length===0 ? (
+              <div style={{ fontSize:12, color:'var(--text-muted)', padding:'6px 0' }}>No data -- run a scan</div>
+            ) : sectors.slice(0,8).map((s,i)=>(
+              <SectorRow key={i} name={s.name||s.sector||s.symbol} change={s.changePct||s.change||0} />
+            ))}
           </div>
-
-          {/* Journal stats */}
-          <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px' }}>
+          {/* Setups */}
+          <div style={C}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>TRADING PERFORMANCE</div>
-              <button onClick={() => navigate('/app/journal')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Journal Ã¢ÂÂ</button>
+              <div style={ST}>Top Setups {setups.length>0 && <span style={{color:'var(--green)'}}>{setups.length}</span>}</div>
+              <button style={LA} onClick={()=>nav('/app/setups')}>View all</button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ color: journalStats.winRate >= 60 ? '#10b981' : journalStats.winRate >= 50 ? '#f59e0b' : '#ef4444', fontSize:18, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{journalStats.winRate || 0}%</div>
-                <div style={{ color:'#3d4e62', fontSize:9 }}>Win Rate</div>
+            {loading ? [...Array(3)].map((_,i)=>(<div key={i} style={{ height:52, background:'var(--bg-elevated)', borderRadius:7, marginBottom:4 }} />)) : setups.length===0 ? (
+              <div style={{ textAlign:'center', padding:'16px 0' }}>
+                <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:10 }}>No setups yet</div>
+                <button onClick={runScan} disabled={scanLoading} style={{ background:'var(--accent-dim)', color:'var(--accent)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600 }}>
+                  {scanLoading ? 'Scanning...' : 'Run Scan'}
+                </button>
               </div>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ color:journalStats.pnl>=0?'#10b981':'#ef4444', fontSize:18, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{fmtDollar(journalStats.pnl)}</div>
-                <div style={{ color:'#3d4e62', fontSize:9 }}>Total P&L</div>
-              </div>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ color:'#f0f6ff', fontSize:18, fontWeight:700, fontFamily:'"DM Mono",monospace' }}>{journalStats.total}</div>
-                <div style={{ color:'#3d4e62', fontSize:9 }}>Trades</div>
-              </div>
-            </div>
+            ) : setups.slice(0,5).map((s,i)=>(
+              <SetupRow key={i} setup={s} onClick={()=>nav('/app/setups')} />
+            ))}
           </div>
-
-          {/* Macro events */}
-          <div style={{ background:'#0d1420', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'14px 16px', flex:1 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <div style={{ color:'#3d4e62', fontSize:9, fontFamily:'"DM Mono",monospace', letterSpacing:'.06em' }}>MACRO CALENDAR</div>
-              <button onClick={() => navigate('/app/earnings')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:10, cursor:'pointer' }}>Earnings Ã¢ÂÂ</button>
+          {/* Portfolio + Calendar */}
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={C}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={ST}>Portfolio</div>
+                <button style={LA} onClick={()=>nav('/app/portfolio')}>Manage</button>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                {[['Open Trades',portfolio.trades],['Win Rate',portfolio.winRate?portfolio.winRate+'%':'--']].map(([l,v])=>(
+                  <div key={l} style={{ background:'var(--bg-elevated)', borderRadius:7, padding:'10px 12px' }}>
+                    <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>{l}</div>
+                    <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)' }}>{v}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-            {macroEvents.length === 0 ? (
-              <div style={{ color:'#3d4e62', fontSize:10 }}>No upcoming events</div>
-            ) : (
-              macroEvents.map((e, i) => <MacroRow key={i} event={e} />)
-            )}
+            <div style={C}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={ST}>Macro Calendar</div>
+                <button style={LA} onClick={()=>nav('/app/earnings')}>Earnings</button>
+              </div>
+              {events.length===0 ? (
+                <div style={{ fontSize:12, color:'var(--text-muted)' }}>No upcoming events</div>
+              ) : events.map((ev,i)=>{
+                const d = ev.event_date ? Math.round((new Date(ev.event_date)-new Date())/86400000) : null
+                return (
+                  <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom: i<events.length-1?'1px solid var(--border-dim)':'none' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'1px 5px', borderRadius:3, background:'var(--yellow-dim)', color:'var(--yellow)', textTransform:'uppercase' }}>{ev.event_type||'EVT'}</span>
+                      <span style={{ fontSize:12, color:'var(--text-secondary)' }}>{ev.title||ev.event_name}</span>
+                    </div>
+                    {d!=null && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{d===0?'Today':d===1?'Tomorrow':'in '+d+'d'}</span>}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick action bar */}
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-        {[
-          ['Ã°ÂÂÂ¯ Run Scan', '/app/setups'],
-          ['Ã°ÂÂÂ Earnings', '/app/earnings'],
-          ['Ã°ÂÂÂ¡ Sectors', '/app/sectors'],
-          ['Ã¢ÂÂ Risk Calc', '/app/risk'],
-          ['Ã°ÂÂÂ EOD Debrief', '/app/eod'],
-          ['Ã°ÂÂ§Â  Intelligence', '/app/intelligence'],
-        ].map(([label, path]) => (
-          <button key={path} onClick={() => navigate(path)} style={{ padding:'7px 14px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:8, color:'#6b7a90', fontSize:11, cursor:'pointer', transition:'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(96,165,250,0.3)'; e.currentTarget.style.color='#60a5fa'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(255,255,255,0.07)'; e.currentTarget.style.color='#6b7a90'; }}>
-            {label}
-          </button>
-        ))}
+        {/* Quick links */}
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {[['Charts','/app/charts'],['Earnings','/app/earnings'],['Sectors','/app/sectors'],['Journal','/app/journal'],['Risk Calc','/app/risk'],['EOD Debrief','/app/eod'],['Intelligence','/app/intelligence']].map(([label,path])=>(
+            <button key={label} onClick={()=>nav(path)} style={{ background:'var(--bg-elevated)', color:'var(--text-secondary)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 14px', fontSize:12, fontWeight:500 }}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
