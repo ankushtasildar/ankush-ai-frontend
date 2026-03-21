@@ -1,4 +1,6 @@
 const Anthropic = require('@anthropic-ai/sdk');
+let intel; try { intel = require('./intelligence'); } catch(e) {}
+// ─────────────────────────────
 const { createClient } = require('@supabase/supabase-js');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -619,7 +621,21 @@ Run full 100-analyst synthesis. ALL price levels must come from the actual data 
       }).join('\n\n');
 
       const sys = buildSystemPrompt(training);
-      const scanMsg = `MARKET CONTEXT RIGHT NOW:
+      
+      // Inject learned patterns from intelligence engine
+      let learnedPatterns = '';
+      try {
+        if (intel && intel.getLearnedPatterns) {
+          const daysToFomc = intel.getDaysToNextFOMC ? await intel.getDaysToNextFOMC(new Date().toISOString().split('T')[0]) : 30;
+          learnedPatterns = await intel.getLearnedPatterns({
+            vixLevel: vix ? vix.current : 18,
+            spyTrend: spyData ? spyData.technicals.emaAlignment : 'mixed',
+            daysToFomc
+          });
+        }
+      } catch(e) { console.log('Pattern fetch error:', e.message); }
+
+const scanMsg = `MARKET CONTEXT RIGHT NOW:
 SPY: $${marketCtx.spyPrice} RSI:${marketCtx.spyRsi} Trend:${marketCtx.spyTrend} ATR:${marketCtx.spyAtr}
 VIX: ${marketCtx.vix || 'unavailable'} (${marketCtx.vixRegime})
 Date: ${new Date().toISOString().split('T')[0]}
