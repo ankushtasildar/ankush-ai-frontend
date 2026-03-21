@@ -1,163 +1,239 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, NavLink } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
+import { AuthProvider, useAuth } from './lib/auth'
 
-// Pages
 import Overview from './pages/Overview'
 import Charts from './pages/Charts'
 import TopSetups from './pages/TopSetups'
-import Strategies from './pages/Strategies'
-import Portfolio from './pages/Portfolio'
-import Journal from './pages/Journal'
+import Predict from './pages/Predict'
 import Watchlist from './pages/Signals'
 import Earnings from './pages/Earnings'
 import Sectors from './pages/Sectors'
+import Strategies from './pages/Strategies'
+import Portfolio from './pages/Portfolio'
+import Journal from './pages/Journal'
 import RiskCalc from './pages/RiskCalc'
-import Predict from './pages/Predict'
 import EODDebrief from './pages/EODDebrief'
-import Intelligence from './pages/Intelligence'
 import Billing from './pages/Billing'
+import Intelligence from './pages/Intelligence'
 import Admin from './pages/Admin'
-import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
+import AdminLogin from './pages/AdminLogin'
 import AuthCallback from './pages/AuthCallback'
 
-function ProtectedRoute({ children }) {
-  const [user, setUser] = useState(undefined)
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user || null))
-    return () => subscription.unsubscribe()
-  }, [])
-  if (user === undefined) return <div style={{ background: '#080c14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4a5c7a', fontFamily: '"DM Mono",monospace', fontSize: 12 }}>Loading AnkushAI...</div>
-  if (!user) return <Navigate to="/login" replace />
-  return children
-}
+// Priya Nair: Grouped nav — Intelligence first, then Research, then My Trading
+const NAV_GROUPS = [
+  {
+    label: 'INTELLIGENCE',
+    items: [
+      { to: 'overview',   label: 'Overview',   badge: null },
+      { to: 'predict',    label: 'Alpha',      badge: 'NEW' },
+      { to: 'setups',     label: 'Top Setups', badge: 'HOT' },
+    ]
+  },
+  {
+    label: 'RESEARCH',
+    items: [
+      { to: 'charts',     label: 'Charts',     badge: null },
+      { to: 'sectors',    label: 'Sectors',    badge: null },
+      { to: 'earnings',   label: 'Earnings',   badge: null },
+      { to: 'strategies', label: 'Strategies', badge: null },
+    ]
+  },
+  {
+    label: 'MY TRADING',
+    items: [
+      { to: 'watchlist',  label: 'Watchlist',  badge: null },
+      { to: 'journal',    label: 'Journal',    badge: null },
+      { to: 'portfolio',  label: 'Portfolio',  badge: null },
+      { to: 'risk',       label: 'Risk Calc',  badge: null },
+    ]
+  },
+  {
+    label: 'SYSTEM',
+    items: [
+      { to: 'eod',        label: 'EOD Debrief', badge: null },
+    ]
+  },
+]
 
-function AppShell({ children }) {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [collapsed, setCollapsed] = useState(false)
-  const [marketStatus, setMarketStatus] = useState({ open: false, spy: null, spyChange: null })
+function Sidebar({ user, isAdmin, session }) {
   const location = useLocation()
+  const { signOut } = useAuth()
+  const [mktData, setMktData] = useState({ spy: null, vix: null, mood: null })
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user)
-      if (session?.user) loadProfile(session.user.id)
-    })
-    fetchMarketStatus()
-    const interval = setInterval(fetchMarketStatus, 60000)
-    return () => clearInterval(interval)
+    fetch('/api/market?action=context')
+      .then(r => r.json())
+      .then(d => setMktData({ spy: d.spy, vix: d.vix, mood: d.mood }))
+      .catch(() => {})
   }, [])
 
-  async function loadProfile(id) {
-    const { data } = await supabase.from('profiles').select('plan,subscription_status,username').eq('id', id).single()
-    setProfile(data)
+  const adminItems = isAdmin ? [
+    { to: 'intelligence', label: 'Intelligence', badge: null },
+    { to: 'admin',        label: 'Admin',        badge: null },
+  ] : []
+
+  const groups = adminItems.length > 0
+    ? [...NAV_GROUPS, { label: 'ADMIN', items: adminItems }]
+    : NAV_GROUPS
+
+  const sidebarStyle = {
+    width: 200, minHeight: '100vh', background: '#0d0d11',
+    borderRight: '1px solid rgba(255,255,255,0.06)',
+    display: 'flex', flexDirection: 'column',
+    fontFamily: 'var(--font)', flexShrink: 0,
   }
 
-  async function fetchMarketStatus() {
-    try {
-      const r = await fetch('/api/market?action=quote&symbol=SPY')
-      if (r.ok) {
-        const d = await r.json()
-        const etHour = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })
-        const etDay = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short' })
-        const h = parseInt(etHour)
-        const isOpen = !['Sat','Sun'].includes(etDay) && h >= 9 && h < 16
-        setMarketStatus({ open: isOpen, spy: d.price, spyChange: d.changePercent })
-      }
-    } catch (e) {}
+  const logoStyle = {
+    padding: '16px 14px 12px',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
   }
 
-  const isPro = profile?.plan === 'pro' || profile?.plan === 'enterprise' || profile?.subscription_status === 'active'
-  const isAdmin = user?.email === 'ankushtasildar2@gmail.com'
+  const mktBarStyle = {
+    padding: '8px 14px',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    display: 'flex', flexDirection: 'column', gap: 2,
+  }
 
-  const nav = [
-    { to: 'overview', label: 'Overview', icon: 'ÃÂ¢ÃÂÃÂ', badge: null },
-    { to: 'charts', label: 'Charts', icon: 'ÃÂ°ÃÂÃÂÃÂ', badge: null },
-    { to: 'setups', label: 'Top Setups', icon: 'ÃÂ°ÃÂÃÂÃÂ¯', badge: 'HOT' },
-    { to: 'watchlist', label: 'Watchlist', icon: 'ÃÂ¢ÃÂÃÂ¡', badge: null },
-    { to: 'earnings', label: 'Earnings', icon: 'ÃÂ°ÃÂÃÂÃÂ', badge: null },
-    { to: 'sectors', label: 'Sectors', icon: 'ÃÂ°ÃÂÃÂÃÂ¡', badge: null },
-    { to: 'strategies', label: 'Strategies', icon: 'ÃÂ¢ÃÂÃÂ', badge: null },
-    { to: 'portfolio', label: 'Portfolio', icon: 'ÃÂ°ÃÂÃÂÃÂ¼', badge: null },
-    { to: 'journal', label: 'Journal', icon: 'ÃÂ°ÃÂÃÂÃÂ', badge: null },
-    { to: 'risk', label: 'Risk Calc', icon: 'ÃÂ¢ÃÂÃÂ', badge: null },
-    { to: 'billing', label: 'Billing', icon: 'ÃÂ°ÃÂÃÂÃÂ³', badge: null, divider: true },
-    { to: 'eod', label: 'EOD Debrief', icon: 'ÃÂ°ÃÂÃÂÃÂ', badge: null },
-    ...(isAdmin ? [
-      { to: 'intelligence', label: 'Intelligence', icon: 'ÃÂ°ÃÂÃÂ§ÃÂ ', badge: null, divider: true },
-      { to: 'admin', label: 'Admin', icon: 'ÃÂ°ÃÂÃÂÃÂ§', badge: null },
-    ] : [])
-  ]
+  const navStyle = { flex: 1, overflowY: 'auto', padding: '8px 0' }
 
-  const navItemStyle = (isActive, hasHot) => ({
-    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 8, marginBottom: 2,
-    background: isActive ? 'rgba(37,99,235,0.12)' : 'none',
-    color: isActive ? '#60a5fa' : '#6b7a90',
-    textDecoration: 'none', fontSize: 12, fontWeight: isActive ? 600 : 400, transition: 'all .15s',
-    cursor: 'pointer'
+  const groupLabelStyle = {
+    fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.25)',
+    letterSpacing: 1.5, padding: '10px 14px 4px', textTransform: 'uppercase',
+  }
+
+  function getItemStyle(to) {
+    const active = location.pathname === '/app/' + to
+    return {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '7px 14px', cursor: 'pointer', textDecoration: 'none',
+      fontSize: 13, fontWeight: active ? 600 : 400,
+      color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+      background: active ? 'rgba(255,255,255,0.07)' : 'transparent',
+      borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
+      transition: 'all 0.15s',
+    }
+  }
+
+  const badgeStyle = (type) => ({
+    fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+    background: type === 'HOT' ? '#ef4444' : type === 'NEW' ? '#7c3aed' : '#374151',
+    color: '#fff', letterSpacing: 0.5,
   })
 
+  const footerStyle = {
+    padding: '10px 14px 14px',
+    borderTop: '1px solid rgba(255,255,255,0.06)',
+  }
+
+  const vixColor = mktData.vix > 30 ? '#ef4444' : mktData.vix > 20 ? '#f59e0b' : '#10b981'
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
-      {/* Sidebar */}
-      <div style={{ width: collapsed ? 56 : 210, minHeight: '100vh', background: '#080c14', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', padding: '16px 10px', flexShrink: 0, transition: 'width .2s', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100 }}>
-        
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 16px', marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#2563eb,#7c3aed)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>A</div>
-          {!collapsed && <div style={{ fontFamily: '"Syne",sans-serif', fontWeight: 800, fontSize: 14, color: '#f0f6ff' }}>ANKUSHAI</div>}
-          <button onClick={() => setCollapsed(!collapsed)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 16, padding: 0 }}>{collapsed ? 'ÃÂ¢ÃÂÃÂ' : 'ÃÂ¢ÃÂÃÂ'}</button>
+    <div style={sidebarStyle}>
+      <div style={logoStyle}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: -0.5 }}>AnkushAI</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>Trading Intelligence</div>
+      </div>
+      {mktData.spy && (
+        <div style={mktBarStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+            <span style={{ color: 'rgba(255,255,255,0.4)' }}>SPY</span>
+            <span style={{ color: '#fff', fontWeight: 600 }}>${mktData.spy}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+            <span style={{ color: 'rgba(255,255,255,0.4)' }}>VIX</span>
+            <span style={{ color: vixColor, fontWeight: 600 }}>{mktData.vix} {mktData.mood && '- ' + mktData.mood}</span>
+          </div>
         </div>
-
-        {/* Nav items */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {nav.map((item, i) => (
-            <div key={item.to}>
-              {item.divider && <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', margin: '8px 0' }} />}
-              <NavLink to={`/app/${item.to}`} style={({ isActive }) => navItemStyle(isActive)}>
-                <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
-                {!collapsed && <span style={{ flex: 1 }}>{item.label}</span>}
-                {!collapsed && item.badge && (
-                  <span style={{ background: '#ef4444', borderRadius: 4, padding: '1px 5px', fontSize: 8, color: '#fff', fontFamily: '"DM Mono",monospace', fontWeight: 700 }}>{item.badge}</span>
-                )}
+      )}
+      <nav style={navStyle}>
+        {groups.map(group => (
+          <div key={group.label}>
+            <div style={groupLabelStyle}>{group.label}</div>
+            {group.items.map(item => (
+              <NavLink key={item.to} to={'/app/' + item.to} style={getItemStyle(item.to)}>
+                <span>{item.label}</span>
+                {item.badge && <span style={badgeStyle(item.badge)}>{item.badge}</span>}
               </NavLink>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div style={footerStyle}>
+        {user && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.email}
             </div>
-          ))}
-        </div>
-
-        {/* Market status + user */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12 }}>
-          {!collapsed && (
-            <div style={{ padding: '4px 4px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: marketStatus.open ? '#10b981' : '#4a5c7a', flexShrink: 0, boxShadow: marketStatus.open ? '0 0 6px #10b981' : 'none' }} />
-              <div style={{ color: '#3d4e62', fontSize: 10 }}>
-                {marketStatus.open ? 'Market Open' : 'Market Closed'}
-                {marketStatus.spy && <span style={{ marginLeft: 6, color: (marketStatus.spyChange || 0) >= 0 ? '#10b981' : '#ef4444', fontFamily: '"DM Mono",monospace' }}>{(marketStatus.spyChange || 0) >= 0 ? '+' : ''}{(marketStatus.spyChange || 0).toFixed(2)}%</span>}
-              </div>
+            <div style={{ fontSize: 10, color: isAdmin ? '#7c3aed' : 'rgba(255,255,255,0.3)', textTransform: 'uppercase', fontWeight: 600 }}>
+              {isAdmin ? 'Admin' : 'Free'}
             </div>
-          )}
-          {user && !collapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 4px', marginBottom: 4 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                {user.email?.[0]?.toUpperCase()}
-              </div>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ color: '#f0f6ff', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.username || user.email?.split('@')[0]}</div>
-                <div style={{ color: isPro ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>ÃÂ¢ÃÂÃÂ {isPro ? 'PRO' : 'FREE'}</div>
-              </div>
-              <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 10 }}>out</button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+        <NavLink to='/app/billing' style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.4)', textDecoration: 'none', marginBottom: 6 }}>Billing</NavLink>
+        {user && (
+          <button onClick={() => signOut()} style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Sign out
+          </button>
+        )}
       </div>
+    </div>
+  )
+}
 
-      {/* Main content */}
-      <div style={{ flex: 1, marginLeft: collapsed ? 56 : 210, minHeight: '100vh', transition: 'margin-left .2s' }}>
-        {children}
+function AppShell() {
+  const { user, loading, isAdmin, session } = useAuth()
+  const location = useLocation()
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-base)', color: 'var(--text-muted)', fontFamily: 'var(--font)' }}>
+        Loading...
       </div>
+    )
+  }
+
+  const isAuthRoute = ['/login', '/auth/callback', '/admin/login'].some(p => location.pathname.startsWith(p))
+  if (!user && !isAuthRoute) {
+    return <Navigate to='/login' replace />
+  }
+
+  if (isAuthRoute) {
+    return (
+      <Routes>
+        <Route path='/login' element={<Login />} />
+        <Route path='/auth/callback' element={<AuthCallback />} />
+        <Route path='/admin/login' element={<AdminLogin />} />
+      </Routes>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)' }}>
+      <Sidebar user={user} isAdmin={isAdmin} session={session} />
+      <main style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+        <Routes>
+          <Route path='app/overview'    element={<Overview />} />
+          <Route path='app/predict'     element={<Predict />} />
+          <Route path='app/setups'      element={<TopSetups />} />
+          <Route path='app/charts'      element={<Charts />} />
+          <Route path='app/sectors'     element={<Sectors />} />
+          <Route path='app/earnings'    element={<Earnings />} />
+          <Route path='app/strategies'  element={<Strategies />} />
+          <Route path='app/watchlist'   element={<Watchlist />} />
+          <Route path='app/journal'     element={<Journal />} />
+          <Route path='app/portfolio'   element={<Portfolio />} />
+          <Route path='app/risk'        element={<RiskCalc />} />
+          <Route path='app/eod'         element={<EODDebrief />} />
+          <Route path='app/billing'     element={<Billing />} />
+          {isAdmin && <Route path='app/intelligence' element={<Intelligence />} />}
+          {isAdmin && <Route path='app/admin'        element={<Admin />} />}
+          <Route path='app/*'           element={<Navigate to='app/overview' replace />} />
+          <Route path='*'               element={<Navigate to='app/overview' replace />} />
+        </Routes>
+      </main>
     </div>
   )
 }
@@ -165,37 +241,9 @@ function AppShell({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/app" element={<ProtectedRoute><AppShell><Navigate to="/app/overview" replace /></AppShell></ProtectedRoute>} />
-        <Route path="/app/*" element={
-          <ProtectedRoute>
-            <AppShell>
-              <Routes>
-                <Route path="overview" element={<Overview />} />
-                <Route path="charts" element={<Charts />} />
-                <Route path="setups" element={<TopSetups />} />
-                <Route path="watchlist" element={<Watchlist />} />
-                <Route path="earnings" element={<Earnings />} />
-                <Route path="sectors" element={<Sectors />} />
-                <Route path="strategies" element={<Strategies />} />
-                <Route path="portfolio" element={<Portfolio />} />
-                <Route path="journal" element={<Journal />} />
-                <Route path="risk" element={<RiskCalc />} />
-                <Route path="predict" element={<Predict />} />
-              <Route path="eod" element={<EODDebrief />} />
-                <Route path="intelligence" element={<Intelligence />} />
-                <Route path="billing" element={<Billing />} />
-          <Route path="*" element={<Navigate to="/app/overview" replace />} />
-              </Routes>
-            </AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
     </BrowserRouter>
   )
 }
