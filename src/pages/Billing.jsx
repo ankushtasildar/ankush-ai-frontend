@@ -1,199 +1,154 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    period: 'forever',
-    color: '#4a5c7a',
-    features: [
-      '5 AI scans per day',
-      'Overview + Market data',
-      'Journal (10 trades)',
-      'Basic charts',
-      'Community access',
-    ],
-    limits: ['No shared scan cache priority', 'No EOD debrief', 'No intelligence patterns'],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 39,
-    period: '/month',
-    color: '#2563eb',
-    highlight: true,
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
-    features: [
-      'Unlimited AI scans',
-      'Shared scan cache (instant results)',
-      'All 11 pages unlocked',
-      'EOD debrief + daily recaps',
-      'Intelligence learning engine',
-      'Full journal + portfolio P&L',
-      'Price alerts (Supabase-backed)',
-      'CSV export',
-      'Options strategy recommendations',
-      'Priority market data',
-    ],
-    limits: [],
-  },
-  {
-    id: 'institutional',
-    name: 'Institutional',
-    price: 199,
-    period: '/month',
-    color: '#f59e0b',
-    features: [
-      'Everything in Pro',
-      'Real-time sector rotation alerts',
-      'Custom scan universes (500+ stocks)',
-      'API access for your own integrations',
-      'Webhook alerts to Slack/Discord',
-      'White-label options',
-      'Priority support',
-      'Custom frameworks',
-    ],
-    cta: 'Contact Us',
-    limits: [],
-  },
-]
+import { useNavigate } from 'react-router-dom'
 
 export default function Billing() {
+  const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [subscription, setSubscription] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [checkingOut, setCheckingOut] = useState(false)
-  const [managingBilling, setManagingBilling] = useState(false)
+  const [upgrading, setUpgrading] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
+    supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
       if (user) {
-        const { data } = await supabase.from('subscriptions')
-          .select('*').eq('user_id', user.id).single()
-        setSubscription(data)
-      }
-      setLoading(false)
-    }
-    load()
+        supabase.from('subscriptions').select('*').eq('user_id', user.id).single()
+          .then(({ data }) => { setSubscription(data); setLoading(false) })
+          .catch(() => setLoading(false))
+      } else setLoading(false)
+    })
   }, [])
 
-  async function startCheckout(plan) {
-    if (plan.cta === 'Contact Us') {
-      window.location.href = 'mailto:ankushtasildar2@gmail.com?subject=AnkushAI Institutional Plan'
-      return
-    }
-    if (!user) { window.location.href = '/login'; return }
-    setCheckingOut(true)
+  async function handleUpgrade() {
+    setUpgrading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const r = await fetch('/api/stripe/checkout', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer '+session.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId: plan.priceId })
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId: process.env.REACT_APP_STRIPE_PRICE_ID || 'price_default' })
       })
-      const d = await r.json()
-      if (d.url) window.location.href = d.url
-    } catch(e) { alert('Checkout error: '+e.message) }
-    setCheckingOut(false)
+      const { url } = await r.json()
+      if (url) window.location.href = url
+    } catch(e) {
+      alert('Error starting checkout: ' + e.message)
+    }
+    setUpgrading(false)
   }
 
-  async function manageSubscription() {
-    setManagingBilling(true)
+  async function handlePortal() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const r = await fetch('/api/stripe/portal', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer '+session.access_token }
+        headers: { 'Authorization': 'Bearer ' + session.access_token }
       })
-      const d = await r.json()
-      if (d.url) window.location.href = d.url
-    } catch(e) { alert('Portal error: '+e.message) }
-    setManagingBilling(false)
+      const { url } = await r.json()
+      if (url) window.location.href = url
+    } catch(e) { alert(e.message) }
   }
 
   const isPro = subscription?.status === 'active'
-  const currentPlan = isPro ? 'pro' : 'free'
+  const isCancelled = subscription?.cancel_at_period_end
+
+  const features = [
+    ['⚡', 'AI Scan Engine', 'Full 100-framework market scan with shared cache — results in <1s'],
+    ['📓', 'Trade Journal', 'Complete P&L tracking, win rate analytics, CSV export'],
+    ['📈', 'Advanced Charts', 'RSI, MACD, Bollinger Bands, EMA stack with live data'],
+    ['🎯', 'Signals & Alerts', 'Price alerts, unusual volume detection, setup monitoring'],
+    ['🏦', 'Earnings Intelligence', 'IV rank, expected moves, historical beat rates for 200+ stocks'],
+    ['🗺️', 'Sector Heatmap', 'Real-time sector rotation with regime detection'],
+    ['🧮', 'Risk Calculator', 'Kelly criterion, position sizing, EV calculation'],
+    ['🌙', 'EOD Debrief', 'Daily AI-generated market recap saved to your account'],
+    ['🧠', 'Intelligence Engine', 'Self-learning pattern recognition that improves with every scan'],
+    ['📊', 'Portfolio Tracking', 'Live P&L, position management, performance snapshots'],
+  ]
 
   return (
-    <div style={{padding:'28px 24px',minHeight:'100vh',background:'#080c14',color:'#f0f6ff',fontFamily:'"DM Sans",sans-serif',maxWidth:900,margin:'0 auto'}}>
-      <div style={{textAlign:'center',marginBottom:36}}>
-        <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:28,fontWeight:800,margin:'0 0 8px'}}>Plans & Pricing</h1>
-        <p style={{color:'#4a5c7a',fontSize:13}}>Institutional-grade trading intelligence. Cancel anytime.</p>
-        {isPro && (
-          <div style={{display:'inline-flex',alignItems:'center',gap:8,marginTop:12,padding:'8px 16px',background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:20}}>
-            <span style={{color:'#10b981',fontSize:12,fontWeight:700}}>✓ PRO ACTIVE</span>
-            <button onClick={manageSubscription} disabled={managingBilling} style={{background:'none',border:'none',color:'#10b981',textDecoration:'underline',fontSize:11,cursor:'pointer'}}>
-              {managingBilling?'Loading...':'Manage billing'}
-            </button>
-          </div>
-        )}
+    <div style={{padding:'20px 24px',minHeight:'100vh',background:'#080c14',color:'#f0f6ff',fontFamily:'"DM Sans",sans-serif',maxWidth:900,margin:'0 auto'}}>
+      <div style={{marginBottom:32}}>
+        <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:28,fontWeight:800,margin:'0 0 6px'}}>AnkushAI Pro</h1>
+        <p style={{color:'#4a5c7a',fontSize:13}}>Institutional-grade trading intelligence for retail traders</p>
       </div>
 
-      {/* Plans */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,marginBottom:32}}>
-        {PLANS.map(plan => {
-          const isCurrent = plan.id === currentPlan
-          const isUpgrade = plan.id === 'pro' && currentPlan === 'free'
-          return (
-            <div key={plan.id} style={{
-              background: plan.highlight ? 'linear-gradient(160deg,rgba(37,99,235,0.12),rgba(13,20,32,1))' : '#0d1420',
-              border:`2px solid ${isCurrent?'rgba(16,185,129,0.5)':plan.highlight?'rgba(37,99,235,0.4)':'rgba(255,255,255,0.08)'}`,
-              borderRadius:16,padding:24,position:'relative',
-            }}>
-              {plan.highlight && !isCurrent && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'#2563eb',borderRadius:20,padding:'3px 14px',fontSize:9,fontWeight:800,color:'#fff',fontFamily:'"DM Mono",monospace',letterSpacing:'.1em'}}>MOST POPULAR</div>}
-              {isCurrent && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'#10b981',borderRadius:20,padding:'3px 14px',fontSize:9,fontWeight:800,color:'#fff',fontFamily:'"DM Mono",monospace',letterSpacing:'.1em'}}>CURRENT PLAN</div>}
-
-              <div style={{marginBottom:16}}>
-                <div style={{color:plan.color,fontFamily:'"DM Mono",monospace',fontSize:11,fontWeight:700,marginBottom:4}}>{plan.name.toUpperCase()}</div>
-                <div style={{display:'flex',alignItems:'baseline',gap:4}}>
-                  <span style={{fontSize:32,fontWeight:800,fontFamily:'"Syne",sans-serif'}}>{plan.price===0?'$0':'$'+plan.price}</span>
-                  <span style={{color:'#4a5c7a',fontSize:12}}>{plan.period}</span>
-                </div>
-              </div>
-
-              <div style={{marginBottom:20}}>
-                {plan.features.map((f,i)=>(
-                  <div key={i} style={{display:'flex',gap:8,marginBottom:6,fontSize:12,alignItems:'flex-start'}}>
-                    <span style={{color:'#10b981',marginTop:1}}>✓</span><span style={{color:'#9ab'}}>{f}</span>
-                  </div>
-                ))}
-                {plan.limits.map((f,i)=>(
-                  <div key={i} style={{display:'flex',gap:8,marginBottom:6,fontSize:11,alignItems:'flex-start'}}>
-                    <span style={{color:'#3d4e62',marginTop:1}}>✗</span><span style={{color:'#3d4e62'}}>{f}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={()=>isCurrent?null:startCheckout(plan)}
-                disabled={isCurrent||checkingOut}
-                style={{
-                  width:'100%',padding:'11px',borderRadius:10,fontSize:12,fontWeight:700,cursor:isCurrent?'default':'pointer',
-                  fontFamily:'"DM Mono",monospace',letterSpacing:'.04em',
-                  background: isCurrent?'rgba(16,185,129,0.1)':isUpgrade?'linear-gradient(135deg,#2563eb,#1d4ed8)':plan.id==='institutional'?'linear-gradient(135deg,#d97706,#b45309)':'rgba(255,255,255,0.05)',
-                  border: isCurrent?'1px solid rgba(16,185,129,0.3)':'none',
-                  color: isCurrent?'#10b981':'#fff',
-                  opacity: checkingOut?0.7:1,
-                }}>
-                {isCurrent ? '✓ Current Plan' : checkingOut ? 'Loading...' : plan.cta || (plan.price===0?'Get Started':'Upgrade to '+plan.name)}
-              </button>
+      {/* Current status */}
+      {!loading && (
+        <div style={{background:isPro?'rgba(16,185,129,0.06)':'rgba(37,99,235,0.06)',border:`1px solid ${isPro?'rgba(16,185,129,0.2)':'rgba(37,99,235,0.2)'}`,borderRadius:12,padding:'16px 20px',marginBottom:28,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:isPro?'#10b981':'#60a5fa'}}>
+              {isPro ? '✓ Pro Active' : 'Free Plan'}
             </div>
-          )
-        })}
-      </div>
+            <div style={{color:'#4a5c7a',fontSize:12,marginTop:2}}>
+              {isPro && subscription?.current_period_end
+                ? (isCancelled ? `Cancels ${new Date(subscription.current_period_end*1000).toLocaleDateString()}` : `Renews ${new Date(subscription.current_period_end*1000).toLocaleDateString()}`)
+                : isPro ? 'Pro subscription active' : 'Upgrade to unlock all features'}
+            </div>
+          </div>
+          {isPro ? (
+            <button onClick={handlePortal} style={{padding:'8px 18px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:'#f0f6ff',fontSize:12,cursor:'pointer'}}>Manage Subscription</button>
+          ) : (
+            <button onClick={handleUpgrade} disabled={upgrading} style={{padding:'10px 24px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:8,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:700}}>
+              {upgrading?'Loading...':'Upgrade to Pro — $29/mo'}
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Trust section */}
-      <div style={{textAlign:'center',borderTop:'1px solid rgba(255,255,255,0.06)',paddingTop:24}}>
-        <div style={{display:'flex',justifyContent:'center',gap:32,flexWrap:'wrap',marginBottom:12}}>
-          {['🔒 Stripe secured','📊 Cancel anytime','⚡ Instant access','🧠 Claude AI powered'].map(t=>(
-            <span key={t} style={{color:'#3d4e62',fontSize:11}}>{t}</span>
+      {/* Pricing cards */}
+      {!isPro && (
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:32}}>
+          {/* Free */}
+          <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:24}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:4,color:'#6b7a90'}}>Free</div>
+            <div style={{fontFamily:'"DM Mono",monospace',fontSize:32,fontWeight:800,marginBottom:16}}>$0<span style={{fontSize:14,color:'#4a5c7a'}}>/mo</span></div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {['3 scans per day','Basic chart view','Journal (10 trades/mo)','Sector overview'].map(f=>(
+                <div key={f} style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#4a5c7a'}}>
+                  <span style={{color:'#3d4e62'}}>✓</span>{f}
+                </div>
+              ))}
+              {['AI Intelligence Engine','Unlimited scans','Real-time alerts','Portfolio P&L tracking','EOD Debrief','Earnings calendar'].map(f=>(
+                <div key={f} style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#2d3d50'}}>
+                  <span>✕</span>{f}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Pro */}
+          <div style={{background:'rgba(37,99,235,0.06)',border:'2px solid rgba(37,99,235,0.3)',borderRadius:14,padding:24,position:'relative'}}>
+            <div style={{position:'absolute',top:-10,right:16,background:'#2563eb',borderRadius:20,padding:'3px 12px',fontSize:9,fontWeight:700,fontFamily:'"DM Mono",monospace'}}>RECOMMENDED</div>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:4,color:'#60a5fa'}}>Pro</div>
+            <div style={{fontFamily:'"DM Mono",monospace',fontSize:32,fontWeight:800,marginBottom:16}}>$29<span style={{fontSize:14,color:'#4a5c7a'}}>/mo</span></div>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:20}}>
+              {['Everything in Free','Unlimited AI scans (shared cache)','Real-time price alerts','Complete journal + P&L analytics','Portfolio tracking + snapshots','EOD AI debrief (daily)','Earnings intelligence','Sector rotation heatmap','Intelligence engine (self-learning)','Priority support'].map(f=>(
+                <div key={f} style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#a5b4fc'}}>
+                  <span style={{color:'#60a5fa'}}>✓</span>{f}
+                </div>
+              ))}
+            </div>
+            <button onClick={handleUpgrade} disabled={upgrading} style={{width:'100%',padding:'12px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:10,color:'#fff',fontSize:14,cursor:'pointer',fontWeight:700}}>
+              {upgrading?'Redirecting...':'Get Pro — $29/mo'}
+            </button>
+            <div style={{color:'#3d4e62',fontSize:10,textAlign:'center',marginTop:8}}>Cancel anytime. No contracts.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Feature grid */}
+      <div>
+        <div style={{fontSize:13,fontWeight:600,color:'#4a5c7a',marginBottom:14,fontFamily:'"DM Mono",monospace'}}>WHAT'S INCLUDED IN PRO</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
+          {features.map(([icon,title,desc])=>(
+            <div key={title} style={{display:'flex',gap:12,padding:'12px 14px',background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.05)',borderRadius:10}}>
+              <span style={{fontSize:20,flexShrink:0}}>{icon}</span>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:3}}>{title}</div>
+                <div style={{fontSize:11,color:'#4a5c7a',lineHeight:1.5}}>{desc}</div>
+              </div>
+            </div>
           ))}
         </div>
-        <p style={{color:'#2d3d50',fontSize:10}}>Prices in USD. Subscriptions auto-renew monthly. Cancel in one click from billing portal.</p>
       </div>
     </div>
   )
