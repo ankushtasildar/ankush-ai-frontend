@@ -1,186 +1,262 @@
-import { useState, useEffect, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+const STRATEGIES = [
+  {
+    id: 'ema_breakout',
+    name: 'EMA Stack Breakout',
+    category: 'Momentum',
+    icon: '📈',
+    difficulty: 'Intermediate',
+    winRate: '62%',
+    avgRR: '2.8:1',
+    bestIn: 'Trending markets, low VIX',
+    avoidIn: 'Choppy/sideways, VIX > 25',
+    setup: [
+      'Price above EMA20 > EMA50 > EMA200 (bullish stack)',
+      'RSI between 50-65 (not overbought)',
+      'Volume surge on breakout day (>1.5x average)',
+      'Clean consolidation above prior resistance',
+    ],
+    entry: 'Buy the first retest of EMA20 after breakout. Enter on close above yesterday\'s high.',
+    stop: 'Below EMA50. Hard stop 1.5% below entry.',
+    target: 'T1: Previous swing high. T2: 2x ATR extension. Scale out 50% at T1.',
+    options: 'Buy ATM calls 30-45 DTE. Target 50-100% gain. IV rank < 50 preferred.',
+    color: '#10b981',
+  },
+  {
+    id: 'earnings_iv',
+    name: 'Pre-Earnings IV Crush Play',
+    category: 'Options',
+    icon: '💥',
+    difficulty: 'Advanced',
+    winRate: '58%',
+    avgRR: '2.1:1',
+    bestIn: 'High IV rank stocks before earnings',
+    avoidIn: 'Low IV rank, unpredictable earnings',
+    setup: [
+      'IV Rank > 50 with earnings in 7-14 days',
+      'Stock has clear range (no recent breakout)',
+      'Historical post-earnings move < current implied move',
+      'Premium buyer vs seller: check skew',
+    ],
+    entry: 'Sell iron condor 5-7 days before earnings. Strike at ±1σ expected move.',
+    stop: 'Close if position loses 2x premium collected. Buy back at 200% loss.',
+    target: 'Close at 50% profit. Never hold through earnings announcement.',
+    options: 'Iron condor or short strangle. Sell 30 DTE, close 7 DTE or at 50% profit.',
+    color: '#f59e0b',
+  },
+  {
+    id: 'vix_regime',
+    name: 'VIX Regime Risk Management',
+    category: 'Macro',
+    icon: '⚡',
+    difficulty: 'All Levels',
+    winRate: 'N/A — Risk Framework',
+    avgRR: 'Varies',
+    bestIn: 'All market conditions',
+    avoidIn: 'Never avoid — always apply',
+    setup: [
+      'VIX < 15: Greed — reduce hedge, go directional',
+      'VIX 15-20: Neutral — balanced approach, full size',
+      'VIX 20-25: Caution — reduce size 25-50%, add hedges',
+      'VIX 25-35: Fear — spreads only, no naked longs, 25% size',
+      'VIX > 35: Panic — cash or short gamma, extreme caution',
+    ],
+    entry: 'Position size = Base Size × VIX Multiplier. Current VIX determines multiplier.',
+    stop: 'Hard portfolio stop: -5% from peak triggers full risk-off mode for 48 hours.',
+    target: 'Stay in profitable positions but tighten stops in high VIX environments.',
+    options: 'High VIX = premium sellers paradise. Low VIX = cheap to buy protection.',
+    color: '#a78bfa',
+  },
+  {
+    id: 'fibonacci_retracement',
+    name: 'Fibonacci Retracement Entry',
+    category: 'Technical',
+    icon: '🔢',
+    difficulty: 'Intermediate',
+    winRate: '55%',
+    avgRR: '3.2:1',
+    bestIn: 'Trending markets after impulse moves',
+    avoidIn: 'Rangebound/sideways markets',
+    setup: [
+      'Identify clear impulse move (>5% in <10 days)',
+      'Wait for pullback to 38.2%, 50%, or 61.8% fib level',
+      'Look for candlestick reversal pattern at fib zone',
+      'Volume should decrease on pullback, increase on reversal',
+    ],
+    entry: 'Enter at fib level when reversal candle closes. Smaller position at 38.2%, larger at 61.8%.',
+    stop: 'Below the next fib level. Never below 78.6% (invalidates setup).',
+    target: 'T1: Previous high (100% retracement). T2: 127.2% extension. T3: 161.8% extension.',
+    options: 'Buy calls at 50-61.8% fib retracement. 21-30 DTE. Strike at current price.',
+    color: '#60a5fa',
+  },
+  {
+    id: 'sector_rotation',
+    name: 'Sector Rotation Momentum',
+    category: 'Macro',
+    icon: '🗺️',
+    difficulty: 'Intermediate',
+    winRate: '59%',
+    avgRR: '2.4:1',
+    bestIn: 'Trending macro environments',
+    avoidIn: 'High correlation, no sector divergence',
+    setup: [
+      'Identify leading sector (top 3-month performer)',
+      'Confirm with relative strength vs SPY',
+      'Look for sector ETF at breakout (XLK, XLE, XLF etc.)',
+      'Macro catalyst supports sector thesis (rates, GDP, CPI)',
+    ],
+    entry: 'Buy the leading sector ETF or top 2-3 stocks within it. Enter on pullback to 20MA.',
+    stop: 'Sector underperforms SPY for 2 consecutive weeks → exit all positions.',
+    target: 'Hold 4-8 weeks. Exit when sector stops leading or reverses below 50MA.',
+    options: 'Buy sector ETF calls (XLK, XLE, XLF). 60-90 DTE. Target 3-5 months.',
+    color: '#f97316',
+  },
+  {
+    id: 'sympathy_play',
+    name: 'Sympathy Move Play',
+    category: 'Momentum',
+    icon: '🎯',
+    difficulty: 'Advanced',
+    winRate: '48%',
+    avgRR: '4.1:1',
+    bestIn: 'High momentum environments, sector news catalysts',
+    avoidIn: 'Low volume, broad market selloff',
+    setup: [
+      'Primary stock makes major move (+10%+) on strong catalyst',
+      'Identify 2-3 sector peers that haven\'t moved yet',
+      'Peer has similar business, lower float, higher beta',
+      'Market is in risk-on mode (VIX declining)',
+    ],
+    entry: 'Buy the sympathy play within first 30-60 min of primary stock\'s big move. Don\'t chase.',
+    stop: 'Below day\'s VWAP. Tight stop — these are momentum plays, not value.',
+    target: 'T1: 5-7% gain. T2: 10-15% if momentum continues. Exit by end of day.',
+    options: 'Same-day or next-day expiry calls (weeklies). High risk, high reward.',
+    color: '#ef4444',
+  },
+]
 
 export default function Strategies() {
-  const [strategies, setStrategies] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showBuilder, setShowBuilder] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [selectedIds, setSelectedIds] = useState([])
-  const [maxMode, setMaxMode] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [testQ, setTestQ] = useState('')
-  const [testResult, setTestResult] = useState('')
-  const [testLoading, setTestLoading] = useState(false)
-  const [ingesting, setIngesting] = useState(false)
-  const [ingestUrl, setIngestUrl] = useState('')
-  const fileRef = useRef(null)
-  const [form, setForm] = useState({ name: '', description: '', content: '' })
+  const navigate = useNavigate()
+  const [selected, setSelected] = useState(null)
+  const [filter, setFilter] = useState('All')
+  const categories = ['All', 'Momentum', 'Options', 'Macro', 'Technical']
 
-  useEffect(() => {
-    load()
-    const saved = localStorage.getItem('ankushai_strategies')
-    if (saved) try { setSelectedIds(JSON.parse(saved)) } catch(e) {}
-    if (localStorage.getItem('ankushai_max') === 'true') setMaxMode(true)
-  }, [])
+  const filtered = STRATEGIES.filter(s => filter === 'All' || s.category === filter)
+  const active = selected ? STRATEGIES.find(s => s.id === selected) : null
 
-  async function load() {
-    setLoading(true)
-    try {
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const r = await fetch('/api/strategies', { headers: { 'Authorization': 'Bearer ' + s?.access_token } })
-      const d = await r.json()
-      setStrategies(d.strategies || [])
-    } catch(e) { console.error(e) }
-    finally { setLoading(false) }
-  }
-
-  function toggle(id) {
-    const next = selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id]
-    setSelectedIds(next)
-    localStorage.setItem('ankushai_strategies', JSON.stringify(next))
-  }
-
-  function toggleMax() {
-    const next = !maxMode; setMaxMode(next)
-    if (next) { const all = strategies.map(s => s.id); setSelectedIds(all); localStorage.setItem('ankushai_strategies', JSON.stringify(all)) }
-    localStorage.setItem('ankushai_max', String(next))
-  }
-
-  async function save() {
-    if (!form.name.trim() || !form.content.trim()) return
-    setSaving(true)
-    try {
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const method = editing ? 'PUT' : 'POST'
-      const body = editing ? { ...form, id: editing.id } : form
-      const r = await fetch('/api/strategies', { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s?.access_token }, body: JSON.stringify(body) })
-      if (r.ok) { await load(); setShowBuilder(false); setEditing(null); setForm({ name: '', description: '', content: '' }) }
-    } catch(e) { console.error(e) }
-    finally { setSaving(false) }
-  }
-
-  async function del(id) {
-    if (!confirm('Remove this strategy?')) return
-    const { data: { session: s } } = await supabase.auth.getSession()
-    await fetch('/api/strategies?id=' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + s?.access_token } })
-    await load()
-    setSelectedIds(p => p.filter(x => x !== id))
-  }
-
-  async function ingestFromUrl() {
-    if (!ingestUrl.trim()) return
-    setIngesting(true)
-    try {
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const r = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s?.access_token }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Extract and structure the trading strategy from: ' + ingestUrl + '. Output: setup criteria, entry rules, exit rules, risk management, optimal conditions.' }], mode: 'general' }) })
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let txt = ''
-      while (true) { const { done, value } = await reader.read(); if (done) break; dec.decode(value).split('\n').filter(l => l.startsWith('data: ')).forEach(l => { try { const d = JSON.parse(l.slice(6)); if (d.text) txt += d.text } catch(e) {} }) }
-      setForm(p => ({ ...p, content: p.content ? p.content + '\n\n' + txt : txt })); setIngestUrl('')
-    } catch(e) { console.error(e) }
-    finally { setIngesting(false) }
-  }
-
-  async function ingestFile(file) {
-    setIngesting(true)
-    try {
-      const text = await file.text()
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const r = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s?.access_token }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Extract the trading strategy from:\n\n' + text.substring(0, 8000) + '\n\nOutput: setup, entry, exit, risk, conditions.' }], mode: 'general' }) })
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let txt = ''
-      while (true) { const { done, value } = await reader.read(); if (done) break; dec.decode(value).split('\n').filter(l => l.startsWith('data: ')).forEach(l => { try { const d = JSON.parse(l.slice(6)); if (d.text) txt += d.text } catch(e) {} }) }
-      setForm(p => ({ ...p, content: p.content ? p.content + '\n\n' + txt : txt }))
-    } catch(e) { console.error(e) }
-    finally { setIngesting(false) }
-  }
-
-  async function runTest() {
-    if (!testQ.trim() || testLoading) return
-    setTestLoading(true); setTestResult('')
-    try {
-      const active = strategies.filter(s => selectedIds.includes(s.id))
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const r = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s?.access_token }, body: JSON.stringify({ messages: [{ role: 'user', content: testQ }], strategies: active, mode: maxMode ? 'strategy_analysis' : 'general' }) })
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let txt = ''
-      while (true) { const { done, value } = await reader.read(); if (done) break; dec.decode(value).split('\n').filter(l => l.startsWith('data: ')).forEach(l => { try { const d = JSON.parse(l.slice(6)); if (d.text) { txt += d.text; setTestResult(txt) } } catch(e) {} }) }
-    } catch(e) { setTestResult('Error: ' + e.message) }
-    finally { setTestLoading(false) }
-  }
-
-  const EXAMPLES = [
-    { name: 'Gap & Go', description: 'Pre-market gap setups with volume', content: 'Look for stocks gapping 3%+ in pre-market with 2x+ average volume. Wait for first 5-minute candle. Enter on break above ORH. Stop below ORL. Target 2:1 R/R minimum. Best in trending markets.' },
-    { name: 'VWAP Reclaim', description: 'VWAP support/resistance pattern', content: 'Stocks crossing below VWAP then reclaiming it on volume. Enter on first close above VWAP. Stop below most recent low. Works best in high-volume institutional names.' },
-    { name: 'Earnings Momentum', description: 'Post-earnings continuation', content: 'After strong earnings beat + guidance raise, stock gaps 5%+ and holds above gap by hour 1. Enter on VWAP pullback. Hold 3-5 days. Stop below day 1 low.' },
-  ]
+  const diffColor = d => d === 'Advanced' ? '#ef4444' : d === 'Intermediate' ? '#f59e0b' : '#10b981'
+  const tabStyle = a => ({padding:'5px 14px',background:a?'rgba(37,99,235,0.12)':'none',border:`1px solid ${a?'rgba(37,99,235,0.3)':'rgba(255,255,255,0.06)'}`,borderRadius:5,color:a?'#60a5fa':'#4a5c7a',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace'})
 
   return (
-    <div style={{padding:'28px 32px',minHeight:'100vh',background:'#080c14',color:'#f0f4ff',fontFamily:'"DM Sans",sans-serif'}}>
-      <style>{`.sc{background:#0d1420;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:20px;transition:all .2s;cursor:pointer}.sc:hover{border-color:rgba(255,255,255,.12);transform:translateY(-1px)}.sc.sel{border-color:#2563eb;background:linear-gradient(135deg,rgba(37,99,235,.1),#0d1420)}.sc.sel::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#2563eb,#7c3aed);border-radius:14px 14px 0 0}.tb{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:3px 10px;font-size:11px;font-family:"DM Mono",monospace;color:#8b9fc0;cursor:pointer;transition:all .15s}.tb:hover{border-color:rgba(255,255,255,.15);color:#f0f4ff}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:28,flexWrap:'wrap',gap:16}}>
-        <div>
-          <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:28,fontWeight:800,margin:'0 0 6px'}}>Strategy Engine</h1>
-          <p style={{color:'#8b9fc0',fontSize:14,margin:0}}>{selectedIds.length===0?'Select strategies to activate for AI analysis':`${maxMode?'🔥 Maximum Analysis':`${selectedIds.length} strateg${selectedIds.length===1?'y':'ies'}`} active`}</p>
+    <div style={{padding:'20px 24px',minHeight:'100vh',background:'#080c14',color:'#f0f6ff',fontFamily:'"DM Sans",sans-serif',display:'flex',gap:20}}>
+      {/* Left: strategy list */}
+      <div style={{width:active?320:undefined,flex:active?'0 0 320px':1,transition:'all .2s'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+          <div>
+            <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:22,fontWeight:800,margin:'0 0 2px'}}>Strategies</h1>
+            <div style={{color:'#3d4e62',fontSize:11}}>6 proven frameworks · click any to see full playbook</div>
+          </div>
         </div>
-        <div style={{display:'flex',gap:10}}>
-          <button onClick={toggleMax} style={{padding:'10px 20px',background:maxMode?'linear-gradient(135deg,#dc2626,#9333ea)':'rgba(255,255,255,.05)',border:`1px solid ${maxMode?'rgba(220,38,38,.5)':'rgba(255,255,255,.1)'}`,borderRadius:10,color:maxMode?'white':'#8b9fc0',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>{maxMode?'🔥 MAXIMUM ON':'⚡ Maximum Analysis'}</button>
-          <button onClick={()=>{setShowBuilder(true);setEditing(null);setForm({name:'',description:'',content:''})}} style={{padding:'10px 20px',background:'#2563eb',border:'none',borderRadius:10,color:'white',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>+ New Strategy</button>
+
+        {/* Category filter */}
+        <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+          {categories.map(c => <button key={c} style={tabStyle(filter===c)} onClick={()=>setFilter(c)}>{c}</button>)}
+        </div>
+
+        {/* Strategy cards */}
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {filtered.map(s => (
+            <div key={s.id} onClick={()=>setSelected(selected===s.id?null:s.id)}
+              style={{background:'#0d1420',border:`1px solid ${selected===s.id?s.color+'60':'rgba(255,255,255,0.07)'}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all .15s'}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=s.color+'40'}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=selected===s.id?s.color+'60':'rgba(255,255,255,0.07)'}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                  <span style={{fontSize:20}}>{s.icon}</span>
+                  <div>
+                    <div style={{fontFamily:'"DM Mono",monospace',fontSize:13,fontWeight:700}}>{s.name}</div>
+                    <div style={{color:'#4a5c7a',fontSize:10,marginTop:2}}>
+                      <span style={{color:s.color}}>{s.category}</span> · <span style={{color:diffColor(s.difficulty)}}>{s.difficulty}</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontFamily:'"DM Mono",monospace',fontSize:12,color:'#10b981',fontWeight:700}}>{s.winRate}</div>
+                  <div style={{color:'#3d4e62',fontSize:9,fontFamily:'"DM Mono",monospace'}}>Win Rate</div>
+                </div>
+              </div>
+              {!active && (
+                <div style={{display:'flex',gap:12,marginTop:8,paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.04)'}}>
+                  <span style={{color:'#4a5c7a',fontSize:10}}>R/R: <strong style={{color:'#f0f6ff'}}>{s.avgRR}</strong></span>
+                  <span style={{color:'#4a5c7a',fontSize:10}}>Best in: <strong style={{color:'#f0f6ff'}}>{s.bestIn.split(',')[0]}</strong></span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      {showBuilder&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',backdropFilter:'blur(12px)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'40px 20px',overflowY:'auto'}}>
-        <div style={{background:'#0d1420',border:'1px solid rgba(255,255,255,.12)',borderRadius:20,padding:36,width:'100%',maxWidth:680,position:'relative'}}>
-          <button onClick={()=>setShowBuilder(false)} style={{position:'absolute',top:16,right:16,background:'rgba(255,255,255,.06)',border:'none',color:'#8b9fc0',width:32,height:32,borderRadius:8,cursor:'pointer',fontSize:16}}>✕</button>
-          <h2 style={{fontFamily:'"Syne",sans-serif',fontSize:22,fontWeight:800,margin:'0 0 6px'}}>{editing?'Edit Strategy':'New Strategy'}</h2>
-          <p style={{color:'#8b9fc0',fontSize:13,marginBottom:24}}>Describe your strategy in natural language. The AI uses this as its instruction set.</p>
-          <div style={{marginBottom:14}}><label style={{display:'block',color:'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace',marginBottom:6}}>STRATEGY NAME</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g., Gap & Go, VWAP Reclaim..." style={{width:'100%',background:'#111927',border:'1.5px solid rgba(255,255,255,.08)',borderRadius:10,padding:'11px 14px',color:'#f0f4ff',fontSize:14,outline:'none',boxSizing:'border-box'}}/></div>
-          <div style={{marginBottom:14}}><label style={{display:'block',color:'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace',marginBottom:6}}>SHORT DESCRIPTION</label><input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="One line summary..." style={{width:'100%',background:'#111927',border:'1.5px solid rgba(255,255,255,.08)',borderRadius:10,padding:'11px 14px',color:'#f0f4ff',fontSize:14,outline:'none',boxSizing:'border-box'}}/></div>
-          <div style={{background:'rgba(37,99,235,.06)',border:'1px solid rgba(37,99,235,.15)',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
-            <div style={{color:'#60a5fa',fontSize:11,fontFamily:'"DM Mono",monospace',marginBottom:10}}>⚡ INGEST FROM SOURCE</div>
-            <div style={{display:'flex',gap:8,marginBottom:8}}><input value={ingestUrl} onChange={e=>setIngestUrl(e.target.value)} placeholder="Paste any URL, article, or YouTube link..." style={{flex:1,background:'#111927',border:'1.5px solid rgba(255,255,255,.08)',borderRadius:8,padding:'9px 12px',color:'#f0f4ff',fontSize:13,outline:'none'}}/><button onClick={ingestFromUrl} disabled={ingesting||!ingestUrl} style={{padding:'9px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'white',fontSize:12,cursor:'pointer',opacity:ingesting?0.6:1}}>{ingesting?'...':'Extract'}</button></div>
-            <div style={{display:'flex',alignItems:'center',gap:8}}><button onClick={()=>fileRef.current?.click()} style={{padding:'7px 14px',background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',borderRadius:8,color:'#8b9fc0',fontSize:12,cursor:'pointer'}}>📄 Upload PDF/TXT</button><span style={{color:'#2d3d50',fontSize:12}}>Claude extracts the strategy automatically</span><input ref={fileRef} type="file" accept=".pdf,.txt,.md" style={{display:'none'}} onChange={e=>e.target.files?.[0]&&ingestFile(e.target.files[0])}/></div>
-          </div>
-          <div style={{marginBottom:20}}><label style={{display:'block',color:'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace',marginBottom:6}}>STRATEGY CONTENT</label><textarea value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="Describe setup criteria, entry rules, exit rules, risk management, optimal conditions..." style={{width:'100%',background:'#111927',border:'1.5px solid rgba(255,255,255,.08)',borderRadius:10,padding:14,color:'#f0f4ff',fontSize:14,outline:'none',lineHeight:1.7,resize:'vertical',minHeight:180,boxSizing:'border-box'}}/>{ingesting&&<div style={{color:'#60a5fa',fontSize:12,marginTop:6,fontFamily:'"DM Mono",monospace'}}>⚡ Extracting with AI...</div>}</div>
-          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}><button onClick={()=>setShowBuilder(false)} style={{padding:'11px 20px',background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,color:'#8b9fc0',fontSize:13,cursor:'pointer'}}>Cancel</button><button onClick={save} disabled={saving||!form.name||!form.content} style={{padding:'11px 24px',background:'#2563eb',border:'none',borderRadius:10,color:'white',fontSize:13,fontWeight:600,cursor:'pointer',opacity:(saving||!form.name||!form.content)?0.6:1}}>{saving?'Saving...':editing?'Update':'Save Strategy'}</button></div>
-        </div>
-      </div>}
-
-      {!loading&&strategies.length===0&&<div style={{marginBottom:28}}>
-        <div style={{color:'#4a5c7a',fontSize:12,fontFamily:'"DM Mono",monospace',marginBottom:14}}>QUICK START — ADD EXAMPLE STRATEGIES</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12}}>
-          {EXAMPLES.map(ex=><button key={ex.name} onClick={async()=>{setSaving(true);const{data:{session:s}}=await supabase.auth.getSession();await fetch('/api/strategies',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s?.access_token},body:JSON.stringify(ex)});await load();setSaving(false)}} style={{background:'rgba(255,255,255,.03)',border:'1px dashed rgba(255,255,255,.1)',borderRadius:12,padding:16,textAlign:'left',cursor:'pointer'}}><div style={{color:'#f0f4ff',fontSize:14,fontWeight:600,marginBottom:4}}>+ {ex.name}</div><div style={{color:'#4a5c7a',fontSize:12}}>{ex.description}</div></button>)}
-        </div>
-      </div>}
-
-      {loading?<div style={{color:'#4a5c7a',fontSize:13,fontFamily:'"DM Mono",monospace'}}>Loading strategies...</div>:
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:16,marginBottom:32}}>
-          {strategies.map(st=>{const sel=selectedIds.includes(st.id);return(
-            <div key={st.id} className={'sc'+(sel?' sel':'')} style={{position:'relative'}} onClick={()=>toggle(st.id)}>
-              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${sel?'#2563eb':'rgba(255,255,255,.15)'}`,background:sel?'#2563eb':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>{sel&&<span style={{color:'white',fontSize:11}}>✓</span>}</div>
-                  <div style={{fontFamily:'"Syne",sans-serif',fontSize:16,fontWeight:700}}>{st.name}</div>
-                </div>
-                <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
-                  <button className="tb" onClick={()=>{setEditing(st);setForm({name:st.name,description:st.description||'',content:st.content});setShowBuilder(true)}}>edit</button>
-                  <button className="tb" style={{color:'#ef4444',borderColor:'rgba(239,68,68,.2)'}} onClick={()=>del(st.id)}>×</button>
-                </div>
+      {/* Right: full playbook */}
+      {active && (
+        <div style={{flex:1,background:'#0d1420',border:`1px solid ${active.color}30`,borderRadius:16,padding:24,maxHeight:'calc(100vh - 60px)',overflowY:'auto'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
+            <div>
+              <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:28}}>{active.icon}</span>
+                <h2 style={{fontFamily:'"Syne",sans-serif',fontSize:20,fontWeight:800}}>{active.name}</h2>
               </div>
-              {st.description&&<p style={{color:'#8b9fc0',fontSize:13,margin:'0 0 8px',lineHeight:1.5}}>{st.description}</p>}
-              <p style={{color:'#2d3d50',fontSize:12,margin:0,lineHeight:1.6,display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{st.content}</p>
-              {!st.user_id&&<div style={{display:'inline-block',marginTop:10,padding:'2px 8px',background:'rgba(37,99,235,.1)',border:'1px solid rgba(37,99,235,.2)',borderRadius:4,color:'#3b82f6',fontSize:10,fontFamily:'"DM Mono",monospace'}}>GLOBAL</div>}
+              <div style={{display:'flex',gap:12,alignItems:'center'}}>
+                <span style={{background:`${active.color}15`,border:`1px solid ${active.color}30`,borderRadius:5,padding:'2px 9px',color:active.color,fontSize:10,fontFamily:'"DM Mono",monospace'}}>{active.category}</span>
+                <span style={{color:diffColor(active.difficulty),fontSize:10,fontFamily:'"DM Mono",monospace'}}>{active.difficulty}</span>
+                <span style={{color:'#10b981',fontSize:11,fontFamily:'"DM Mono",monospace',fontWeight:700}}>{active.winRate} Win Rate</span>
+                <span style={{color:'#60a5fa',fontSize:11,fontFamily:'"DM Mono",monospace'}}>Avg {active.avgRR} R/R</span>
+              </div>
             </div>
-          )})}
-        </div>}
+            <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',color:'#4a5c7a',cursor:'pointer',fontSize:20}}>✕</button>
+          </div>
 
-      {strategies.length>0&&<div style={{background:'#0d1420',border:'1px solid rgba(255,255,255,.07)',borderRadius:16,padding:24}}>
-        <div style={{color:'#8b9fc0',fontSize:11,fontFamily:'"DM Mono",monospace',marginBottom:14}}>⚡ STRATEGY TEST CONSOLE — {selectedIds.length>0?`Using ${maxMode?'all':selectedIds.length} strateg${selectedIds.length===1?'y':'ies'}`:'No strategies selected'}</div>
-        <div style={{display:'flex',gap:10,marginBottom:testResult?16:0}}>
-          <input value={testQ} onChange={e=>setTestQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&runTest()} placeholder='e.g., "How many times has AAPL gapped up before earnings?" or "TSLA retesting support — how likely is a breakout?"' style={{flex:1,background:'#111927',border:'1.5px solid rgba(255,255,255,.08)',borderRadius:10,padding:'12px 16px',color:'#f0f4ff',fontSize:14,outline:'none'}}/>
-          <button onClick={runTest} disabled={testLoading||!testQ.trim()||selectedIds.length===0} style={{padding:'12px 20px',background:'#2563eb',border:'none',borderRadius:10,color:'white',fontSize:13,cursor:'pointer',whiteSpace:'nowrap',opacity:(testLoading||!testQ.trim()||selectedIds.length===0)?0.6:1,fontFamily:'"DM Mono",monospace'}}>{testLoading?'...':'Analyze →'}</button>
+          {/* Context */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+            <div style={{padding:'10px 14px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8}}>
+              <div style={{color:'#3d4e62',fontSize:9,fontFamily:'"DM Mono",monospace',marginBottom:6}}>BEST CONDITIONS</div>
+              <div style={{color:'#10b981',fontSize:11}}>{active.bestIn}</div>
+            </div>
+            <div style={{padding:'10px 14px',background:'rgba(239,68,68,0.05)',border:'1px solid rgba(239,68,68,0.15)',borderRadius:8}}>
+              <div style={{color:'#3d4e62',fontSize:9,fontFamily:'"DM Mono",monospace',marginBottom:6}}>AVOID WHEN</div>
+              <div style={{color:'#ef4444',fontSize:11}}>{active.avoidIn}</div>
+            </div>
+          </div>
+
+          {/* Setup checklist */}
+          <div style={{marginBottom:18}}>
+            <div style={{fontFamily:'"DM Mono",monospace',fontSize:10,color:'#4a5c7a',marginBottom:10}}>SETUP CHECKLIST</div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {active.setup.map((s,i) => (
+                <div key={i} style={{display:'flex',gap:10,padding:'8px 12px',background:'rgba(255,255,255,0.02)',borderRadius:7,fontSize:12}}>
+                  <span style={{color:active.color,flexShrink:0}}>☐</span>
+                  <span style={{color:'#9ab'}}>{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Entry / Stop / Target */}
+          {[['ENTRY', active.entry, '#f59e0b'],['STOP LOSS', active.stop, '#ef4444'],['TARGET', active.target, '#10b981'],['OPTIONS PLAY', active.options, '#a78bfa']].map(([label,text,color])=>(
+            <div key={label} style={{marginBottom:14,padding:'12px 16px',background:`${color}08`,border:`1px solid ${color}20`,borderRadius:10}}>
+              <div style={{fontFamily:'"DM Mono",monospace',fontSize:9,color:color,marginBottom:6,fontWeight:700}}>{label}</div>
+              <div style={{fontSize:12,color:'#9ab',lineHeight:1.7}}>{text}</div>
+            </div>
+          ))}
+
+          {/* Quick actions */}
+          <div style={{display:'flex',gap:8,marginTop:20,paddingTop:16,borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+            <button onClick={()=>navigate('/app/setups')} style={{flex:1,padding:'10px',background:`linear-gradient(135deg,${active.color},${active.color}cc)`,border:'none',borderRadius:8,color:'#fff',fontSize:12,cursor:'pointer',fontWeight:700}}>Find Setups Using This Strategy</button>
+            <button onClick={()=>navigate('/app/charts')} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:8,color:'#6b7a90',fontSize:12,cursor:'pointer'}}>Open Charts →</button>
+          </div>
         </div>
-        {testResult&&<div style={{background:'rgba(37,99,235,.06)',border:'1px solid rgba(37,99,235,.15)',borderRadius:12,padding:'16px 20px',marginTop:16}}><div style={{color:'#c4cfe0',fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{testResult}</div></div>}
-      </div>}
+      )}
     </div>
   )
 }
