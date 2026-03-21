@@ -1,10 +1,8 @@
-// Using Anthropic API via fetch (no SDK required)
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 
-// Anthropic called directly via fetch
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-const maxDuration = 60; // Vercel Pro max
 const cors = { 'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST,GET,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization' };
 
 // ── Universe ─────────────────────────────────────────────────────────────────
@@ -265,6 +263,49 @@ function computeTechnicals(hist, currentPrice) {
   };
 }
 
+
+// ── Batch price fetch via Yahoo spark (single API call for all symbols) ───────
+async function fetchBatchPrices(symbols) {
+  const prices = {};
+  try {
+    // Yahoo v8/finance/spark - batch endpoint, different rate limit from chart
+    const url = `https://query2.finance.yahoo.com/v8/finance/spark?symbols=${symbols.join(',')}&range=1d&interval=1d`;
+    const r = await fetch(url, { headers: YAHOO_HEADERS, signal: AbortSignal.timeout(8000) });
+    if (r.ok) {
+      const data = await r.json();
+      const spark = data?.spark?.result || [];
+      for (const item of spark) {
+        if (item?.symbol && item?.response?.[0]?.meta?.regularMarketPrice) {
+          prices[item.symbol] = item.response[0].meta.regularMarketPrice;
+        }
+      }
+      console.log(`Batch prices fetched: ${Object.keys(prices).length}/${symbols.length} symbols`);
+      return prices;
+    }
+  } catch (e) {
+    console.error('Batch price fetch failed:', e.message);
+  }
+  
+  // Fallback: try Yahoo v7 quote batch
+  try {
+    const url = `https://query2.finance.yahoo.com/v8/finance/quote?symbols=${symbols.join(',')}&fields=regularMarketPrice,regularMarketPreviousClose`;
+    const r = await fetch(url, { headers: YAHOO_HEADERS, signal: AbortSignal.timeout(8000) });
+    if (r.ok) {
+      const data = await r.json();
+      const quotes = data?.quoteResponse?.result || [];
+      for (const q of quotes) {
+        if (q.symbol && q.regularMarketPrice) prices[q.symbol] = q.regularMarketPrice;
+      }
+      console.log(`Fallback batch prices: ${Object.keys(prices).length}/${symbols.length}`);
+    }
+  } catch (e) {
+    console.error('Fallback batch failed:', e.message);
+  }
+  
+  // Last resort: return empty dict (will trigger individual fetches for all)
+  return prices;
+}
+
 // ── Full ticker data assembly ─────────────────────────────────────────────────
 async function fetchTickerData(symbol) {
   const sym = symbol.toUpperCase();
@@ -440,27 +481,11 @@ Run full 100-analyst synthesis. ALL price levels must come from the actual data 
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.write('data: ' + JSON.stringify({ type: 'data', tickerData: td }) + '\n\n');
-      // Stream via fetch
-      const streamResp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 3500, stream: true, system: sys, messages: [{ role: 'user', content: msg }] })
-      });
-      const reader = streamResp.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value).split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const ev = JSON.parse(line.slice(6));
-              if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
-                res.write('data: ' + JSON.stringify({ type: 'text', text: ev.delta.text }) + '\n\n');
-              }
-            } catch (e) {}
-          }
+      const stream = client.messages.stream({ model: 'claude-sonnet-4-20250514', max_tokens: 3500, system: sys, messages: [{ role: 'user', content: msg }] });
+      for await (const chunk of stream) {
+        if (res.writableEnded) break;
+        if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+          res.write('data: ' + JSON.stringify({ type: 'text', text: chunk.delta.text }) + '\n\n');
         }
       }
       res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
@@ -482,14 +507,20 @@ Run full 100-analyst synthesis. ALL price levels must come from the actual data 
       // Core always-included symbols + random rotation
       const core = ['SPY', 'QQQ', 'NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMD', 'PLTR'];
       const rotation = [...UNIVERSE].filter(s => !core.includes(s)).sort(() => Math.random() - 0.5).slice(0, 10);
-      const batch = [...core, ...rotation].slice(0, 12); // Keep under 60s Vercel limit
+      const batch = [...core, ...rotation].slice(0, 16);
 
-      // Fetch with slight delay between requests to avoid rate limiting
+      // Batch fetch prices via Yahoo spark endpoint (single call, different rate limit bucket)
+      // Then fetch full chart data only for promising symbols
+      const batchPrices = await fetchBatchPrices(batch);
+      
+      // For symbols with valid prices, fetch full chart data sequentially with delays
       const tickerDataList = [];
       for (const sym of batch) {
+        const price = batchPrices[sym];
+        if (!price || price < 5) continue;
         const td = await fetchTickerData(sym).catch(() => null);
         if (td) tickerDataList.push(td);
-        if (batch.indexOf(sym) < batch.length - 1) await new Promise(r => setTimeout(r, 150));
+        await new Promise(r => setTimeout(r, 300)); // 300ms between chart requests
       }
 
       const qualified = tickerDataList.filter(td => passesGate(td));
@@ -545,19 +576,17 @@ Find the 6 BEST options trading setups right now. For each:
 
 Output ONLY valid JSON array. Use ONLY prices from the data provided above.`;
 
-      const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2800, system: sys, messages: [{ role: 'user', content: scanMsg }] })
+      const result = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2800,
+        system: sys, messages: [{ role: 'user', content: scanMsg }]
       });
-      const aiData = await aiResp.json();
 
       let setups = [];
       try {
-        const raw = (aiData.content[0].text || '').replace(/```json|```/g, '').trim();
+        const raw = result.content[0].text.replace(/```json|```/g, '').trim();
         setups = JSON.parse(raw);
       } catch (e) {
-        console.error('Parse error:', e.message, (aiData.content?.[0]?.text || '').substring(0, 300));
+        console.error('Parse error:', e.message, result.content[0].text.substring(0, 300));
       }
 
       // Enrich each setup with live ticker data
