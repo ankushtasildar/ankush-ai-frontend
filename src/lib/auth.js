@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 const AuthContext = createContext(null)
@@ -11,12 +11,12 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      setUser(session?.user ?? null)
+      setUser(session ? session.user : null)
       setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      setUser(session?.user ?? null)
+      setUser(session ? session.user : null)
       setLoading(false)
     })
     return () => subscription.unsubscribe()
@@ -46,13 +46,11 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }
 
-  const isAdmin = user?.email === 'ankushtasildar2@gmail.com' || user?.user_metadata?.role === 'admin'
+  const isAdmin = !!(user && user.email === 'ankushtasildar2@gmail.com')
 
-  return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, signInWithGoogle, signInWithMagicLink, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  const value = { user, session, loading, isAdmin, signInWithGoogle, signInWithMagicLink, signOut }
+
+  return React.createElement(AuthContext.Provider, { value }, children)
 }
 
 export function useAuth() {
