@@ -249,28 +249,26 @@ const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
 
 async function getCachedAnalysis(symbol) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('symbol_analysis')
-      .select('result, updated_at')
-      .eq('symbol', symbol.toUpperCase())
-      .single()
-    if (error || !data) return null
-    const age = Date.now() - new Date(data.updated_at).getTime()
-    if (age > CACHE_TTL_MS) return null // stale
-    return { ...data.result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
+    if (!SUPA_URL || !SUPA_KEY) return null
+    const url = SUPA_URL + '/rest/v1/symbol_analysis?symbol=eq.' + symbol.toUpperCase() + '&select=result,updated_at&limit=1'
+    const r = await fetch(url, { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } })
+    const rows = await r.json()
+    if (!rows || !rows[0]) return null
+    const age = Date.now() - new Date(rows[0].updated_at).getTime()
+    if (age > CACHE_TTL_MS) return null
+    return { ...rows[0].result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
   } catch (e) { return null }
 }
 
 async function setCachedAnalysis(symbol, result) {
   try {
-    await supabaseAdmin.from('symbol_analysis').upsert({
-      symbol: symbol.toUpperCase(),
-      result,
-      price: result.price || null,
-      sentiment: result.sentiment || null,
-      confidence: result.confidence || null,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'symbol' })
+    if (!SUPA_URL || !SUPA_KEY) return
+    const url = SUPA_URL + '/rest/v1/symbol_analysis'
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ symbol: symbol.toUpperCase(), result, price: result.price || null, sentiment: result.sentiment || null, confidence: result.confidence || null, updated_at: new Date().toISOString() })
+    })
   } catch (e) { console.error('[cache write]', e.message) }
 }
 
