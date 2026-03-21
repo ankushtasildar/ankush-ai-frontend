@@ -16,62 +16,10 @@ const FWCOLS = {
 const SORT_OPTIONS = ['Confidence', 'Urgency', 'R/R Ratio', 'Analyst Agreement']
 
 // ─── Baseline setups — real dollar amounts, full analysis in keyFactor ────────
-const BASELINE = [
-  {
-    symbol: 'SPY', setupType: 'Index regime — EMA200 support + VIX positioning',
-    bias: 'neutral', confidence: 7,
-    optionsTrade: 'SPY $550 calls OR $540 puts depending on direction',
-    entry: '$548.00–$552.00', target: '$562.00', stop: '$541.00',
-    rrRatio: '2.0:1', timeHorizon: '3–7 days', ivRank: 22,
-    keyFactor: 'SPY structure dictates every other setup on this page. Right now $548-$552 is the key decision zone — it sits on EMA200 and is where institutional order flow tends to cluster. If SPY holds this zone with RSI bouncing from under 40, buy the $550 calls with stop at $541 (closing below EMA200). Target is $562, which aligns with the prior weekly high. If SPY fails this zone on elevated volume with VIX > 20, flip to $540 puts — the structure becomes a failed support pattern with target $533. Never trade individual names against a broken SPY trend.',
-    frameworks: ['macro', 'technical', 'options'], urgency: 'high', analystAgreement: 82, sector: 'ETF'
-  },
-  {
-    symbol: 'QQQ', setupType: 'Tech leadership — EMA21 reclaim momentum entry',
-    bias: 'bullish', confidence: 7,
-    optionsTrade: 'Buy QQQ $440 calls, 3–4 weeks out on EMA21 reclaim',
-    entry: '$437.00–$441.00', target: '$458.00', stop: '$429.00',
-    rrRatio: '2.4:1', timeHorizon: '5–10 days', ivRank: 28,
-    keyFactor: 'QQQ reclaiming EMA21 with RSI bouncing from the 45-50 zone is the single most reliable bullish setup in tech. The $437–$441 zone has been tested 3 times in the last 6 weeks, each time producing a bounce to new highs. Volume on the reclaim matters — needs 1.3x average to confirm institutional participation. Stop below $429 (EMA50) invalidates the entire bullish structure. Target $458 aligns with the 1.272 Fibonacci extension from the prior base. Use 3–4 week expiry — enough time for the move without excess theta burn.',
-    frameworks: ['momentum', 'technical', 'the_strat'], urgency: 'medium', analystAgreement: 74, sector: 'ETF'
-  },
-  {
-    symbol: 'NVDA', setupType: 'AI earnings runway — IV compression call buy',
-    bias: 'bullish', confidence: 8,
-    optionsTrade: 'Buy NVDA $870 calls, 5–6 weeks before earnings date',
-    entry: '$858.00–$865.00', target: '$912.00', stop: '$840.00',
-    rrRatio: '3.1:1', timeHorizon: '4–8 weeks', ivRank: 35,
-    keyFactor: 'NVDA pre-earnings IV expansion when IV rank is under 50% is the most repeatable edge in this AI cycle. The setup: buy calls 4–6 weeks before earnings when IV is compressed, ride the IV expansion as the event approaches, then either exit before earnings or convert to a defined-risk spread. Entry zone $858–$865 is EMA21 support on the daily chart. Stop at $840 is below EMA50 — if NVDA loses EMA50 pre-earnings, the setup is broken. Target $912 = 61.8% Fibonacci extension of the prior base-to-peak move. IV rank at 35 = cheap premium window. When IV rank > 60%, switch to selling spreads instead.',
-    frameworks: ['earnings', 'options', 'momentum'], urgency: 'high', analystAgreement: 88, sector: 'Technology'
-  },
-  {
-    symbol: 'AMD', setupType: 'NVDA sympathy — semiconductor sector re-rating',
-    bias: 'bullish', confidence: 7,
-    optionsTrade: 'Buy AMD $175 calls expiring 1 week after NVDA earnings',
-    entry: '$171.00–$174.00', target: '$183.50', stop: '$166.00',
-    rrRatio: '2.5:1', timeHorizon: '2–3 days', ivRank: 41,
-    keyFactor: 'AMD is the highest-beta sympathy play to NVDA earnings in the semiconductor space. Historical data: in 8 of the last 10 NVDA earnings beats, AMD has moved 4–8% in the same direction the following session. The mechanism is sector ETF rebalancing — when NVDA beats, XLK and SOXX get bought aggressively, and AMD is the next-largest semiconductor weight. Entry $171–$174 puts you in before the sympathy move at EMA21 support. Stop $166 = below EMA50, which would signal the sector rotation is not happening. Target $183.50 = prior resistance and 38.2% retracement level. Exit the next morning after NVDA earnings regardless of direction.',
-    frameworks: ['sympathy', 'earnings', 'sector'], urgency: 'high', analystAgreement: 79, sector: 'Technology'
-  },
-  {
-    symbol: 'PLTR', setupType: '52W high breakout — high-short-interest squeeze',
-    bias: 'bullish', confidence: 7,
-    optionsTrade: 'Buy PLTR $28 calls on confirmed 2x volume breakout',
-    entry: '$26.50–$27.20', target: '$31.00', stop: '$24.80',
-    rrRatio: '2.7:1', timeHorizon: '2–4 weeks', ivRank: 55,
-    keyFactor: 'PLTR has a 28% short float and cycles government AI contract wins. When it breaks 52W highs on volume, shorts cover violently — the move is real and fast. Critical rule: ONLY enter on 2x or more average daily volume. Fake breakouts on low volume have been frequent and painful. Entry $26.50–$27.20 = the breakout zone above the prior 52W high. Stop $24.80 = re-entry back below prior resistance (now turns to support). Target $31.00 = 127% Fibonacci extension from the consolidation base at $22–$24. IV rank at 55 means buy a 25-delta call spread rather than naked calls to reduce the IV premium you pay.',
-    frameworks: ['breakout', 'technical', 'macro'], urgency: 'medium', analystAgreement: 71, sector: 'Technology'
-  },
-  {
-    symbol: 'AAPL', setupType: 'Product event catalyst — low IV pre-event call buy',
-    bias: 'neutral', confidence: 6,
-    optionsTrade: 'Buy AAPL $192 calls, 1 week before product event',
-    entry: '$189.50–$192.00', target: '$199.00', stop: '$185.00',
-    rrRatio: '2.3:1', timeHorizon: '3–5 days', ivRank: 18,
-    keyFactor: 'AAPL IV rank at 18 means this is one of the cheapest times to own calls in the past year. Product events create anticipation-driven IV expansion even before the actual announcement. Enter $189.50–$192.00 during the consolidation phase — AAPL has a tendency to base-build for 2–3 weeks before big events. Stop $185.00 = below the 50-day EMA and prior support cluster. Target $199.00 = prior all-time high retest. Exit BEFORE the announcement — post-announcement IV crush is severe and predictable. After the event, watch for a 3–5 day pullback and then consider buying puts for the post-event fade if the announcement disappoints relative to expectations.',
-    frameworks: ['sympathy', 'earnings', 'technical'], urgency: 'medium', analystAgreement: 65, sector: 'Technology'
-  },
-]
+const BASELINE = []
+// Baseline intentionally empty — we never show stale hardcoded prices.
+// The page shows a "Scan initializing" state until live data arrives.
+
 
 // ─── Mini sparkline ───────────────────────────────────────────────────────────
 function Spark({ data, color = '#10b981', width = 64, height = 24 }) {
