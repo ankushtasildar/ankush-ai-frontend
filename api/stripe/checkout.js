@@ -1,51 +1,43 @@
-// api/stripe/checkout.js — Create Stripe checkout session
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-
-  const { priceId } = req.body;
-  const origin = req.headers.origin || 'https://www.ankushai.org';
-
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  
   try {
-    // Check for existing Stripe customer
-    const { data: profile } = await supabase.from('profiles')
-      .select('stripe_customer_id').eq('id', user.id).single();
-
-    let customerId = profile?.stripe_customer_id;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: { supabase_user_id: user.id }
-      });
-      customerId = customer.id;
-      await supabase.from('profiles').upsert({ id: user.id, stripe_customer_id: customerId });
-    }
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No auth token' });
+    
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) return res.status(401).json({ error: 'Invalid token' });
+    
+    const origin = req.headers.origin || 'https://www.ankushai.org';
+    const priceId = process.env.STRIPE_PRICE_ID;
+    if (!priceId) return res.status(500).json({ error: 'Stripe price ID not configured' });
 
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
+      customer_email: user.email,
+      client_reference_id: user.id,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/app/overview?upgraded=1`,
-      cancel_url: `${origin}/app/billing`,
-      metadata: { user_id: user.id },
-      subscription_data: { metadata: { user_id: user.id } },
+      success_url: `${origin}/app/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/app/billing?canceled=true`,
+      metadata: { user_id: user.id, email: user.email },
+      subscription_data: {
+        metadata: { user_id: user.id }
+      },
       allow_promotion_codes: true,
     });
 
-    return res.json({ url: session.url });
+    return res.json({ url: session.url, sessionId: session.id });
   } catch(e) {
     console.error('Checkout error:', e.message);
     return res.status(500).json({ error: e.message });
