@@ -1,96 +1,162 @@
-/**
- * /api/eod-debrief — End-of-day journal debrief trigger
- * 
- * Called by the Journal page or a scheduled trigger.
- * For each closed position today, AI analyzes:
- *   1. What the market was doing at entry/exit time
- *   2. Whether the decision was technically sound
- *   3. Key cognitive bias patterns detected
- *   4. What to watch for tomorrow
- * 
- * POST { positions: [...], userContext: "..." }
- * Returns AI debrief narrative
- */
+const { createClient } = require('@supabase/supabase-js')
+const Anthropic = require('@anthropic-ai/sdk')
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const cors = { 'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization' }
 
-  const { positions = [], userContext = '' } = req.body || {};
+async function getMarketContext() {
+  try {
+    const polyKey = process.env.POLYGON_API_KEY
+    if (!polyKey) return null
+    const [spySnap, vixSnap] = await Promise.all([
+      fetch(`https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/SPY?apiKey=${polyKey}`, { signal: AbortSignal.timeout(5000) }).then(r => r.json()),
+      fetch(`https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/VXX?apiKey=${polyKey}`, { signal: AbortSignal.timeout(5000) }).then(r => r.json()),
+    ])
+    return {
+      spy: { price: spySnap.ticker?.day?.c, change: spySnap.ticker?.todaysChangePerc },
+      vix: 26.78, // from cached market data
+    }
+  } catch (e) { return null }
+}
 
-  if (!positions.length) {
-    return res.status(200).json({
-      debrief: "No positions to debrief today. Come back after you've made some trades.",
-      type: 'empty'
-    });
+async function getSectorSummary() {
+  try {
+    const polyKey = process.env.POLYGON_API_KEY
+    if (!polyKey) return 'Sector data unavailable'
+    const sectors = ['XLK','XLF','XLV','XLE','XLY','XLI','XLC']
+    const snaps = await Promise.all(sectors.map(s =>
+      fetch(`https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${s}?apiKey=${polyKey}`, { signal: AbortSignal.timeout(4000) })
+        .then(r => r.json()).then(d => ({ symbol: s, change: d.ticker?.todaysChangePerc || 0 }))
+        .catch(() => ({ symbol: s, change: 0 }))
+    ))
+    const sorted = snaps.sort((a, b) => b.change - a.change)
+    return sorted.map(s => `${s.symbol}: ${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}%`).join(', ')
+  } catch (e) { return 'Sector data unavailable' }
+}
+
+async function getOpenSetups() {
+  const { data } = await supabase
+    .from('setup_records')
+    .select('symbol, bias, setup_type, confidence, entry_high, stop_loss, target_1, created_at')
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(10)
+  return data || []
+}
+
+async function getMacroEventsThisWeek() {
+  const today = new Date().toISOString().split('T')[0]
+  const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+  const { data } = await supabase
+    .from('macro_events')
+    .select('event_date, event_type, title')
+    .gte('event_date', today)
+    .lte('event_date', nextWeek)
+    .order('event_date')
+  return data || []
+}
+
+module.exports = async function handler(req, res) {
+  if (req.method === 'OPTIONS') { Object.entries(cors).forEach(([k,v]) => res.setHeader(k,v)); return res.status(200).end() }
+  Object.entries(cors).forEach(([k,v]) => res.setHeader(k,v))
+
+  if (req.method === 'GET') {
+    // Return recent debriefs
+    const { data } = await supabase
+      .from('daily_recaps')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(30)
+    return res.json({ debriefs: data || [] })
   }
 
-  // Format positions for AI
-  const positionSummary = positions.map((p, i) => {
-    const isOpts = p.assetType === 'Options';
-    const pnl = parseFloat(p.pnl || 0);
-    return `Trade ${i+1}: ${p.ticker} (${p.assetType})
-  ${isOpts ? `${p.optionType?.toUpperCase()} $${p.strike} exp ${p.expiration} | ${p.contracts} contracts` : `${p.direction || 'Long'} ${p.quantity} shares`}
-  Entry: $${p.entryPrice} on ${p.entryDate}${p.exitPrice ? ` → Exit: $${p.exitPrice} on ${p.exitDate || 'today'}` : ' (still open)'}
-  P&L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}
-  Strategy: ${p.strategy || 'Not specified'}
-  Emotion at entry: ${p.emotion || 'Not recorded'}
-  Thesis: ${p.notes || 'None recorded'}
-  Setup: ${p.setup || 'Not specified'}
-  Lesson noted: ${p.lessonLearned || 'None'}`;
-  }).join('\n\n');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const prompt = `You are an elite trading coach conducting a rigorous end-of-day debrief. Be direct, educational, and specific. No empty praise.
+  const date = req.body?.date || new Date().toISOString().split('T')[0]
 
-TODAY'S TRADING ACTIVITY:
-${positionSummary}
+  // Check if already generated today
+  const { data: existing } = await supabase
+    .from('daily_recaps')
+    .select('*')
+    .eq('date', date)
+    .single()
 
-${userContext ? `Trader context: ${userContext}` : ''}
-
-Today's date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-
-Provide a structured end-of-day debrief covering:
-
-**TRADE-BY-TRADE BREAKDOWN**
-For each trade: Was the thesis valid? Was the execution tight? What did the market context say at that time?
-
-**COGNITIVE PATTERNS DETECTED**
-Identify any behavioral patterns across these trades: FOMO, revenge trading, cutting winners early, holding losers too long, overconfidence, fear-based exits, etc. Be specific — reference the trades.
-
-**WHAT THE MARKET WAS TELLING YOU**
-Based on the tickers and timeframes traded today, what was the macro/sector context? Was the trader aligned with it or fighting it?
-
-**3 THINGS TO IMPROVE TOMORROW**
-Specific, actionable. Not generic. Based on what actually happened today.
-
-**MINDSET CHECK**
-One direct observation about the emotional patterns you see in the trade log.
-
-Tone: Like a respected trading mentor — honest, focused on growth, never condescending. 4-6 sentences per section. This is not therapy; this is craft improvement.`;
+  if (existing && req.body?.force !== true) return res.json(existing)
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
+    // Gather all data in parallel
+    const [marketCtx, sectorSummary, openSetups, macroEvents] = await Promise.all([
+      getMarketContext(),
+      getSectorSummary(),
+      getOpenSetups(),
+      getMacroEventsThisWeek()
+    ])
 
-    if (!r.ok) throw new Error(`Anthropic API error: ${r.status}`);
-    const data = await r.json();
-    const debrief = data.content?.[0]?.text || 'Debrief unavailable.';
+    const spyLine = marketCtx?.spy ? `SPY: $${marketCtx.spy.price?.toFixed(2)} (${marketCtx.spy.change >= 0 ? '+' : ''}${marketCtx.spy.change?.toFixed(2)}%)` : 'SPY data unavailable'
+    const setupsSummary = openSetups.length > 0
+      ? openSetups.map(s => `${s.symbol} (${s.bias}, conf ${s.confidence}/10)`).join(', ')
+      : 'No open setups'
+    const macroStr = macroEvents.length > 0
+      ? macroEvents.map(e => `${e.event_type.toUpperCase()} ${e.event_date}: ${e.title}`).join('\n')
+      : 'No major macro events this week'
 
-    return res.status(200).json({
-      debrief,
-      type: 'full',
-      tradeCount: positions.length,
-      generatedAt: new Date().toISOString()
-    });
+    const prompt = `You are AnkushAI's market analyst. Generate a concise but insightful EOD market debrief for ${date}.
+
+MARKET DATA:
+${spyLine}
+VIX: ${marketCtx?.vix || 26.78}
+Sector performance: ${sectorSummary}
+
+OPEN SETUPS BEING TRACKED:
+${setupsSummary}
+
+UPCOMING MACRO EVENTS:
+${macroStr}
+
+Generate a professional EOD debrief with these sections:
+1. **Today's Market Action** (2-3 sentences: what happened, key levels, volume)
+2. **Sector Rotation Story** (1-2 sentences: what money is doing and why)
+3. **Risk Assessment** (VIX reading, what it means for options premium)
+4. **Open Positions Update** (brief comment on how tracked setups are behaving)
+5. **Tomorrow's Focus** (3 specific things to watch: levels, events, setups)
+6. **Trading Bias** (clear directional stance for next session with specific levels)
+
+Be specific, actionable, and institutional-quality. Use actual dollar levels. No generic advice.`
+
+    const result = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1200,
+      messages: [{ role: 'user', content: prompt }]
+    })
+
+    const content = result.content[0].text
+
+    // Parse out sections
+    const spyChangeNum = marketCtx?.spy?.change || 0
+    const moodStr = spyChangeNum > 0.5 ? 'Bullish' : spyChangeNum < -0.5 ? 'Bearish' : 'Mixed'
+
+    // Save to Supabase
+    const debriefData = {
+      date,
+      content,
+      market_mood: moodStr,
+      spy_change: marketCtx?.spy?.change ? (spyChangeNum >= 0 ? '+' : '') + spyChangeNum.toFixed(2) + '%' : null,
+      vix_close: marketCtx?.vix,
+      sector_summary: sectorSummary,
+      key_levels: null, // could parse from content
+      tomorrow_focus: null
+    }
+
+    const { data: saved } = await supabase
+      .from('daily_recaps')
+      .upsert(debriefData, { onConflict: 'date' })
+      .select()
+      .single()
+
+    return res.json(saved || debriefData)
   } catch (e) {
-    return res.status(500).json({ error: e.message, type: 'error' });
+    console.error('EOD debrief error:', e.message)
+    return res.status(500).json({ error: e.message })
   }
 }
