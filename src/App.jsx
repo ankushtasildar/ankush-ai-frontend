@@ -1,32 +1,196 @@
-import React,{useState,useEffect} from 'react'
-import {BrowserRouter,Routes,Route,NavLink,Navigate,useNavigate,Outlet} from 'react-router-dom'
-import {AuthProvider,useAuth} from './lib/auth'
-import {MarketProvider,useMarket} from './lib/useMarket.jsx'
-import ProtectedRoute from './components/ProtectedRoute'
-import PaywallGate from './components/PaywallGate'
-import AIChat from './components/AIChat'
-import Onboarding from './components/Onboarding'
-import LandingPage from './pages/LandingPage'
-import AuthCallback from './pages/AuthCallback'
-import AdminLogin from './pages/AdminLogin'
-import Admin from './pages/Admin'
-import Intelligence from './pages/Intelligence'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, NavLink } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from './lib/supabase'
+
+// Pages
 import Overview from './pages/Overview'
-import TopSetups from './pages/TopSetups'
-import Journal from './pages/Journal'
-import Portfolio from './pages/Portfolio'
 import Charts from './pages/Charts'
+import TopSetups from './pages/TopSetups'
 import Strategies from './pages/Strategies'
-import {supabase} from './lib/supabase'
-const NAV=[
-  {to:'/app',label:'Overview',icon:'◈',end:true,k:'1'},
-  {to:'/app/charts',label:'Charts',icon:'📈',k:'2'},
-  {to:'/app/setups',label:'Top Setups',icon:'🎯',k:'3'},
-  {to:'/app/strategies',label:'Strategies',icon:'⚡',k:'4'},
-  {to:'/app/portfolio',label:'Portfolio',icon:'💼',k:'5'},
-  {to:'/app/journal',label:'Journal',icon:'📓',k:'6'},
-]
-function SessionBadge(){const{session,quotes}=useMarket();const list=Object.values(quotes);const up=list.filter(q=>(q.changePct||0)>0).length;const dn=list.filter(q=>(q.changePct||0)<0).length;const cfg={regular:{label:'Market Open',color:'#10b981',pulse:true},premarket:{label:'Pre-Market',color:'#f59e0b',pulse:true},afterhours:{label:'After Hours',color:'#8b5cf6',pulse:false},closed:{label:'Market Closed',color:'#2d3d50',pulse:false}}[session]||{label:'Closed',color:'#2d3d50',pulse:false};return <div style={{padding:'9px 10px',background:'rgba(255,255,255,0.025)',borderRadius:9,marginBottom:4}}><div style={{display:'flex',alignItems:'center',gap:7,marginBottom:list.length?5:0}}><span style={{width:7,height:7,borderRadius:'50%',background:cfg.color,flexShrink:0,display:'inline-block',animation:cfg.pulse?'sbpulse 2s infinite':'none'}}/><span style={{color:cfg.color,fontSize:10,fontFamily:'"DM Mono",monospace',fontWeight:600,letterSpacing:'0.04em'}}>{cfg.label}</span></div>{list.length>0&&<div style={{display:'flex',gap:10}}><span style={{color:'#10b981',fontSize:10,fontFamily:'"DM Mono",monospace'}}>▲{up}</span><span style={{color:'#ef4444',fontSize:10,fontFamily:'"DM Mono",monospace'}}>▼{dn}</span></div>}</div>}
-function AppShell(){const{user}=useAuth();const navigate=useNavigate();const[collapsed,setCollapsed]=useState(false);const[toast,setToast]=useState(null);const[showOnboarding,setShowOnboarding]=useState(false);const[journalStats,setJournalStats]=useState(null);const name=user?.email?.split('@')[0]||'trader';const initials=name.substring(0,2).toUpperCase();useEffect(()=>{if(!user)return;supabase.from('profiles').select('onboarded').eq('id',user.id).single().then(({data})=>{if(data&&!data.onboarded)setShowOnboarding(true)}).catch(()=>{});supabase.from('journal_entries').select('pnl,status').eq('user_id',user.id).then(({data})=>{if(!data)return;const closed=data.filter(e=>e.status==='closed');const totalPnl=closed.reduce((s,e)=>s+parseFloat(e.pnl||0),0);const wins=closed.filter(e=>parseFloat(e.pnl||0)>0);setJournalStats({totalTrades:closed.length,totalPnl,winRate:closed.length?Math.round(wins.length/closed.length*100):0})}).catch(()=>{})},[user]);async function signOut(){await supabase.auth.signOut();navigate('/',{replace:true})}function showToast(msg,d=3000){setToast(msg);setTimeout(()=>setToast(null),d)}useEffect(()=>{const h=(e)=>{const tag=e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;const map={'1':'/app','2':'/app/charts','3':'/app/setups','4':'/app/strategies','5':'/app/portfolio','6':'/app/journal'};if(map[e.key])navigate(map[e.key]);if(e.key==='[')setCollapsed(c=>!c)};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[navigate]);return(<div style={{display:'flex',height:'100vh',background:'#080c14',overflow:'hidden'}}><style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');@keyframes sbpulse{0%,100%{opacity:1}50%{opacity:0.35}}@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}.nav-link{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;text-decoration:none;font-size:13px;font-family:"DM Sans",sans-serif;font-weight:500;color:#8b9fc0;transition:all 0.14s;position:relative;white-space:nowrap;overflow:hidden}.nav-link:hover{background:rgba(255,255,255,0.05)!important;color:#c4cfe0!important}.nav-link.active{background:rgba(37,99,235,0.13)!important;color:#60a5fa!important}.nav-link.active::before{content:'';position:absolute;left:0;top:22%;height:56%;width:3px;background:linear-gradient(180deg,#3b82f6,#8b5cf6);border-radius:0 3px 3px 0}.sidebar-nav::-webkit-scrollbar{width:0}.content-area::-webkit-scrollbar{width:5px}.content-area::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.07);border-radius:3px}`}</style><aside style={{width:collapsed?60:228,background:'#090e18',borderRight:'1px solid rgba(255,255,255,0.055)',display:'flex',flexDirection:'column',flexShrink:0,transition:'width 0.22s cubic-bezier(0.4,0,0.2,1)',overflow:'hidden',zIndex:20}}><div style={{padding:'15px 12px 13px',borderBottom:'1px solid rgba(255,255,255,0.05)',display:'flex',alignItems:'center',justifyContent:'space-between',minHeight:56,flexShrink:0}}>{!collapsed?(<div style={{display:'flex',alignItems:'center',gap:9}}><div style={{width:28,height:28,borderRadius:7,background:'linear-gradient(135deg,#2563eb,#7c3aed)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>◈</div><span style={{color:'#f0f4ff',fontWeight:700,fontSize:13,fontFamily:'"DM Mono",monospace',letterSpacing:'0.06em'}}>ANKUSHAI</span></div>):(<div style={{width:28,height:28,borderRadius:7,background:'linear-gradient(135deg,#2563eb,#7c3aed)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,margin:'0 auto'}}>◈</div>)}<button onClick={()=>setCollapsed(c=>!c)} style={{background:'none',border:'none',color:'#2d3d50',cursor:'pointer',fontSize:17,padding:'2px 3px',borderRadius:5,lineHeight:1,flexShrink:0}}>{collapsed?'›':'‹'}</button></div><nav className="sidebar-nav" style={{flex:1,padding:'12px 8px',display:'flex',flexDirection:'column',gap:1,overflowY:'auto'}}>{NAV.map(({to,label,icon,end,k})=>(<NavLink key={to} to={to} end={end} className={({isActive})=>'nav-link'+(isActive?' active':'')}><span style={{fontSize:16,flexShrink:0,lineHeight:1}}>{icon}</span>{!collapsed&&<><span style={{flex:1}}>{label}</span><span style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:4,padding:'1px 5px',fontSize:9,fontFamily:'"DM Mono",monospace',color:'#2d3d50'}}>{k}</span></>}</NavLink>))}<div style={{flex:1}}/><NavLink to="/admin" className="nav-link" style={{marginTop:6}}><span style={{fontSize:15,flexShrink:0}}>⚙</span>{!collapsed&&<span>Admin</span>}</NavLink></nav><div style={{padding:'8px 8px 12px',borderTop:'1px solid rgba(255,255,255,0.05)',flexShrink:0}}>{!collapsed&&<SessionBadge/>}<div style={{display:'flex',alignItems:'center',gap:10,padding:'7px 6px',borderRadius:10}}><div style={{width:32,height:32,borderRadius:9,flexShrink:0,background:'linear-gradient(135deg,#2563eb,#7c3aed)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:11,fontWeight:700,fontFamily:'"DM Mono",monospace'}}>{initials}</div>{!collapsed&&(<div style={{overflow:'hidden',flex:1}}><div style={{color:'#e2e8f0',fontSize:12,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{name}</div><div style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:2}}><span style={{width:5,height:5,borderRadius:'50%',background:'#10b981',display:'inline-block'}}/><span style={{color:'#10b981',fontSize:9,fontFamily:'"DM Mono",monospace',letterSpacing:'0.06em',fontWeight:600}}>PRO</span></div></div>)}</div>{!collapsed&&<button onClick={signOut} style={{width:'100%',background:'none',border:'none',color:'#2d3d50',fontSize:11,cursor:'pointer',textAlign:'left',padding:'6px 6px',borderRadius:7,fontFamily:'"DM Mono",monospace',marginTop:2}}>⏻ Sign out</button>}</div></aside><main className="content-area" style={{flex:1,overflow:'auto',position:'relative'}}><PaywallGate><Outlet/></PaywallGate></main><AIChat journalStats={journalStats}/>{showOnboarding&&<Onboarding userId={user?.id} onComplete={()=>setShowOnboarding(false)}/>}{toast&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#111927',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'10px 20px',color:'#e2e8f0',fontSize:12,fontFamily:'"DM Mono",monospace',zIndex:1000,animation:'toastIn 0.2s ease',boxShadow:'0 8px 32px rgba(0,0,0,0.4)',whiteSpace:'nowrap'}}>{toast}</div>}</div>)}
-function App(){return(<BrowserRouter><AuthProvider><Routes><Route path="/" element={<LandingPage/>}/><Route path="/auth/callback" element={<AuthCallback/>}/><Route path="/admin/login" element={<AdminLogin/>}/><Route path="/admin" element={<Admin/>}/><Route path="/app" element={<ProtectedRoute><MarketProvider><AppShell/></MarketProvider></ProtectedRoute>}><Route index element={<Overview/>}/><Route path="charts" element={<Charts/>}/><Route path="setups" element={<TopSetups/>}/><Route path="strategies" element={<Strategies/>}/><Route path="portfolio" element={<Portfolio/>}/><Route path="journal" element={<Journal/>}/><Route path="signals" element={<Navigate to="/app/setups" replace/>}/><Route path="*" element={<Navigate to="/app" replace/>}/></Route><Route path="*" element={<Navigate to="/" replace/>}/></Routes></AuthProvider></BrowserRouter>)}
-export default App
+import Portfolio from './pages/Portfolio'
+import Journal from './pages/Journal'
+import Signals from './pages/Signals'
+import Earnings from './pages/Earnings'
+import Sectors from './pages/Sectors'
+import RiskCalc from './pages/RiskCalc'
+import EODDebrief from './pages/EODDebrief'
+import Intelligence from './pages/Intelligence'
+import Admin from './pages/Admin'
+import LandingPage from './pages/LandingPage'
+import Login from './pages/Login'
+import AuthCallback from './pages/AuthCallback'
+
+function ProtectedRoute({ children }) {
+  const [user, setUser] = useState(undefined)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user || null))
+    return () => subscription.unsubscribe()
+  }, [])
+  if (user === undefined) return <div style={{ background: '#080c14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4a5c7a', fontFamily: '"DM Mono",monospace', fontSize: 12 }}>Loading AnkushAI...</div>
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
+function AppShell({ children }) {
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const [marketStatus, setMarketStatus] = useState({ open: false, spy: null, spyChange: null })
+  const location = useLocation()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user)
+      if (session?.user) loadProfile(session.user.id)
+    })
+    fetchMarketStatus()
+    const interval = setInterval(fetchMarketStatus, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  async function loadProfile(id) {
+    const { data } = await supabase.from('profiles').select('plan,subscription_status,username').eq('id', id).single()
+    setProfile(data)
+  }
+
+  async function fetchMarketStatus() {
+    try {
+      const r = await fetch('/api/market?type=quote&symbol=SPY')
+      if (r.ok) {
+        const d = await r.json()
+        const etHour = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })
+        const etDay = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short' })
+        const h = parseInt(etHour)
+        const isOpen = !['Sat','Sun'].includes(etDay) && h >= 9 && h < 16
+        setMarketStatus({ open: isOpen, spy: d.price, spyChange: d.changePercent })
+      }
+    } catch (e) {}
+  }
+
+  const isPro = profile?.plan === 'pro' || profile?.plan === 'enterprise' || profile?.subscription_status === 'active'
+  const isAdmin = user?.email === 'ankushtasildar2@gmail.com'
+
+  const nav = [
+    { to: 'overview', label: 'Overview', icon: '◈', badge: null },
+    { to: 'charts', label: 'Charts', icon: '📈', badge: null },
+    { to: 'setups', label: 'Top Setups', icon: '🎯', badge: 'HOT' },
+    { to: 'signals', label: 'Signals', icon: '⚡', badge: null },
+    { to: 'earnings', label: 'Earnings', icon: '📅', badge: null },
+    { to: 'sectors', label: 'Sectors', icon: '🌡', badge: null },
+    { to: 'strategies', label: 'Strategies', icon: '⚙', badge: null },
+    { to: 'portfolio', label: 'Portfolio', icon: '💼', badge: null },
+    { to: 'journal', label: 'Journal', icon: '📓', badge: null },
+    { to: 'risk', label: 'Risk Calc', icon: '⚖', badge: null },
+    { to: 'eod', label: 'EOD Debrief', icon: '🌙', badge: null },
+    ...(isAdmin ? [
+      { to: 'intelligence', label: 'Intelligence', icon: '🧠', badge: null, divider: true },
+      { to: 'admin', label: 'Admin', icon: '🔧', badge: null },
+    ] : [])
+  ]
+
+  const navItemStyle = (isActive, hasHot) => ({
+    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 8, marginBottom: 2,
+    background: isActive ? 'rgba(37,99,235,0.12)' : 'none',
+    color: isActive ? '#60a5fa' : '#6b7a90',
+    textDecoration: 'none', fontSize: 12, fontWeight: isActive ? 600 : 400, transition: 'all .15s',
+    cursor: 'pointer'
+  })
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
+      {/* Sidebar */}
+      <div style={{ width: collapsed ? 56 : 210, minHeight: '100vh', background: '#080c14', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', padding: '16px 10px', flexShrink: 0, transition: 'width .2s', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100 }}>
+        
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 16px', marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#2563eb,#7c3aed)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>A</div>
+          {!collapsed && <div style={{ fontFamily: '"Syne",sans-serif', fontWeight: 800, fontSize: 14, color: '#f0f6ff' }}>ANKUSHAI</div>}
+          <button onClick={() => setCollapsed(!collapsed)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 16, padding: 0 }}>{collapsed ? '→' : '←'}</button>
+        </div>
+
+        {/* Nav items */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {nav.map((item, i) => (
+            <div key={item.to}>
+              {item.divider && <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', margin: '8px 0' }} />}
+              <NavLink to={`/app/${item.to}`} style={({ isActive }) => navItemStyle(isActive)}>
+                <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
+                {!collapsed && <span style={{ flex: 1 }}>{item.label}</span>}
+                {!collapsed && item.badge && (
+                  <span style={{ background: '#ef4444', borderRadius: 4, padding: '1px 5px', fontSize: 8, color: '#fff', fontFamily: '"DM Mono",monospace', fontWeight: 700 }}>{item.badge}</span>
+                )}
+              </NavLink>
+            </div>
+          ))}
+        </div>
+
+        {/* Market status + user */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12 }}>
+          {!collapsed && (
+            <div style={{ padding: '4px 4px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: marketStatus.open ? '#10b981' : '#4a5c7a', flexShrink: 0, boxShadow: marketStatus.open ? '0 0 6px #10b981' : 'none' }} />
+              <div style={{ color: '#3d4e62', fontSize: 10 }}>
+                {marketStatus.open ? 'Market Open' : 'Market Closed'}
+                {marketStatus.spy && <span style={{ marginLeft: 6, color: (marketStatus.spyChange || 0) >= 0 ? '#10b981' : '#ef4444', fontFamily: '"DM Mono",monospace' }}>{(marketStatus.spyChange || 0) >= 0 ? '+' : ''}{(marketStatus.spyChange || 0).toFixed(2)}%</span>}
+              </div>
+            </div>
+          )}
+          {user && !collapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 4px', marginBottom: 4 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                {user.email?.[0]?.toUpperCase()}
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ color: '#f0f6ff', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.username || user.email?.split('@')[0]}</div>
+                <div style={{ color: isPro ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>● {isPro ? 'PRO' : 'FREE'}</div>
+              </div>
+              <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 10 }}>out</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex: 1, marginLeft: collapsed ? 56 : 210, minHeight: '100vh', transition: 'margin-left .2s' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/app" element={<ProtectedRoute><AppShell><Navigate to="/app/overview" replace /></AppShell></ProtectedRoute>} />
+        <Route path="/app/*" element={
+          <ProtectedRoute>
+            <AppShell>
+              <Routes>
+                <Route path="overview" element={<Overview />} />
+                <Route path="charts" element={<Charts />} />
+                <Route path="setups" element={<TopSetups />} />
+                <Route path="signals" element={<Signals />} />
+                <Route path="earnings" element={<Earnings />} />
+                <Route path="sectors" element={<Sectors />} />
+                <Route path="strategies" element={<Strategies />} />
+                <Route path="portfolio" element={<Portfolio />} />
+                <Route path="journal" element={<Journal />} />
+                <Route path="risk" element={<RiskCalc />} />
+                <Route path="eod" element={<EODDebrief />} />
+                <Route path="intelligence" element={<Intelligence />} />
+                <Route path="*" element={<Navigate to="/app/overview" replace />} />
+              </Routes>
+            </AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
