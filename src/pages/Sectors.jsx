@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react'
 
-const fmt = (n, dec=2) => n == null ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
-const fmtVol = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n?.toFixed(0) || '—'
+const fmt = (n, dec=2) => n == null ? 'â' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
+const fmtVol = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n?.toFixed(0) || 'â'
 
 const SECTOR_ETFS = [
-  { ticker: 'XLK', name: 'Technology', icon: '💻', subSymbols: ['NVDA','MSFT','AAPL','AVGO','ORCL'] },
-  { ticker: 'XLF', name: 'Financials', icon: '🏦', subSymbols: ['JPM','BAC','WFC','GS','MS'] },
-  { ticker: 'XLV', name: 'Healthcare', icon: '🏥', subSymbols: ['LLY','UNH','JNJ','ABBV','MRK'] },
-  { ticker: 'XLE', name: 'Energy', icon: '⚡', subSymbols: ['XOM','CVX','COP','SLB','PSX'] },
-  { ticker: 'XLY', name: 'Consumer Disc', icon: '🛍', subSymbols: ['AMZN','TSLA','HD','MCD','NKE'] },
-  { ticker: 'XLP', name: 'Consumer Stpl', icon: '🛒', subSymbols: ['PG','KO','PEP','WMT','COST'] },
-  { ticker: 'XLI', name: 'Industrials', icon: '🏗', subSymbols: ['GE','CAT','RTX','HON','UNP'] },
-  { ticker: 'XLB', name: 'Materials', icon: '⚙', subSymbols: ['LIN','SHW','APD','ECL','NEM'] },
-  { ticker: 'XLRE', name: 'Real Estate', icon: '🏢', subSymbols: ['PLD','AMT','EQIX','PSA','WELL'] },
-  { ticker: 'XLU', name: 'Utilities', icon: '💡', subSymbols: ['NEE','DUK','SO','D','AEP'] },
-  { ticker: 'XLC', name: 'Communication', icon: '📡', subSymbols: ['META','GOOGL','NFLX','DIS','T'] },
+  { ticker: 'XLK', name: 'Technology', icon: 'ð»', subSymbols: ['NVDA','MSFT','AAPL','AVGO','ORCL'] },
+  { ticker: 'XLF', name: 'Financials', icon: 'ð¦', subSymbols: ['JPM','BAC','WFC','GS','MS'] },
+  { ticker: 'XLV', name: 'Healthcare', icon: 'ð¥', subSymbols: ['LLY','UNH','JNJ','ABBV','MRK'] },
+  { ticker: 'XLE', name: 'Energy', icon: 'â¡', subSymbols: ['XOM','CVX','COP','SLB','PSX'] },
+  { ticker: 'XLY', name: 'Consumer Disc', icon: 'ð', subSymbols: ['AMZN','TSLA','HD','MCD','NKE'] },
+  { ticker: 'XLP', name: 'Consumer Stpl', icon: 'ð', subSymbols: ['PG','KO','PEP','WMT','COST'] },
+  { ticker: 'XLI', name: 'Industrials', icon: 'ð', subSymbols: ['GE','CAT','RTX','HON','UNP'] },
+  { ticker: 'XLB', name: 'Materials', icon: 'â', subSymbols: ['LIN','SHW','APD','ECL','NEM'] },
+  { ticker: 'XLRE', name: 'Real Estate', icon: 'ð¢', subSymbols: ['PLD','AMT','EQIX','PSA','WELL'] },
+  { ticker: 'XLU', name: 'Utilities', icon: 'ð¡', subSymbols: ['NEE','DUK','SO','D','AEP'] },
+  { ticker: 'XLC', name: 'Communication', icon: 'ð¡', subSymbols: ['META','GOOGL','NFLX','DIS','T'] },
 ]
 
 function getColor(change) {
@@ -94,7 +94,7 @@ export default function Sectors() {
 
   async function loadData() {
     try {
-      const r = await fetch('/api/market?type=context')
+      const r = await fetch('/api/market?action=context')
       if (r.ok) {
         const d = await r.json()
         setSpyData(d)
@@ -106,7 +106,7 @@ export default function Sectors() {
         } else {
           // Fallback: fetch sector ETFs directly
           const syms = SECTOR_ETFS.map(s => s.ticker).join(',')
-          const r2 = await fetch('/api/market?type=quotes&symbols=' + syms)
+          const r2 = await fetch('/api/market?action=quotes&symbols=' + syms)
           if (r2.ok) setQuotes(await r2.json())
         }
         setLastUpdated(new Date())
@@ -135,9 +135,9 @@ export default function Sectors() {
     <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>🌡 Sector Heatmap</h1>
+          <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>ð¡ Sector Heatmap</h1>
           <div style={{ color: '#3d4e62', fontSize: 11 }}>
-            {advancing} advancing · {declining} declining · {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}
+            {advancing} advancing Â· {declining} declining Â· {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
