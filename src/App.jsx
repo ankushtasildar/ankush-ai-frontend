@@ -83,6 +83,7 @@ function AppShell({ children }) {
     { to: 'portfolio', label: 'Portfolio', icon: '💼', badge: null },
     { to: 'journal', label: 'Journal', icon: '📓', badge: null },
     { to: 'risk', label: 'Risk Calc', icon: '⚖', badge: null },
+    { to: 'billing', label: 'Billing', icon: '💳', badge: null, divider: true },
     { to: 'eod', label: 'EOD Debrief', icon: '🌙', badge: null },
     ...(isAdmin ? [
       { to: 'intelligence', label: 'Intelligence', icon: '🧠', badge: null, divider: true },
