@@ -9,7 +9,7 @@ import TopSetups from './pages/TopSetups'
 import Strategies from './pages/Strategies'
 import Portfolio from './pages/Portfolio'
 import Journal from './pages/Journal'
-import Signals from './pages/Signals'
+import Watchlist from './pages/Signals'
 import Earnings from './pages/Earnings'
 import Sectors from './pages/Sectors'
 import RiskCalc from './pages/RiskCalc'
@@ -73,21 +73,21 @@ function AppShell({ children }) {
   const isAdmin = user?.email === 'ankushtasildar2@gmail.com'
 
   const nav = [
-    { to: 'overview', label: 'Overview', icon: 'â', badge: null },
-    { to: 'charts', label: 'Charts', icon: 'ð', badge: null },
-    { to: 'setups', label: 'Top Setups', icon: 'ð¯', badge: 'HOT' },
-    { to: 'signals', label: 'Signals', icon: 'â¡', badge: null },
-    { to: 'earnings', label: 'Earnings', icon: 'ð', badge: null },
-    { to: 'sectors', label: 'Sectors', icon: 'ð¡', badge: null },
-    { to: 'strategies', label: 'Strategies', icon: 'â', badge: null },
-    { to: 'portfolio', label: 'Portfolio', icon: 'ð¼', badge: null },
-    { to: 'journal', label: 'Journal', icon: 'ð', badge: null },
-    { to: 'risk', label: 'Risk Calc', icon: 'â', badge: null },
-    { to: 'billing', label: 'Billing', icon: 'ð³', badge: null, divider: true },
-    { to: 'eod', label: 'EOD Debrief', icon: 'ð', badge: null },
+    { to: 'overview', label: 'Overview', icon: 'Ã¢ÂÂ', badge: null },
+    { to: 'charts', label: 'Charts', icon: 'Ã°ÂÂÂ', badge: null },
+    { to: 'setups', label: 'Top Setups', icon: 'Ã°ÂÂÂ¯', badge: 'HOT' },
+    { to: 'watchlist', label: 'Watchlist', icon: 'Ã¢ÂÂ¡', badge: null },
+    { to: 'earnings', label: 'Earnings', icon: 'Ã°ÂÂÂ', badge: null },
+    { to: 'sectors', label: 'Sectors', icon: 'Ã°ÂÂÂ¡', badge: null },
+    { to: 'strategies', label: 'Strategies', icon: 'Ã¢ÂÂ', badge: null },
+    { to: 'portfolio', label: 'Portfolio', icon: 'Ã°ÂÂÂ¼', badge: null },
+    { to: 'journal', label: 'Journal', icon: 'Ã°ÂÂÂ', badge: null },
+    { to: 'risk', label: 'Risk Calc', icon: 'Ã¢ÂÂ', badge: null },
+    { to: 'billing', label: 'Billing', icon: 'Ã°ÂÂÂ³', badge: null, divider: true },
+    { to: 'eod', label: 'EOD Debrief', icon: 'Ã°ÂÂÂ', badge: null },
     ...(isAdmin ? [
-      { to: 'intelligence', label: 'Intelligence', icon: 'ð§ ', badge: null, divider: true },
-      { to: 'admin', label: 'Admin', icon: 'ð§', badge: null },
+      { to: 'intelligence', label: 'Intelligence', icon: 'Ã°ÂÂ§Â ', badge: null, divider: true },
+      { to: 'admin', label: 'Admin', icon: 'Ã°ÂÂÂ§', badge: null },
     ] : [])
   ]
 
@@ -108,7 +108,7 @@ function AppShell({ children }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 16px', marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#2563eb,#7c3aed)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>A</div>
           {!collapsed && <div style={{ fontFamily: '"Syne",sans-serif', fontWeight: 800, fontSize: 14, color: '#f0f6ff' }}>ANKUSHAI</div>}
-          <button onClick={() => setCollapsed(!collapsed)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 16, padding: 0 }}>{collapsed ? 'â' : 'â'}</button>
+          <button onClick={() => setCollapsed(!collapsed)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 16, padding: 0 }}>{collapsed ? 'Ã¢ÂÂ' : 'Ã¢ÂÂ'}</button>
         </div>
 
         {/* Nav items */}
@@ -145,7 +145,7 @@ function AppShell({ children }) {
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ color: '#f0f6ff', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.username || user.email?.split('@')[0]}</div>
-                <div style={{ color: isPro ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>â {isPro ? 'PRO' : 'FREE'}</div>
+                <div style={{ color: isPro ? '#10b981' : '#4a5c7a', fontSize: 9, fontFamily: '"DM Mono",monospace' }}>Ã¢ÂÂ {isPro ? 'PRO' : 'FREE'}</div>
               </div>
               <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: 'none', color: '#3d4e62', cursor: 'pointer', fontSize: 10 }}>out</button>
             </div>
@@ -176,7 +176,7 @@ export default function App() {
                 <Route path="overview" element={<Overview />} />
                 <Route path="charts" element={<Charts />} />
                 <Route path="setups" element={<TopSetups />} />
-                <Route path="signals" element={<Signals />} />
+                <Route path="watchlist" element={<Watchlist />} />
                 <Route path="earnings" element={<Earnings />} />
                 <Route path="sectors" element={<Sectors />} />
                 <Route path="strategies" element={<Strategies />} />
