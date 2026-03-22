@@ -246,7 +246,7 @@ export default function Portfolio() {
         <div style={{textAlign:'center',padding:'60px 20px',color:'#3d4e62'}}>
           <div style={{fontSize:48,marginBottom:16}}>📊</div>
           <div style={{fontSize:16,fontWeight:600,color:'#f0f6ff',marginBottom:8}}>No positions yet</div>
-          <div style={{fontSize:12,marginBottom:20}}>Log trades from Top Setups to track your portfolio P&L</div>
+          <div style={{fontSize:12,marginBottom:20}}>Start tracking your edge today — log your first trade from Top Setups</div>
           <button onClick={()=>navigate('/app/setups')} style={{padding:'10px 24px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:10,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:600}}>Go to Top Setups</button>
         </div>
       )}
