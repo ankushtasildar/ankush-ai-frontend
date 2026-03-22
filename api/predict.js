@@ -62,7 +62,7 @@ async function getPriceData(symbol, days=90) {
 // ── Macro regime signals ─────────────────────────────────────────
 async function getMacroRegime() {
   const [spy, vxx, tlt, hyd, iwm, qqq] = await Promise.all([
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/2024-01-01/2025-01-01?adjusted=true&sort=desc&limit=5'),
+    polyFetch('https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/2025-12-22/2026-03-22?adjusted=true&sort=desc&limit=90'),
     polyFetch('https://api.polygon.io/v2/aggs/ticker/VXX/prev?adjusted=true'),
     polyFetch('https://api.polygon.io/v2/aggs/ticker/TLT/prev?adjusted=true'),
     polyFetch('https://api.polygon.io/v2/aggs/ticker/HYG/prev?adjusted=true'),  // credit spreads proxy
@@ -521,7 +521,7 @@ module.exports = async function handler(req, res) {
     
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2500,
+      max_tokens: 4096,
       system: `You are Marcus Webb, a senior institutional equity analyst trained at Goldman Sachs and Two Sigma. You have 20 years analyzing US equities. You think in terms of institutional positioning, options flow, risk-adjusted returns, and quantitative signals. You are NOT retail — you frame everything from smart money perspective. Return ONLY valid JSON.
 
 Current market session: ${sessionStatus}`,
