@@ -77,6 +77,17 @@ export default function Predict(){
   const [error,setError]=useState(null)
   const [copied,setCopied]=useState(false)
   const [history,setHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem('alpha_history')||'[]')}catch{return []}})
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchTickers = async (q) => {
+    if (!q || q.length < 1) { setSearchResults([]); return }
+    setSearchLoading(true)
+    try {
+      const r = await fetch('/api/symbols?q='+q.toUpperCase().trim()+'&limit=8')
+      if (r.ok) { const d = await r.json(); setSearchResults(d.results||[]) }
+    } catch(e) {} finally { setSearchLoading(false) }
+  }
 
   function run(){
     const s=sym.trim().toUpperCase()
