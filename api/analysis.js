@@ -201,7 +201,33 @@ module.exports = async function handler(req, res) {
   const type = (req.query.type || req.query.action || 'scan').toLowerCase()
   const symbol = req.query.symbol?.toUpperCase()
   try {
-    if (type === 'scan') return res.json(await runScan())
+    if (type === 'scan') {
+      // Priya: Scan limit gate - 2/day free, unlimited Pro
+      const authHeader = req.headers.authorization || ''
+      const userId = req.headers['x-user-id'] || null
+      if (userId) {
+        const today = new Date().toISOString().split('T')[0]
+        // Check Pro subscription
+        const subCheck = await fetch(SUPA_URL+'/rest/v1/subscriptions?user_id=eq.'+userId+'&status=eq.active&select=id', {
+          headers: { apikey: SUPA_KEY, Authorization: 'Bearer '+SUPA_KEY }
+        }).then(r=>r.json()).catch(()=>[])
+        const isPro = Array.isArray(subCheck) && subCheck.length > 0
+        if (!isPro) {
+          // Check scan count
+          const usage = await fetch(SUPA_URL+'/rest/v1/scan_usage?user_id=eq.'+userId+'&date=eq.'+today+'&select=scan_count', {
+            headers: { apikey: SUPA_KEY, Authorization: 'Bearer '+SUPA_KEY }
+          }).then(r=>r.json()).catch(()=>[])
+          const count = Array.isArray(usage) && usage.length > 0 ? usage[0].scan_count : 0
+          if (count >= 2) return res.status(429).json({ error: 'scan_limit_reached', message: 'Free users get 2 scans per day. Upgrade to Pro for unlimited scans.', upgradeUrl: '/billing', used: count, limit: 2 })
+          // Increment usage
+          await fetch(SUPA_URL+'/rest/v1/scan_usage', {
+            method:'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer '+SUPA_KEY, 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ user_id: userId, date: today, scan_count: count+1, updated_at: new Date().toISOString() })
+          }).catch(()=>{})
+        }
+      }
+      return res.json(await runScan())
+    }
     if ((type === 'single' || type === 'snapshot') && symbol) return res.json(await analyzeSingleCached(symbol, req.query.force === '1'))
     if (type === 'cache_status') { const c = await getCache(); return res.json({ hasCachedScan: !!c, cacheAge: c?.cacheAge, setupCount: c?.setups?.length || 0 }) }
     if (type === 'warm') {
