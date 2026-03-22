@@ -367,6 +367,14 @@ Produce LEADING ALPHA — what will happen and why, not what has happened.
 Focus on: supply/demand imbalances, institutional positioning, regime transitions, rotation flows, catalyst timing.
 The sentiment data is context, NOT the thesis.
 
+${optionsCtx ? `
+OPTIONS FLOW (Dr. Kenji Tanaka, vol desk):
+IV Rank: ${optionsCtx.ivRank}/100 | ATM IV: ${optionsCtx.atmIV}% | Put/Call Ratio: ${optionsCtx.pcRatio}
+Expected 5-day 1SD move: ${optionsCtx.expectedMove5d} | Options flow: ${optionsCtx.sentiment}
+Call volume: ${optionsCtx.callVolume} | Put volume: ${optionsCtx.putVolume}
+` : ''}
+TRADE STYLE CONTEXT: ${style === 'daytrade' ? 'DAY TRADE - focus 0-2 DTE options, intraday levels, gamma. User needs clear entry trigger and same-day exit.' : style === 'leap' ? 'LEAP - 9-12 month outlook. Focus fundamental catalysts, deep ITM calls, avoid theta decay. Think like the PM/ZYN trade.' : 'SWING TRADE (DEFAULT) - 3 days to 9 months. Balance technical + fundamental. Options: 30-60 DTE ATM strikes.'}
+
 Return ONLY valid JSON (no markdown):
 {
   "symbol": "${symbol}",
