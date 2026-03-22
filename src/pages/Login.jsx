@@ -1,172 +1,165 @@
 import { useState } from 'react'
-import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
+
+const ADMIN = 'ankushtasildar2@gmail.com'
 
 export default function Login() {
-  const { signInWithGoogle, signInWithMagicLink } = useAuth()
-  const [email, setEmail]     = useState('')
-  const [sent, setSent]       = useState(false)
+  const [email, setEmail] = useState('')
+  const [step, setStep] = useState('email') // email | password | otp | sent
+  const [password, setPassword] = useState('')
+  const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
+  const [isNewUser, setIsNewUser] = useState(false)
 
-  const handleMagicLink = async () => {
-    if (!email) return
+  const handleGoogleLogin = async () => {
     setLoading(true)
-    setError('')
-    const { error } = await signInWithMagicLink(email)
-    if (error) setError(error.message)
-    else setSent(true)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/auth/callback' }
+    })
+    if (error) { setError(error.message); setLoading(false) }
+  }
+
+  const handleEmailContinue = async () => {
+    if (!email || !email.includes('@')) { setError('Enter a valid email'); return }
+    setLoading(true); setError('')
+    try {
+      // Check if user exists via Supabase signIn attempt with wrong password trick
+      // Use OTP flow for both new and existing users - simpler and more secure
+      const { data, error: signInErr } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: window.location.origin + '/auth/callback'
+        }
+      })
+      if (signInErr && signInErr.message.includes('not found')) {
+        // New user - send OTP to verify email and create account
+        setIsNewUser(true)
+        const { error: newErr } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: window.location.origin + '/auth/callback'
+          }
+        })
+        if (newErr) { setError(newErr.message); setLoading(false); return }
+        setStep('otp')
+      } else if (signInErr) {
+        setError(signInErr.message)
+        setLoading(false); return
+      } else {
+        // Existing user - OTP sent
+        setIsNewUser(false)
+        setStep('otp')
+      }
+    } catch(e) { setError('Something went wrong. Please try again.') }
     setLoading(false)
   }
 
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg-base)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'var(--font-sans)',
-    }}>
-      {/* Background grid */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none',
-        backgroundImage: 'linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)',
-        backgroundSize: '48px 48px',
-        opacity: 0.3,
-      }} />
+  const handleOtpVerify = async () => {
+    if (!otp || otp.length < 6) { setError('Enter the 6-digit code'); return }
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' })
+    if (error) { setError(error.message); setLoading(false) }
+    else window.location.href = '/app/overview'
+  }
 
-      <div style={{
-        position: 'relative',
-        width: 400,
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        padding: '40px 36px',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
-      }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{
-            fontSize: 36,
-            filter: 'drop-shadow(0 0 16px rgba(59,130,246,0.6))',
-            marginBottom: 12,
-          }}>⚡</div>
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 18,
-            fontWeight: 600,
-            letterSpacing: '.15em',
-            color: 'var(--text-primary)',
-          }}>ANKUSH AI</div>
-          <div style={{
-            fontSize: 11,
-            color: 'var(--text-muted)',
-            letterSpacing: '.1em',
-            textTransform: 'uppercase',
-            marginTop: 4,
-          }}>Trading Intelligence Platform</div>
+  const handleResend = async () => {
+    setLoading(true); setError('')
+    await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: isNewUser, emailRedirectTo: window.location.origin + '/auth/callback' }
+    })
+    setLoading(false)
+  }
+
+  const s = {
+    page: { minHeight:'100vh', background:'#080c14', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'"DM Sans",sans-serif' },
+    card: { width: '100%', maxWidth: 420, padding: '40px 36px', background: '#0d1117', border: '1px solid #1e2a3a', borderRadius: 20 },
+    logo: { textAlign:'center', marginBottom: 32 },
+    logoText: { fontSize: 26, fontWeight: 800, color: '#f0f6ff', fontFamily:'"Syne",sans-serif', letterSpacing: '-0.5px' },
+    logoSub: { fontSize: 12, color: '#4a5c7a', marginTop: 4 },
+    googleBtn: { width:'100%', padding:'12px 0', display:'flex', alignItems:'center', justifyContent:'center', gap:10, background:'#fff', border:'none', borderRadius:10, color:'#1a1a2e', fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:20, transition:'opacity .15s' },
+    divider: { display:'flex', alignItems:'center', gap:12, marginBottom:20 },
+    divLine: { flex:1, height:1, background:'#1e2a3a' },
+    divText: { color:'#4a5c7a', fontSize:12 },
+    label: { display:'block', color:'#8899aa', fontSize:12, marginBottom:6, fontWeight:500 },
+    input: { width:'100%', padding:'12px 14px', background:'#111620', border:'1px solid #1e2a3a', borderRadius:10, color:'#f0f6ff', fontSize:14, outline:'none', boxSizing:'border-box', fontFamily:'"DM Sans",sans-serif', transition:'border-color .15s' },
+    btn: { width:'100%', padding:'13px 0', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:10, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', marginTop:16, transition:'opacity .15s' },
+    err: { background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:8, padding:'10px 14px', color:'#ef4444', fontSize:13, marginTop:12 },
+    back: { background:'none', border:'none', color:'#4a5c7a', fontSize:13, cursor:'pointer', marginTop:12, display:'block', width:'100%', textAlign:'center' },
+    info: { color:'#8899aa', fontSize:13, textAlign:'center', lineHeight:1.6, marginBottom:20 },
+    otpInput: { width:'100%', padding:'16px 14px', background:'#111620', border:'1px solid #1e2a3a', borderRadius:10, color:'#f0f6ff', fontSize:24, fontWeight:700, outline:'none', boxSizing:'border-box', textAlign:'center', letterSpacing:8, fontFamily:'"DM Mono",monospace' },
+  }
+
+  return (
+    <div style={s.page}>
+      <div style={s.card}>
+        <div style={s.logo}>
+          <div style={s.logoText}>AnkushAI</div>
+          <div style={s.logoSub}>Institutional intelligence for retail traders</div>
         </div>
 
-        {sent ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '24px 0',
-          }}>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>✉️</div>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Check your email</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              We sent a magic link to <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>.
-              Click it to sign in — no password needed.
-            </div>
-            <button
-              className="btn btn-ghost"
-              style={{ marginTop: 20, width: '100%', justifyContent: 'center' }}
-              onClick={() => setSent(false)}
-            >
-              ← Back
-            </button>
-          </div>
-        ) : (
+        {step === 'email' && (
           <>
-            {/* Google OAuth */}
-            <button
-              onClick={signInWithGoogle}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                padding: '11px 16px',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                fontFamily: 'var(--font-sans)',
-                marginBottom: 20,
-              }}
-              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--border-focus)'}
-              onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
-                <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.07 0-3.83-1.4-4.46-3.27H1.85v2.07A8 8 0 0 0 8.98 17z"/>
-                <path fill="#FBBC05" d="M4.52 10.54A4.8 4.8 0 0 1 4.27 9c0-.53.09-1.05.25-1.54V5.39H1.85A8 8 0 0 0 .98 9c0 1.29.31 2.51.87 3.61l2.67-2.07z"/>
-                <path fill="#EA4335" d="M8.98 3.58c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 8.98 1a8 8 0 0 0-7.13 4.39l2.67 2.07c.63-1.87 2.4-3.27 4.46-3.27-.01 0-.01 0 0-.61z"/>
-              </svg>
+            <button style={s.googleBtn} onClick={handleGoogleLogin} disabled={loading}
+              onMouseEnter={e=>e.currentTarget.style.opacity='.85'}
+              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+              <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
               Continue with Google
             </button>
 
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
-            }}>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>OR</span>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <div style={s.divider}>
+              <div style={s.divLine}/><span style={s.divText}>or continue with email</span><div style={s.divLine}/>
             </div>
 
-            {/* Magic link */}
-            <div>
-              <div className="form-group">
-                <label>Email address</label>
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              {error && (
-                <div style={{
-                  background: 'var(--red-dim)', border: '1px solid var(--red)',
-                  borderRadius: 'var(--radius)', padding: '8px 12px',
-                  fontSize: 12, color: 'var(--red)', marginBottom: 14,
-                }}>
-                  {error}
-                </div>
-              )}
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: '11px 16px' }}
-                disabled={loading}
-                onClick={handleMagicLink}
-              >
-                {loading ? 'Sending…' : 'Send Magic Link'}
-              </button>
-            </div>
+            <label style={s.label}>Email address</label>
+            <input
+              style={s.input} type="email" placeholder="you@example.com"
+              value={email} onChange={e=>setEmail(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&handleEmailContinue()}
+              onFocus={e=>e.target.style.borderColor='rgba(37,99,235,0.4)'}
+              onBlur={e=>e.target.style.borderColor='#1e2a3a'}
+            />
+            {error && <div style={s.err}>{error}</div>}
+            <button style={s.btn} onClick={handleEmailContinue} disabled={loading}
+              onMouseEnter={e=>e.currentTarget.style.opacity='.85'}
+              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+              {loading ? 'Checking...' : 'Continue'}
+            </button>
+          </>
+        )}
 
-            <p style={{
-              fontSize: 11, color: 'var(--text-muted)', textAlign: 'center',
-              marginTop: 20, lineHeight: 1.6,
-            }}>
-              By signing in you agree to keep your API keys secure.<br />
-              This is a private platform — invite only.
-            </p>
+        {step === 'otp' && (
+          <>
+            <div style={s.info}>
+              {isNewUser
+                ? 'Welcome! We sent a 6-digit code to verify your email.'
+                : 'We sent a 6-digit sign-in code to'}
+              {!isNewUser && <><br/><strong style={{color:'#f0f6ff'}}>{email}</strong></>}
+            </div>
+            <label style={s.label}>Enter code</label>
+            <input
+              style={s.otpInput} type="text" inputMode="numeric"
+              maxLength={6} placeholder="000000"
+              value={otp} onChange={e=>setOtp(e.target.value.replace(/[^0-9]/g,''))}
+              onKeyDown={e=>e.key==='Enter'&&handleOtpVerify()}
+              autoFocus
+            />
+            {error && <div style={s.err}>{error}</div>}
+            <button style={s.btn} onClick={handleOtpVerify} disabled={loading}
+              onMouseEnter={e=>e.currentTarget.style.opacity='.85'}
+              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+              {loading ? 'Verifying...' : isNewUser ? 'Create Account' : 'Sign In'}
+            </button>
+            <button style={s.back} onClick={handleResend} disabled={loading}>
+              Resend code
+            </button>
+            <button style={s.back} onClick={()=>{setStep('email');setOtp('');setError('')}}>
+              Use a different email
+            </button>
           </>
         )}
       </div>
