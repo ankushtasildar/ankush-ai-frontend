@@ -137,7 +137,7 @@ export default function Overview() {
           <div>
             <div style={{ fontSize:17, fontWeight:700, letterSpacing:-0.5 }}>Market Overview</div>
             <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
-              {isOpen ? <span style={{color:'var(--green)'}}>Market Open</span> : <span>Market Closed</span>}
+              {isOpen ? <span style={{color:'var(--green)'}}>Market Open</span> : <span style={{color:'var(--text-muted)'}}>{mkt?.session?.label || 'Weekend — Last Session'}</span>}
               {lastUpdate && ' -- ' + lastUpdate.toLocaleTimeString()}
             </div>
           </div>
