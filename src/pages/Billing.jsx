@@ -53,16 +53,16 @@ export default function Billing() {
   const isCancelled = subscription?.cancel_at_period_end
 
   const features = [
-    ['⚡', 'AI Scan Engine', 'Full 100-framework market scan with shared cache — results in <1s'],
-    ['📓', 'Trade Journal', 'Complete P&L tracking, win rate analytics, CSV export'],
-    ['📈', 'Advanced Charts', 'RSI, MACD, Bollinger Bands, EMA stack with live data'],
-    ['🎯', 'Signals & Alerts', 'Price alerts, unusual volume detection, setup monitoring'],
-    ['🏦', 'Earnings Intelligence', 'IV rank, expected moves, historical beat rates for 200+ stocks'],
-    ['🗺️', 'Sector Heatmap', 'Real-time sector rotation with regime detection'],
-    ['🧮', 'Risk Calculator', 'Kelly criterion, position sizing, EV calculation'],
-    ['🌙', 'EOD Debrief', 'Daily AI-generated market recap saved to your account'],
-    ['🧠', 'Intelligence Engine', 'Self-learning pattern recognition that improves with every scan'],
-    ['📊', 'Portfolio Tracking', 'Live P&L, position management, performance snapshots'],
+    ['', 'AI Scan Engine', 'Full 100-framework market scan with shared cache - results in <1s'],
+    ['', 'Trade Journal', 'Complete P&L tracking, win rate analytics, CSV export'],
+    ['', 'Advanced Charts', 'RSI, MACD, Bollinger Bands, EMA stack with live data'],
+    ['', 'Signals & Alerts', 'Price alerts, unusual volume detection, setup monitoring'],
+    ['', 'Earnings Intelligence', 'IV rank, expected moves, historical beat rates for 200+ stocks'],
+    ['', 'Sector Heatmap', 'Real-time sector rotation with regime detection'],
+    ['', 'Risk Calculator', 'Kelly criterion, position sizing, EV calculation'],
+    ['', 'EOD Debrief', 'Daily AI-generated market recap saved to your account'],
+    ['', 'Intelligence Engine', 'Self-learning pattern recognition that improves with every scan'],
+    ['', 'Portfolio Tracking', 'Live P&L, position management, performance snapshots'],
   ]
 
   return (
@@ -77,7 +77,7 @@ export default function Billing() {
         <div style={{background:isPro?'rgba(16,185,129,0.06)':'rgba(37,99,235,0.06)',border:`1px solid ${isPro?'rgba(16,185,129,0.2)':'rgba(37,99,235,0.2)'}`,borderRadius:12,padding:'16px 20px',marginBottom:28,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
           <div>
             <div style={{fontSize:14,fontWeight:700,color:isPro?'#10b981':'#60a5fa'}}>
-              {isPro ? '✓ Pro Active' : 'Free Plan'}
+              {isPro ? ' Pro Active' : 'Free Plan'}
             </div>
             <div style={{color:'#4a5c7a',fontSize:12,marginTop:2}}>
               {isPro && subscription?.current_period_end
@@ -89,7 +89,7 @@ export default function Billing() {
             <button onClick={handlePortal} style={{padding:'8px 18px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:'#f0f6ff',fontSize:12,cursor:'pointer'}}>Manage Subscription</button>
           ) : (
             <button onClick={handleUpgrade} disabled={upgrading} style={{padding:'10px 24px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:8,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:700}}>
-              {upgrading?'Loading...':'Upgrade to Pro — $29/mo'}
+              {upgrading?'Loading...':'Upgrade to Pro - $29/mo'}
             </button>
           )}
         </div>
@@ -105,12 +105,12 @@ export default function Billing() {
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {['3 scans per day','Basic chart view','Journal (10 trades/mo)','Sector overview'].map(f=>(
                 <div key={f} style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#4a5c7a'}}>
-                  <span style={{color:'#3d4e62'}}>✓</span>{f}
+                  <span style={{color:'#3d4e62'}}></span>{f}
                 </div>
               ))}
               {['AI Intelligence Engine','Unlimited scans','Real-time alerts','Portfolio P&L tracking','EOD Debrief','Earnings calendar'].map(f=>(
                 <div key={f} style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#2d3d50'}}>
-                  <span>✕</span>{f}
+                  <span></span>{f}
                 </div>
               ))}
             </div>
@@ -123,12 +123,12 @@ export default function Billing() {
             <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:20}}>
               {['Everything in Free','Unlimited AI scans (shared cache)','Real-time price alerts','Complete journal + P&L analytics','Portfolio tracking + snapshots','EOD AI debrief (daily)','Earnings intelligence','Sector rotation heatmap','Intelligence engine (self-learning)','Priority support'].map(f=>(
                 <div key={f} style={{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'#a5b4fc'}}>
-                  <span style={{color:'#60a5fa'}}>✓</span>{f}
+                  <span style={{color:'#60a5fa'}}></span>{f}
                 </div>
               ))}
             </div>
             <button onClick={handleUpgrade} disabled={upgrading} style={{width:'100%',padding:'12px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:10,color:'#fff',fontSize:14,cursor:'pointer',fontWeight:700}}>
-              {upgrading?'Redirecting...':'Get Pro — $29/mo'}
+              {upgrading?'Redirecting...':'Get Pro - $29/mo'}
             </button>
             <div style={{color:'#3d4e62',fontSize:10,textAlign:'center',marginTop:8}}>Cancel anytime. No contracts.</div>
           </div>
