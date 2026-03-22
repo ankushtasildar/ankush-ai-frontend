@@ -192,7 +192,24 @@ async function getCache() {
   } catch(e){return null}
 }
 
-const WARM_SYMBOLS = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD','PLTR','CRWD','JPM','GS','IWM','XLK','MSTR','COIN','AVGO','CRM','NFLX','MU','V','MA']
+const WARM_SYMBOLS = [
+  // Core ETFs & Indices
+  'SPY','QQQ','IWM','DIA','XLK','XLF','XLE','XLV','XLY','XLP','XLI','XLB','XLU','XLRE',
+  // Mega Cap Tech
+  'NVDA','AAPL','MSFT','META','GOOGL','AMZN','TSLA','AVGO','ORCL','CRM','ADBE','NFLX',
+  // High Beta / Momentum
+  'AMD','PLTR','CRWD','MSTR','COIN','HOOD','RBLX','SOFI','RIVN','LCID',
+  // Financials
+  'JPM','GS','MS','BAC','V','MA','PYPL',
+  // Healthcare & Biotech
+  'LLY','NVO','MRNA','ABBV',
+  // Industrial & Energy
+  'CAT','BA','XOM','CVX',
+  // Consumer
+  'MU','SHOP','UBER','ABNB','MCD','SBUX',
+  // Volatility & Bonds
+  'VIX','TLT','HYG','GLD','SLV'
+]
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
