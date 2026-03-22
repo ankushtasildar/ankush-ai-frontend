@@ -159,7 +159,7 @@ export default function Earnings() {
 
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}> Earnings Calendar</h1>
-        <div style={{ color: '#3d4e62', fontSize: 11 }}>IV rank Â· Expected moves Â· Historical beat rates Â· Options strategy suggestions</div>
+        <div style={{ color: '#3d4e62', fontSize: 11 }}>IV rank · Expected moves · Historical beat rates · Options strategy</div>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
