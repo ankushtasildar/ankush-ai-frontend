@@ -1,62 +1,60 @@
-// analysis.js v9 — Polygon grouped daily + last trade fallback, no self-call
-import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
+const Anthropic = require('@anthropic-ai/sdk')
+const anthropic = new Anthropic()
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
-const POLYGON_KEY = process.env.POLYGON_API_KEY
+// Supabase REST helpers — no SDK, no ESM issues
+const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
 
-const UNIVERSE = [
-  'AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AVGO','AMD','ORCL',
-  'JPM','GS','V','MA','XOM','LLY','UNH','PLTR','NET','CRWD','COIN',
-  'SPY','QQQ','IWM','XLK','XLE','XLF','GLD','TLT',
-  'MU','INTC','QCOM','MRNA','GILD','ABBV','COST','WMT','HD','NKE','ARM'
-]
-
-function isMarketHours() {
-  const et = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}))
-  const m = et.getHours()*60+et.getMinutes(), d = et.getDay()
-  return d>=1&&d<=5&&m>=570&&m<960
-}
-
-async function getCache() {
+async function supaGet(table, query) {
+  if (!SUPA_URL || !SUPA_KEY) return null
   try {
-    const {data} = await supabase.from('scan_cache').select('scan_data,created_at').order('created_at',{ascending:false}).limit(1).single()
-    if (!data) return null
-    const age = Date.now()-new Date(data.created_at).getTime()
-    if (age < (isMarketHours()?15*60000:60*60000)) return {...data.scan_data,cached:true,cacheAge:Math.round(age/60000)}
-    return null
-  } catch(e){return null}
+    const r = await fetch(SUPA_URL + '/rest/v1/' + table + '?' + query + '&limit=1', {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+    })
+    const rows = await r.json()
+    return Array.isArray(rows) && rows.length ? rows[0] : null
+  } catch(e) { return null }
 }
 
-async function saveCache(result) {
-  try { await supabase.from('scan_cache').insert({scan_data:result,setup_count:result.setups?.length||0,market_mood:result.marketContext?.mood,vix:result.marketContext?.vix,spy_change:result.marketContext?.spyChange}) } catch(e){}
-}
-
-async function recordSetups(setups) {
-  if(!setups?.length) return
+async function supaUpsert(table, row) {
+  if (!SUPA_URL || !SUPA_KEY) return
   try {
-    await supabase.from('setup_records').insert(setups.slice(0,12).map(s=>({
-      symbol:s.symbol,setup_type:s.setupType||'AI',bias:s.bias,
-      entry_high:s.entryHigh||null,entry_low:s.entryLow||null,
-      stop_loss:s.stopLoss||null,target_1:s.target1||null,
-      confidence:s.confidence||7,frameworks:s.frameworks||[],
-      rr_ratio:s.rrRatio||null,scan_date:new Date().toISOString().split('T')[0]
-    })))
-  } catch(e){}
+    await fetch(SUPA_URL + '/rest/v1/' + table, {
+      method: 'POST',
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(row)
+    })
+  } catch(e) { console.error('[supaUpsert]', e.message) }
 }
 
-// Get date string for N days ago (skip weekends)
-function tradingDate(daysBack=0) {
-  const d = new Date()
-  d.setDate(d.getDate()-daysBack)
-  // If Saturday (6) go back 1 more, if Sunday (0) go back 2 more
-  if (d.getDay()===6) d.setDate(d.getDate()-1)
-  if (d.getDay()===0) d.setDate(d.getDate()-2)
-  return d.toISOString().split('T')[0]
+async function getCachedAnalysis(symbol) {
+  const row = await supaGet('symbol_analysis', 'symbol=eq.' + symbol.toUpperCase() + '&select=result,updated_at')
+  if (!row) return null
+  const age = Date.now() - new Date(row.updated_at).getTime()
+  if (age > CACHE_TTL_MS) return null
+  return { ...row.result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
+}
+
+async function setCachedAnalysis(symbol, result) {
+  await supaUpsert('symbol_analysis', {
+    symbol: symbol.toUpperCase(),
+    result,
+    price: result.price || null,
+    sentiment: result.sentiment || null,
+    confidence: result.confidence || null,
+    updated_at: new Date().toISOString()
+  })
+}
+
+async function analyzeSingleCached(symbol, force) {
+  if (!force) {
+    const cached = await getCachedAnalysis(symbol)
+    if (cached) return cached
+  }
+  const result = await analyzeSingle(symbol)
+  await setCachedAnalysis(symbol, result)
+  return result
 }
 
 async function fetchRealPrices(symbols) {
@@ -102,46 +100,6 @@ async function fetchRealPrices(symbols) {
     console.log('[v9] After prev-close fill:', Object.keys(prices).length)
   }
   return prices
-}
-
-async function getMarketContext(prices) {
-  const spy = prices['SPY']
-  let vix = 20, mood = 'Unknown', regime = 'neutral'
-  try {
-    const r = await fetch(`https://api.polygon.io/v2/aggs/ticker/VXX/prev?adjusted=true&apiKey=${POLYGON_KEY}`,{signal:AbortSignal.timeout(5000)})
-    const d = await r.json()
-    vix = d.results?.[0]?.c || 20
-    mood = vix>30?'Fear':vix>20?'Caution':vix>15?'Neutral':'Greed'
-    regime = vix>25?'risk_off':'neutral'
-  } catch(e) {
-    // Use a reasonable default
-    vix = 25; mood = 'Caution'; regime = 'neutral'
-  }
-  return {spy:spy?.price||0, spyChange:spy?.changePercent||0, vix, mood, regime}
-}
-
-async function getPatterns() {
-  try {
-    const {data} = await supabase.from('ai_learned_patterns').select('pattern_name,prompt_weight').order('prompt_weight',{ascending:false}).limit(6)
-    return data||[]
-  } catch(e){return[]}
-}
-
-function validateSetups(setups, prices) {
-  const valid=[], rejected=[]
-  for (const s of setups) {
-    const real = prices[s.symbol]
-    if (!real?.price) { rejected.push({sym:s.symbol,reason:'no price'}); continue }
-    const entry = s.entryHigh&&s.entryLow?(s.entryHigh+s.entryLow)/2:s.entryHigh||s.entryLow
-    if (entry) {
-      const dev = Math.abs(entry-real.price)/real.price
-      if (dev>0.15) { rejected.push({sym:s.symbol,reason:entry.toFixed(2)+'vs real '+real.price.toFixed(2)+'('+( dev*100).toFixed(1)+'%)'}); continue }
-    }
-    valid.push({...s, currentPrice:real.price, priceChange:real.changePercent||0, priceVerified:true})
-  }
-  if (rejected.length) console.warn('[v9] REJECTED',rejected.length,'setups:',JSON.stringify(rejected))
-  console.log('[v9] VALIDATED',valid.length,'/',setups.length)
-  return valid
 }
 
 async function runScan() {
@@ -201,225 +159,44 @@ async function analyzeSingle(symbol) {
   const priceWarn = rp
     ? 'REAL PRICE: ' + priceTag + '. ALL levels MUST be within 15% of ' + rp.toFixed(2) + '. Do NOT use prices from training data.'
     : 'WARNING: real price unavailable, use recent market prices for ' + symbol
-  const jsonTemplate = '{"sentiment":"bullish|bearish|neutral","confidence":50-95,"price":' + (rp ? rp.toFixed(2) : 'null') + ',"summary":"2-3 sentences","setup":"setup name","entry":0,"target":0,"target2":0,"stop":0,"rr":"2:1","support":0,"resistance":0,"optionsPlay":"strategy","timeframe":"days","catalyst":"driver"}'
-  const userMsg = priceWarn + '\n\nAnalyze ' + symbol + ' for a swing trade now. Current price is ' + (rp ? '$' + rp.toFixed(2) : 'unknown') + '. Entry within 2% of current price, stop 3-8% away, target 2x+ risk. Respond ONLY with valid JSON matching this structure exactly:\n' + jsonTemplate
-  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:userMsg}]})
-  const raw = (msg.content[0]?.text || '{}').replace(/```json|```/g,'').trim()
+  const jsonSchema = '{"sentiment":"bullish|bearish|neutral","confidence":50-95,"price":' + (rp ? rp.toFixed(2) : 'null') + ',"summary":"2-3 sentences","setup":"setup name","entry":0,"target":0,"target2":0,"stop":0,"rr":"2:1","support":0,"resistance":0,"optionsPlay":"strategy","timeframe":"days","catalyst":"driver"}'
+  const userMsg = priceWarn + '\n\nAnalyze ' + symbol + ' for a swing trade. Current price is ' + (rp ? '$' + rp.toFixed(2) : 'unknown') + '. Entry within 2% of current price, stop 3-8% away, target 2x+ risk. Respond ONLY with valid JSON:\n' + jsonSchema
+  const msg = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 600, messages: [{ role: 'user', content: userMsg }] })
+  const raw = (msg.content[0]?.text || '{}').replace(/```json|```/g, '').trim()
   let parsed = {}
-  try { parsed = JSON.parse(raw) } catch(e) { console.error('[parse err]', e.message, raw.substring(0,100)) }
-  return {
-    symbol,
-    currentPrice: rp,
-    price: parsed.price || rp,
-    sentiment: parsed.sentiment || 'neutral',
-    confidence: parsed.confidence || 50,
-    summary: parsed.summary || '',
-    setup: parsed.setup || '',
-    entry: parsed.entry || null,
-    target: parsed.target || null,
-    target2: parsed.target2 || null,
-    stop: parsed.stop || null,
-    rr: parsed.rr || '',
-    support: parsed.support || null,
-    resistance: parsed.resistance || null,
-    optionsPlay: parsed.optionsPlay || '',
-    timeframe: parsed.timeframe || '',
-    catalyst: parsed.catalyst || '',
-    generatedAt: new Date().toISOString()
-  }
+  try { parsed = JSON.parse(raw) } catch(e) { console.error('[parse err]', e.message) }
+  return { symbol, currentPrice: rp, price: parsed.price || rp, sentiment: parsed.sentiment || 'neutral', confidence: parsed.confidence || 50, summary: parsed.summary || '', setup: parsed.setup || '', entry: parsed.entry || null, target: parsed.target || null, target2: parsed.target2 || null, stop: parsed.stop || null, rr: parsed.rr || '', support: parsed.support || null, resistance: parsed.resistance || null, optionsPlay: parsed.optionsPlay || '', timeframe: parsed.timeframe || '', catalyst: parsed.catalyst || '', generatedAt: new Date().toISOString() }
 }
 
-export default async function handler(req,res) {
-  res.setHeader('Access-Control-Allow-Origin','*')
-  res.setHeader('Cache-Control','s-maxage=60,stale-while-revalidate=300')
-  if(req.method==='OPTIONS') return res.status(200).end()
-  const type=(req.query.type||req.query.action||'scan').toLowerCase()
-  const symbol=req.query.symbol?.toUpperCase()
+async function getCache() {
   try {
-    if(type==='scan') return res.json(await runScan())
-    if((type==='single'||type==='snapshot')&&symbol) return res.json(await analyzeSingleCached(symbol, req.query.force==='1'))
-    if(type==='cache_status'){const c=await getCache();return res.json({hasCachedScan:!!c,cacheAge:c?.cacheAge,setupCount:c?.setups?.length||0})}
-    if(type==='warm'){const results={};for(const s of WARM_SYMBOLS.slice(0,10)){try{const r=await analyzeSingleCached(s,false);results[s]=r._cached?'cached':'fresh'}catch(e){results[s]='err:'+e.message}}return res.json({warmed:Object.keys(results).length,results})}
-    return res.status(400).json({error:'Use: scan, single, snapshot, cache_status, warm'})
-  } catch(e){console.error('[v9]',e.message);return res.status(500).json({error:e.message})}
+    const {data} = await supabase.from('scan_cache').select('scan_data,created_at').order('created_at',{ascending:false}).limit(1).single()
+    if (!data) return null
+    const age = Date.now()-new Date(data.created_at).getTime()
+    if (age < (isMarketHours()?15*60000:60*60000)) return {...data.scan_data,cached:true,cacheAge:Math.round(age/60000)}
+    return null
+  } catch(e){return null}
 }
 
-// ── Symbol analysis cache (4h TTL, shared across all users) ──────────────────
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
+const WARM_SYMBOLS = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD','PLTR','CRWD','JPM','GS','IWM','XLK','MSTR','COIN','AVGO','CRM','NFLX','MU','V','MA']
 
-async function getCachedAnalysis(symbol) {
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Cache-Control', 's-maxage=60,stale-while-revalidate=300')
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  const type = (req.query.type || req.query.action || 'scan').toLowerCase()
+  const symbol = req.query.symbol?.toUpperCase()
   try {
-    if (!SUPA_URL || !SUPA_KEY) return null
-    const url = SUPA_URL + '/rest/v1/symbol_analysis?symbol=eq.' + symbol.toUpperCase() + '&select=result,updated_at&limit=1'
-    const r = await fetch(url, { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } })
-    const rows = await r.json()
-    if (!rows || !rows[0]) return null
-    const age = Date.now() - new Date(rows[0].updated_at).getTime()
-    if (age > CACHE_TTL_MS) return null
-    return { ...rows[0].result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
-  } catch (e) { return null }
+    if (type === 'scan') return res.json(await runScan())
+    if ((type === 'single' || type === 'snapshot') && symbol) return res.json(await analyzeSingleCached(symbol, req.query.force === '1'))
+    if (type === 'cache_status') { const c = await getCache(); return res.json({ hasCachedScan: !!c, cacheAge: c?.cacheAge, setupCount: c?.setups?.length || 0 }) }
+    if (type === 'warm') {
+      const results = {}
+      for (const s of WARM_SYMBOLS.slice(0, 8)) {
+        try { const r = await analyzeSingleCached(s, false); results[s] = r._cached ? 'cached' : 'fresh' } catch(e) { results[s] = 'err' }
+      }
+      return res.json({ warmed: Object.keys(results).length, results })
+    }
+    return res.status(400).json({ error: 'Use: scan, single, snapshot, cache_status, warm' })
+  } catch(e) { console.error('[analysis]', e.message); return res.status(500).json({ error: e.message }) }
 }
-
-async function setCachedAnalysis(symbol, result) {
-  try {
-    if (!SUPA_URL || !SUPA_KEY) return
-    const url = SUPA_URL + '/rest/v1/symbol_analysis'
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ symbol: symbol.toUpperCase(), result, price: result.price || null, sentiment: result.sentiment || null, confidence: result.confidence || null, updated_at: new Date().toISOString() })
-    })
-  } catch (e) { console.error('[cache write]', e.message) }
-}
-
-async function analyzeSingleCached(symbol, force = false) {
-  if (!force) {
-    const cached = await getCachedAnalysis(symbol)
-    if (cached) return cached
-  }
-  const result = await analyzeSingle(symbol)
-  await setCachedAnalysis(symbol, result)
-  return result
-}
-
-// Top symbols to warm — covers 95%+ of user requests
-const WARM_SYMBOLS = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD',
-  'PLTR','CRWD','JPM','GS','IWM','XLK','MSTR','COIN','AVGO','CRM','NFLX','MU','V','MA']
-
-
-+priceStr+') for a trade. ALL numeric levels must be anchored to ,"summary":"2-3 sentence analysis","setup":"specific setup description","entry":number,"target":number,"target2":number,"stop":number,"rr":"2.5:1","support":number,"resistance":number,"optionsPlay":"specific options strategy e.g. Buy SPY $640 calls exp 2 weeks","timeframe":"days/weeks","catalyst":"key driver"}'
-  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})
-  const raw = msg.content[0]?.text || '{}'
-  let parsed
-  try { parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()) } catch(e) { parsed = {summary:raw} }
-  return {symbol, currentPrice:rp, price:rp, sentiment:parsed.sentiment||'neutral', confidence:parsed.confidence||50, summary:parsed.summary||'', setup:parsed.setup||'', entry:parsed.entry||rp, target:parsed.target||null, target2:parsed.target2||null, stop:parsed.stop||null, rr:parsed.rr||'', support:parsed.support||null, resistance:parsed.resistance||null, optionsPlay:parsed.optionsPlay||'', timeframe:parsed.timeframe||'', catalyst:parsed.catalyst||'', generatedAt:new Date().toISOString()}
-}
-
-export default async function handler(req,res) {
-  res.setHeader('Access-Control-Allow-Origin','*')
-  res.setHeader('Cache-Control','s-maxage=60,stale-while-revalidate=300')
-  if(req.method==='OPTIONS') return res.status(200).end()
-  const type=(req.query.type||req.query.action||'scan').toLowerCase()
-  const symbol=req.query.symbol?.toUpperCase()
-  try {
-    if(type==='scan') return res.json(await runScan())
-    if((type==='single'||type==='snapshot')&&symbol) return res.json(await analyzeSingleCached(symbol, req.query.force==='1'))
-    if(type==='cache_status'){const c=await getCache();return res.json({hasCachedScan:!!c,cacheAge:c?.cacheAge,setupCount:c?.setups?.length||0})}
-    if(type==='warm'){const results={};for(const s of WARM_SYMBOLS.slice(0,10)){try{const r=await analyzeSingleCached(s,false);results[s]=r._cached?'cached':'fresh'}catch(e){results[s]='err:'+e.message}}return res.json({warmed:Object.keys(results).length,results})}
-    return res.status(400).json({error:'Use: scan, single, snapshot, cache_status, warm'})
-  } catch(e){console.error('[v9]',e.message);return res.status(500).json({error:e.message})}
-}
-
-// ── Symbol analysis cache (4h TTL, shared across all users) ──────────────────
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
-
-async function getCachedAnalysis(symbol) {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('symbol_analysis')
-      .select('result, updated_at')
-      .eq('symbol', symbol.toUpperCase())
-      .single()
-    if (error || !data) return null
-    const age = Date.now() - new Date(data.updated_at).getTime()
-    if (age > CACHE_TTL_MS) return null // stale
-    return { ...data.result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
-  } catch (e) { return null }
-}
-
-async function setCachedAnalysis(symbol, result) {
-  try {
-    await supabaseAdmin.from('symbol_analysis').upsert({
-      symbol: symbol.toUpperCase(),
-      result,
-      price: result.price || null,
-      sentiment: result.sentiment || null,
-      confidence: result.confidence || null,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'symbol' })
-  } catch (e) { console.error('[cache write]', e.message) }
-}
-
-async function analyzeSingleCached(symbol, force = false) {
-  if (!force) {
-    const cached = await getCachedAnalysis(symbol)
-    if (cached) return cached
-  }
-  const result = await analyzeSingle(symbol)
-  await setCachedAnalysis(symbol, result)
-  return result
-}
-
-// Top symbols to warm — covers 95%+ of user requests
-const WARM_SYMBOLS = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD',
-  'PLTR','CRWD','JPM','GS','IWM','XLK','MSTR','COIN','AVGO','CRM','NFLX','MU','V','MA']
-
-
-+priceStr+'. Respond ONLY with valid JSON, no markdown:\n{"sentiment":"bullish|bearish|neutral","confidence":0-100,"price":'+priceStr+',,"summary":"2-3 sentence analysis","setup":"specific setup description","entry":number,"target":number,"target2":number,"stop":number,"rr":"2.5:1","support":number,"resistance":number,"optionsPlay":"specific options strategy e.g. Buy SPY $640 calls exp 2 weeks","timeframe":"days/weeks","catalyst":"key driver"}'
-  const msg = await anthropic.messages.create({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:prompt}]})
-  const raw = msg.content[0]?.text || '{}'
-  let parsed
-  try { parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()) } catch(e) { parsed = {summary:raw} }
-  return {symbol, currentPrice:rp, price:rp, sentiment:parsed.sentiment||'neutral', confidence:parsed.confidence||50, summary:parsed.summary||'', setup:parsed.setup||'', entry:parsed.entry||rp, target:parsed.target||null, target2:parsed.target2||null, stop:parsed.stop||null, rr:parsed.rr||'', support:parsed.support||null, resistance:parsed.resistance||null, optionsPlay:parsed.optionsPlay||'', timeframe:parsed.timeframe||'', catalyst:parsed.catalyst||'', generatedAt:new Date().toISOString()}
-}
-
-export default async function handler(req,res) {
-  res.setHeader('Access-Control-Allow-Origin','*')
-  res.setHeader('Cache-Control','s-maxage=60,stale-while-revalidate=300')
-  if(req.method==='OPTIONS') return res.status(200).end()
-  const type=(req.query.type||req.query.action||'scan').toLowerCase()
-  const symbol=req.query.symbol?.toUpperCase()
-  try {
-    if(type==='scan') return res.json(await runScan())
-    if((type==='single'||type==='snapshot')&&symbol) return res.json(await analyzeSingleCached(symbol, req.query.force==='1'))
-    if(type==='cache_status'){const c=await getCache();return res.json({hasCachedScan:!!c,cacheAge:c?.cacheAge,setupCount:c?.setups?.length||0})}
-    if(type==='warm'){const results={};for(const s of WARM_SYMBOLS.slice(0,10)){try{const r=await analyzeSingleCached(s,false);results[s]=r._cached?'cached':'fresh'}catch(e){results[s]='err:'+e.message}}return res.json({warmed:Object.keys(results).length,results})}
-    return res.status(400).json({error:'Use: scan, single, snapshot, cache_status, warm'})
-  } catch(e){console.error('[v9]',e.message);return res.status(500).json({error:e.message})}
-}
-
-// ── Symbol analysis cache (4h TTL, shared across all users) ──────────────────
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
-
-async function getCachedAnalysis(symbol) {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('symbol_analysis')
-      .select('result, updated_at')
-      .eq('symbol', symbol.toUpperCase())
-      .single()
-    if (error || !data) return null
-    const age = Date.now() - new Date(data.updated_at).getTime()
-    if (age > CACHE_TTL_MS) return null // stale
-    return { ...data.result, _cached: true, _cacheAge: Math.round(age / 60000) + 'm' }
-  } catch (e) { return null }
-}
-
-async function setCachedAnalysis(symbol, result) {
-  try {
-    await supabaseAdmin.from('symbol_analysis').upsert({
-      symbol: symbol.toUpperCase(),
-      result,
-      price: result.price || null,
-      sentiment: result.sentiment || null,
-      confidence: result.confidence || null,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'symbol' })
-  } catch (e) { console.error('[cache write]', e.message) }
-}
-
-async function analyzeSingleCached(symbol, force = false) {
-  if (!force) {
-    const cached = await getCachedAnalysis(symbol)
-    if (cached) return cached
-  }
-  const result = await analyzeSingle(symbol)
-  await setCachedAnalysis(symbol, result)
-  return result
-}
-
-// Top symbols to warm — covers 95%+ of user requests
-const WARM_SYMBOLS = ['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMZN','GOOGL','AMD',
-  'PLTR','CRWD','JPM','GS','IWM','XLK','MSTR','COIN','AVGO','CRM','NFLX','MU','V','MA']
-
-
