@@ -76,11 +76,14 @@ export default function Login() {
   }
 
   const s = {
-    page: { minHeight:'100vh', background:'#080c14', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'"DM Sans",sans-serif' },
+    page: { minHeight:'100vh', background:'radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, #080c14 60%)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'"DM Sans",sans-serif' },
     card: { width: '100%', maxWidth: 420, padding: '40px 36px', background: '#0d1117', border: '1px solid #1e2a3a', borderRadius: 20 },
     logo: { textAlign:'center', marginBottom: 32 },
     logoText: { fontSize: 26, fontWeight: 800, color: '#f0f6ff', fontFamily:'"Syne",sans-serif', letterSpacing: '-0.5px' },
     logoSub: { fontSize: 12, color: '#4a5c7a', marginTop: 4 },
+    valueProp: { fontSize: 13, color: '#6b7fa3', textAlign:'center', marginTop:8, lineHeight:1.5, marginBottom:4 },
+    newUser: { fontSize: 12, color: '#4a5c7a', textAlign:'center', marginTop:12 },
+    tos: { fontSize: 11, color: '#333f55', textAlign:'center', marginTop:20, lineHeight:1.6 },
     googleBtn: { width:'100%', padding:'12px 0', display:'flex', alignItems:'center', justifyContent:'center', gap:10, background:'#fff', border:'none', borderRadius:10, color:'#1a1a2e', fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:20, transition:'opacity .15s' },
     divider: { display:'flex', alignItems:'center', gap:12, marginBottom:20 },
     divLine: { flex:1, height:1, background:'#1e2a3a' },
@@ -100,6 +103,7 @@ export default function Login() {
         <div style={s.logo}>
           <div style={s.logoText}>AnkushAI</div>
           <div style={s.logoSub}>Institutional intelligence for retail traders</div>
+          <div style={s.valueProp}>Scan the market like a quant.<br/>Institutional-grade setups, options flow & signals — in seconds.</div>
         </div>
 
         {step === 'email' && (
@@ -129,6 +133,12 @@ export default function Login() {
               onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
               {loading ? 'Checking...' : 'Continue'}
             </button>
+            <div style={s.newUser}>New here? Just enter your email — we'll get you set up instantly.</div>
+            <div style={s.tos}>By continuing you agree to our{' '}
+              <a href="/terms" style={{color:'#3b82f6',textDecoration:'none'}}>Terms</a>
+              {' & '}
+              <a href="/privacy" style={{color:'#3b82f6',textDecoration:'none'}}>Privacy Policy</a>
+            </div>
           </>
         )}
 
