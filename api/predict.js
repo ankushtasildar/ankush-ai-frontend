@@ -2,14 +2,25 @@
 // NOT lagging indicators. Anticipates moves BEFORE they happen.
 // Data: flow signals, macro regime, relative strength, supply/demand zones,
 //       earnings cycles, sector rotation, segmented sentiment
-import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
+const Anthropic = require('@anthropic-ai/sdk')
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
+const anthropic = new Anthropic()
+
+// Supabase REST (no SDK — avoids ESM crash)
+const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+async function supaGet(table, qs) {
+  if (!SUPA_URL||!SUPA_KEY) return []
+  try {
+    const r = await fetch(SUPA_URL+'/rest/v1/'+table+'?'+qs, {headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}})
+    const d = await r.json(); return Array.isArray(d)?d:[]
+  } catch(e) { return [] }
+}
+async function supaInsert(table, row) {
+  if (!SUPA_URL||!SUPA_KEY) return
+  try { await fetch(SUPA_URL+'/rest/v1/'+table, {method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify(row)}) } catch(e) {}
+}
 const POLY = process.env.POLYGON_API_KEY
 
 async function polyFetch(url) {
@@ -230,7 +241,17 @@ async function getEarningsContext(symbol) {
       employees: info.total_employees,
       description: info.description?.substring(0,150),
       listDate: info.list_date,
-      // Earnings timing from macro events table
+      // Earnings from macro_events table
+    earningsDaysOut: await (async()=>{
+      try {
+        const rows = await supaGet('macro_events','type=eq.earnings&symbol=eq.'+symbol+'&date=gte.'+new Date().toISOString().split('T')[0]+'&select=date,type&order=date.asc&limit=1')
+        if (rows[0]?.date) {
+          const days = Math.round((new Date(rows[0].date)-new Date())/(1000*86400))
+          return days >= 0 ? days : null
+        }
+        return null
+      } catch(e) { return null }
+    })(),
     }
   } catch(e) { return null }
 }
@@ -294,6 +315,7 @@ REAL MARKET DATA:
 Symbol: ${symbol}${company?.name ? ' ('+company.name+')' : ''}
 Current Price: $${price} | Market Cap: ${company?.marketCap||'N/A'}
 ${company?.description ? 'Company: '+company.description : ''}
+${company?.earningsDaysOut != null ? 'UPCOMING EARNINGS: '+company.earningsDaysOut+' days out — HIGH-ALPHA WINDOW: pre-earnings positioning, IV expansion, options flow spike expected.\n' : ''}
 
 MACRO REGIME:
 VIX: ${macro.vix} (${macro.vixTrend}) | Regime: ${macro.regime} (strength: ${macro.regimeStrength}%)
@@ -403,7 +425,7 @@ Return ONLY valid JSON (no markdown):
 `
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   if (req.method === 'OPTIONS') return res.status(200).end()
   
@@ -447,6 +469,16 @@ export default async function handler(req, res) {
       if (match) try { analysis = JSON.parse(match[0]) } catch(e2) {}
     }
     
+    // Save to setup_records for backtesting loop
+    try {
+      await supaInsert('setup_records', {
+        symbol, bias: analysis.direction||analysis.bias, entry_price: price,
+        target_price: analysis.targets?.[0]||analysis.priceTarget1,
+        stop_price: analysis.stopLoss, confidence: analysis.confidence,
+        timeframe: analysis.timeframe, thesis: analysis.thesis,
+        created_at: new Date().toISOString()
+      })
+    } catch(e) { console.error('[save setup]', e.message) }
     return res.json({
       ...analysis,
       rawData: { macro, sentiment, supdem, rotation, rs },
