@@ -480,16 +480,16 @@ module.exports = async function handler(req, res) {
         symbol,
         name: symbol + ' Alpha Prediction',
         setup_type: 'alpha_prediction',
-        bias: analysis.direction || analysis.bias,
+        bias: analysis.sentiment?.overall || analysis.alphaEdge?.split(' ')?.[0] || 'neutral',
         confidence: analysis.confidence || null,
         price_at_generation: price,
-        target_1: analysis.targets?.[0] || analysis.priceTarget1 || null,
-        target_2: analysis.targets?.[1] || analysis.priceTarget2 || null,
-        stop_loss: analysis.stopLoss || null,
-        options_trade: analysis.optionsPlay || null,
+        target_1: analysis.scenarios?.[0]?.target || null,
+        target_2: analysis.scenarios?.[1]?.target || null,
+        stop_loss: analysis.institutionalLevels?.keySupport?.[0] || null,
+        options_trade: analysis.optionsAlpha?.strategy || null,
         created_at: new Date().toISOString()
       })
-    } catch(e) { console.error('[save setup]', e.message) }
+      } catch(e) { console.error('[save setup]', e.message) }
     return res.json({
       ...analysis,
       rawData: { macro, sentiment, supdem, rotation, rs },
