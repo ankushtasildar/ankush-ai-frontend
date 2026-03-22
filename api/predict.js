@@ -244,9 +244,9 @@ async function getEarningsContext(symbol) {
       // Earnings from macro_events table
     earningsDaysOut: await (async()=>{
       try {
-        const rows = await supaGet('macro_events','type=eq.earnings&symbol=eq.'+symbol+'&date=gte.'+new Date().toISOString().split('T')[0]+'&select=date,type&order=date.asc&limit=1')
-        if (rows[0]?.date) {
-          const days = Math.round((new Date(rows[0].date)-new Date())/(1000*86400))
+        const rows = await supaGet('macro_events','event_type=eq.earnings&symbol=eq.'+symbol+'&event_date=gte.'+new Date().toISOString().split('T')[0]+'&select=event_date,event_type&order=event_date.asc&limit=1')
+        if (rows[0]?.event_date) {
+          const days = Math.round((new Date(rows[0].event_date)-new Date())/(1000*86400))
           return days >= 0 ? days : null
         }
         return null
