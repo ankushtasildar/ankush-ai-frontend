@@ -58,6 +58,7 @@ async function analyzeSingleCached(symbol, force) {
 }
 
 async function fetchRealPrices(symbols) {
+  const POLYGON_KEY = process.env.POLYGON_API_KEY || process.env.POLYGON_KEY
   const prices = {}
   if (!POLYGON_KEY) { console.error('[v9] No POLYGON_API_KEY'); return prices }
 
