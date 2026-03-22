@@ -92,6 +92,17 @@ export default function Journal() {
           <div ref={chatEndRef}/>
         </div>
         <div style={S.inputRow}>
+          {/* Riya: example prompts - only show when chat is empty */}
+          {messages.length <= 1 && (
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8,paddingBottom:8,borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+              {["I sold NVDA at a loss today — should I have held?","What patterns am I repeating in my losses?","Help me build a pre-trade checklist","Review my last 5 trades"].map(p=>(
+                <button key={p} onClick={()=>{setInput(p)}} style={{background:'rgba(37,99,235,0.08)',border:'1px solid rgba(37,99,235,0.15)',borderRadius:16,padding:'5px 12px',color:'#6b7fa3',fontSize:11,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'var(--font-sans)'}}>
+                  {p.length > 35 ? p.substring(0,35)+'...' : p}
+                </button>
+              ))}
+            </div>
+          )}
+          
           <textarea style={S.ta} rows={2} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&(e.preventDefault(),sendMessage())}
             placeholder="Talk to your AI coach... (Enter to send)"/>
