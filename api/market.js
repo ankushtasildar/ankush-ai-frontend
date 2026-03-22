@@ -173,7 +173,7 @@ async function getContext() {
       leader: leader?.name || 'N/A', leaderChange: leader?.changePercent || 0,
       laggard: laggard?.name || 'N/A', laggardChange: laggard?.changePercent || 0,
       advancing: advancing.length, declining: declining.length,
-      marketOpen: isMarketOpen(),
+      marketOpen: isMarketOpen(), session: getSessionStatus(),
     };
   });
 }
@@ -222,15 +222,49 @@ async function getHistory(symbol, timespan = 'day', multiplier = 1, days = 90, l
   });
 }
 
-function isMarketOpen() {
+
+// ── Session-aware price selection ────────────────────────────────────────────
+function getSessionPrice(snap, session) {
+  // snap is the Polygon ticker snapshot result
+  if (!snap) return null;
+  const day = snap.day || {};
+  const prevDay = snap.prevDay || {};
+  const s = session?.session || 'regular';
+  // During premarket: use preMarket price if available, else prevDay close
+  if (s === 'premarket') {
+    return { price: snap.lastQuote?.P || snap.lastTrade?.p || prevDay.c, changePercent: null, isPremarket: true };
+  }
+  // During postmarket: use afterHours or day close
+  if (s === 'postmarket') {
+    return { price: snap.lastTrade?.p || day.c, changePercent: day.c && prevDay.c ? ((day.c - prevDay.c)/prevDay.c)*100 : null, isPostmarket: true };
+  }
+  // Weekend/closed: use prevDay close, compare to day before that (change from last session)
+  if (s === 'weekend' || s === 'closed') {
+    return { price: prevDay.c || day.c, changePercent: prevDay.c && day.o ? ((prevDay.c - day.o)/day.o)*100 : null, isStale: true, sessionNote: 'Last session close' };
+  }
+  // Regular: use day's current price
+  return { price: day.c || snap.lastTrade?.p, changePercent: day.c && prevDay.c ? ((day.c - prevDay.c)/prevDay.c)*100 : null };
+}
+
+function getSessionStatus() {
   const now = new Date();
   const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  const day = et.getDay();
+  const day = et.getDay(); // 0=Sun, 6=Sat
   const h = et.getHours(), m = et.getMinutes();
   const mins = h * 60 + m;
-  if (day === 0 || day === 6) return false;
-  return mins >= 570 && mins < 960; // 9:30am - 4:00pm ET
+  const isWeekend = day === 0 || day === 6;
+  // NYSE premarket: 4:00am ET (240 mins) to 9:30am ET (570 mins)
+  // NYSE regular:  9:30am ET to 4:00pm ET (960 mins)
+  // NYSE postmarket: 4:00pm ET to 8:00pm ET (1200 mins)
+  // TradingView shows premarket from 1am PST = 4am ET
+  if (isWeekend) return { session: 'weekend', label: 'Weekend', labelShort: 'WKND', isLive: false, usePrevClose: true, day };
+  if (mins < 240) return { session: 'closed', label: 'Closed', labelShort: 'CLOSED', isLive: false, usePrevClose: true };
+  if (mins < 570) return { session: 'premarket', label: 'Pre-Market', labelShort: 'PRE', isLive: true, usePrevClose: false };
+  if (mins < 960) return { session: 'regular', label: 'Market Open', labelShort: 'LIVE', isLive: true, usePrevClose: false };
+  if (mins < 1200) return { session: 'postmarket', label: 'Post-Market', labelShort: 'POST', isLive: true, usePrevClose: false };
+  return { session: 'closed', label: 'Closed', labelShort: 'CLOSED', isLive: false, usePrevClose: true };
 }
+function isMarketOpen() { const s = getSessionStatus(); return s.session === 'regular'; }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
