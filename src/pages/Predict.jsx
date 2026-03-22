@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const SYMS=['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMD','GOOGL','PLTR','CRWD','JPM','GS','IWM']
+const SYMS=['SPY','QQQ','NVDA','AAPL','MSFT','META','TSLA','AMD','GOOGL','PLTR','CRWD','COIN','MSTR','JPM','GS','IWM','AVGO','NFLX','LLY','XOM','V','MA','AMZN','ORCL','HOOD']
 const COLS=['#10b981','#f59e0b','#ef4444']
 
 function ProbBar({label,prob,color}){
@@ -124,6 +124,30 @@ export default function Predict(){
           )}
           {/* preset chips */}
           <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {/* Marcus/Priya: Open ticker search — any NYSE/NASDAQ symbol */}
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,padding:'6px 10px',background:'var(--bg-card)',borderRadius:10,border:'1px solid rgba(255,255,255,0.06)'}}>
+            <span style={{fontSize:14,color:'var(--text-muted)'}}>🔍</span>
+            <input
+              value={searchQuery}
+              onChange={e=>{setSearchQuery(e.target.value);searchTickers(e.target.value)}}
+              onKeyDown={e=>{if(e.key==='Enter'&&searchQuery.trim()){setSym(searchQuery.toUpperCase().trim());setSearchQuery('');setSearchResults([])}}}
+              placeholder="Search any ticker — NVDA, AAPL, ARM, TSM..."
+              style={{flex:1,background:'transparent',border:'none',outline:'none',color:'var(--text-primary)',fontSize:13,fontFamily:'var(--font-sans)'}}
+            />
+            {searchLoading && <span style={{fontSize:11,color:'var(--text-muted)'}}>…</span>}
+          </div>
+          {searchResults.length > 0 && (
+            <div style={{position:'absolute',zIndex:100,top:72,left:0,right:0,background:'var(--bg-elevated)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}}>
+              {searchResults.map(r=>(
+                <button key={r.ticker} onClick={()=>{setSym(r.ticker);setSearchQuery('');setSearchResults([])}}
+                  style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderBottom:'1px solid rgba(255,255,255,0.04)',cursor:'pointer',textAlign:'left'}}>
+                  <span style={{fontWeight:700,color:'var(--accent)',fontSize:13,minWidth:50}}>{r.ticker}</span>
+                  <span style={{color:'var(--text-muted)',fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}</span>
+                  <span style={{marginLeft:'auto',fontSize:11,color:'#64748b',whiteSpace:'nowrap'}}>{r.market||''}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {SYMS.map(s=>(
             <button key={s} onClick={()=>setSym(s)}
                     style={{background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-secondary)',padding:'4px 8px',cursor:'pointer',fontSize:12}}>
