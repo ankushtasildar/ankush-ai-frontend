@@ -96,6 +96,16 @@ export default function Billing() {
       )}
 
       {/* Pricing cards */}
+      
+      {/* Riya: social proof */}
+      {!isPro && (
+        <div style={{textAlign:'center',marginBottom:20,padding:'10px 0'}}>
+          <div style={{fontSize:13,color:'var(--text-muted)'}}>
+            <span style={{color:'#f59e0b',marginRight:6}}>★★★★★</span>
+            Trusted by active traders · Institutional-grade intelligence at retail price
+          </div>
+        </div>
+      )}
       {!isPro && (
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:32}}>
           {/* Free */}
@@ -130,7 +140,7 @@ export default function Billing() {
             <button onClick={handleUpgrade} disabled={upgrading} style={{width:'100%',padding:'12px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:10,color:'#fff',fontSize:14,cursor:'pointer',fontWeight:700}}>
               {upgrading?'Redirecting...':'Get Pro - $29/mo'}
             </button>
-            <div style={{color:'#3d4e62',fontSize:10,textAlign:'center',marginTop:8}}>Cancel anytime. No contracts.</div>
+            <div style={{color:'#3d4e62',fontSize:10,textAlign:'center',marginTop:8}}>✓ Cancel anytime · ✓ 7-day money-back guarantee · ✓ No contracts</div>
           </div>
         </div>
       )}
@@ -149,6 +159,22 @@ export default function Billing() {
             </div>
           ))}
         </div>
+      </div>
+    
+      {/* Riya: FAQ section */}
+      <div style={{marginTop:48,paddingTop:32,borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+        <div style={{fontSize:13,fontWeight:700,letterSpacing:'0.08em',color:'var(--text-muted)',marginBottom:20}}>FREQUENTLY ASKED QUESTIONS</div>
+        {[
+          ['What happens if I cancel?','Your Pro features stay active until the end of your billing period. After that you move back to the Free plan — your data is never deleted.'],
+          ['Can I try before buying?','Yes — the Free plan gives you full access to 3 AI scans/day, charts, and journal. Upgrade only when you see the value.'],
+          ['Is my trading data private?','Absolutely. Your journal entries and portfolio data are encrypted and never shared or sold. We don\'t run ads.'],
+          ['What payment methods do you accept?','All major credit and debit cards via Stripe. Payments are encrypted and PCI-compliant.'],
+        ].map(([q,a])=>(
+          <div key={q} style={{marginBottom:16,padding:'14px 18px',background:'var(--bg-card)',borderRadius:10,border:'1px solid rgba(255,255,255,0.05)'}}>
+            <div style={{fontSize:13,fontWeight:600,color:'var(--text-primary)',marginBottom:6}}>{q}</div>
+            <div style={{fontSize:12,color:'var(--text-muted)',lineHeight:1.6}}>{a}</div>
+          </div>
+        ))}
       </div>
     </div>
   )
