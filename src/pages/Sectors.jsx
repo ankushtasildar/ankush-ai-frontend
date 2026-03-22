@@ -83,6 +83,7 @@ export default function Sectors() {
   const [quotes, setQuotes] = useState({})
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [session, setSession] = useState(null)
   const [sortBy, setSortBy] = useState('change')
   const [spyData, setSpyData] = useState(null)
 
@@ -110,6 +111,7 @@ export default function Sectors() {
           if (r2.ok) setQuotes(await r2.json())
         }
         setLastUpdated(new Date())
+      if (d.session) setSession(d.session)
       }
     } catch (e) {
       console.log('Sector fetch error:', e.message)
@@ -138,6 +140,16 @@ export default function Sectors() {
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>📊 Sector Heatmap</h1>
           <div style={{ color: '#3d4e62', fontSize: 11 }}>
             {advancing} advancing · {declining} declining · {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}
+              {session && (
+                <span style={{marginLeft:8,padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700,background:
+                  session.session==='regular'?'rgba(16,185,129,0.15)':
+                  session.session==='premarket'||session.session==='postmarket'?'rgba(245,158,11,0.15)':
+                  'rgba(100,116,139,0.15)',
+                  color:session.session==='regular'?'#10b981':session.session==='premarket'||session.session==='postmarket'?'#f59e0b':'#64748b'
+                }}>
+                  {session.session==='weekend'?'Weekend — Last Session':session.label}
+                </span>
+              )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
