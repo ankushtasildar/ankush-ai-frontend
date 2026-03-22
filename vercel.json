@@ -19,6 +19,10 @@
     {
       "path": "/api/analysis?action=warm",
       "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/resolve-outcomes",
+      "schedule": "0 2 * * 2-6"
     }
   ],
   "functions": {
