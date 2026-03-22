@@ -154,7 +154,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
       onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
 
       {/* Rank */}
-      <div style={{position:'absolute',top:14,left:-10,background:rank===1?'#f59e0b':rank<=3?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.06)',borderRadius:4,padding:'1px 7px',fontSize:9,fontFamily:'"DM Mono",monospace',color:rank===1?'#080c14':'#6b7a90',fontWeight:700}}>#{rank}</div>
+      <div style={{position:'absolute',top:14,left:-10,background:rank===1?'#f59e0b':rank===2?'rgba(192,192,192,0.22)':rank===3?'rgba(180,100,40,0.2)':'rgba(255,255,255,0.06)',borderRadius:4,padding:'1px 7px',fontSize:9,fontFamily:'"DM Mono",monospace',color:rank===1?'#080c14':rank===2?'#d4d4d8':rank===3?'#c49060':'#6b7a90',fontWeight:700}}>#{rank}</div>
 
       {/* Header */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
