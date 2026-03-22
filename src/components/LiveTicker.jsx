@@ -28,6 +28,17 @@ export default function LiveTicker() {
 
   if (!Object.keys(prices).length) return null
 
+  
+  // Compute session inline
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay(); const mins = et.getHours()*60+et.getMinutes();
+  const sessionInfo = day===0||day===6 ? {label:'Weekend',color:'#64748b'} :
+    mins<240 ? {label:'Closed',color:'#64748b'} :
+    mins<570 ? {label:'Pre-Market',color:'#f59e0b'} :
+    mins<960 ? {label:'Live',color:'#10b981'} :
+    mins<1200 ? {label:'Post-Market',color:'#f59e0b'} : {label:'Closed',color:'#64748b'};
+  
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', gap: 6,
