@@ -472,10 +472,16 @@ module.exports = async function handler(req, res) {
     // Save to setup_records for backtesting loop
     try {
       await supaInsert('setup_records', {
-        symbol, bias: analysis.direction||analysis.bias, entry_price: price,
-        target_price: analysis.targets?.[0]||analysis.priceTarget1,
-        stop_price: analysis.stopLoss, confidence: analysis.confidence,
-        timeframe: analysis.timeframe, thesis: analysis.thesis,
+        symbol,
+        name: symbol + ' Alpha Prediction',
+        setup_type: 'alpha_prediction',
+        bias: analysis.direction || analysis.bias,
+        confidence: analysis.confidence || null,
+        price_at_execution: price,
+        target_1: analysis.targets?.[0] || analysis.priceTarget1 || null,
+        target_2: analysis.targets?.[1] || analysis.priceTarget2 || null,
+        stop_loss: analysis.stopLoss || null,
+        options_trade: analysis.optionsPlay || null,
         created_at: new Date().toISOString()
       })
     } catch(e) { console.error('[save setup]', e.message) }
