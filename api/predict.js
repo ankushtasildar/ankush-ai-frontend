@@ -8,7 +8,7 @@ const anthropic = new Anthropic()
 
 // Supabase REST (no SDK — avoids ESM crash)
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
-const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
 async function supaGet(table, qs) {
   if (!SUPA_URL||!SUPA_KEY) return []
