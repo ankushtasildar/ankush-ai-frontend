@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const fmt = (n, d=2) => n==null?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
-const fmtDollar = n => n==null?'—':'$'+fmt(n)
+const fmt = (n, d=2) => n==null?'\u2014':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const fmtDollar = n => n==null?'\u2014':'$'+fmt(n)
 
-// ═══ LOG TRADE MODAL ═══
+// === LOG TRADE MODAL ===
 function LogTradeModal({ setup, onClose, onSaved }) {
   const [entry, setEntry] = useState(setup?.entryHigh?.toString() || setup?.entry_high?.toString() || '')
   const [stop, setStop] = useState(setup?.stopLoss?.toString() || setup?.stop_loss?.toString() || '')
@@ -123,7 +123,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
   )
 }
 
-// ═══ SETUP CARD ═══
+// === SETUP CARD ===
 function SetupCard({ setup, rank, onLogTrade }) {
   const [expanded, setExpanded] = useState(false)
   const [inWatchlist, setInWatchlist] = useState(false)
@@ -249,7 +249,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
   )
 }
 
-// ═══ MAIN PAGE ═══
+// === MAIN PAGE ===
 export default function TopSetups() {
   const [setups, setSetups] = useState([])
   const [loading, setLoading] = useState(false)
@@ -263,7 +263,7 @@ export default function TopSetups() {
   const [isPro, setIsPro] = useState(true) // default true until checked
   const scanRef = useRef(null)
 
-  // ── Subscription check ─────────────────────────────────
+  // -- Subscription check ---------------------------------
   useEffect(() => {
     const checkSub = async () => {
       try {
