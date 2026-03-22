@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const fmt = (n, d=2) => n==null?'\u2014':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
-const fmtDollar = n => n==null?'\u2014':'$'+fmt(n)
+const fmt = (n, d=2) => n==null?'-':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const fmtDollar = n => n==null?'-':'$'+fmt(n)
 
-// === LOG TRADE MODAL ===
+//  LOG TRADE MODAL 
 function LogTradeModal({ setup, onClose, onSaved }) {
   const [entry, setEntry] = useState(setup?.entryHigh?.toString() || setup?.entry_high?.toString() || '')
   const [stop, setStop] = useState(setup?.stopLoss?.toString() || setup?.stop_loss?.toString() || '')
@@ -68,7 +68,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
             <div style={{fontFamily:'"Syne",sans-serif',fontSize:17,fontWeight:700}}> Log Trade: {setup.symbol}</div>
-            <div style={{color:'#4a5c7a',fontSize:11,marginTop:3}}>{setup.setupType || 'AI Setup'} . {setup.bias === 'bullish' ? '^ Bullish' : 'v Bearish'} . Conf {setup.confidence}/10</div>
+            <div style={{color:'#4a5c7a',fontSize:11,marginTop:3}}>{setup.setupType || 'AI Setup'}  {setup.bias === 'bullish' ? ' Bullish' : ' Bearish'}  Conf {setup.confidence}/10</div>
           </div>
           <button onClick={onClose} style={{background:'none',border:'none',color:'#4a5c7a',cursor:'pointer',fontSize:20,lineHeight:1}}></button>
         </div>
@@ -123,7 +123,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
   )
 }
 
-// === SETUP CARD ===
+//  SETUP CARD 
 function SetupCard({ setup, rank, onLogTrade }) {
   const [expanded, setExpanded] = useState(false)
   const [inWatchlist, setInWatchlist] = useState(false)
@@ -161,7 +161,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontFamily:'"DM Mono",monospace',fontSize:20,fontWeight:800,color:'#f0f6ff'}}>{setup.symbol}</span>
             <span style={{background:isBull?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',border:`1px solid ${isBull?'rgba(16,185,129,0.3)':'rgba(239,68,68,0.3)'}`,borderRadius:5,padding:'2px 8px',color:isBull?'#10b981':'#ef4444',fontSize:10,fontFamily:'"DM Mono",monospace',fontWeight:700}}>
-              {isBull?'^ BULLISH':'v BEARISH'}
+              {isBull?' BULLISH':' BEARISH'}
             </span>
           </div>
           <div style={{color:'#4a5c7a',fontSize:11,marginTop:3}}>{setup.setupType || setup.setup_type}</div>
@@ -224,7 +224,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
       {setup.analysis && (
         <div>
           <button onClick={()=>setExpanded(!expanded)} style={{background:'none',border:'none',color:'#3d4e62',cursor:'pointer',fontSize:10,fontFamily:'"DM Mono",monospace',padding:'4px 0',width:'100%',textAlign:'left'}}>
-            {expanded?'^ Hide Analysis':'v Full Analysis'}
+            {expanded?' Hide Analysis':' Full Analysis'}
           </button>
           {expanded && <div style={{color:'#6b7a90',fontSize:11,lineHeight:1.7,marginTop:6,padding:'10px 12px',background:'rgba(255,255,255,0.02)',borderRadius:8}}>{setup.analysis}</div>}
         </div>
@@ -249,7 +249,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
   )
 }
 
-// === MAIN PAGE ===
+//  MAIN PAGE 
 export default function TopSetups() {
   const [setups, setSetups] = useState([])
   const [loading, setLoading] = useState(false)
@@ -259,24 +259,9 @@ export default function TopSetups() {
   const [sortBy, setSortBy] = useState('Confidence')
   const [logTradeSetup, setLogTradeSetup] = useState(null)
   const [scanMode, setScanMode] = useState('BASELINE MODE')
+  const [isPro, setIsPro] = useState(true)
   const [stats, setStats] = useState({ total: 0, bullish: 0, bearish: 0, avgConf: 0, avgRR: 0, watchlist: 0, scansToday: 0 })
-  const [isPro, setIsPro] = useState(true) // default true until checked
   const scanRef = useRef(null)
-
-  // -- Subscription check ---------------------------------
-  useEffect(() => {
-    const checkSub = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { setIsPro(false); return }
-        // Admin always pro
-        if (user.email === 'ankushtasildar2@gmail.com') { setIsPro(true); return }
-        const { data } = await supabase.from('subscriptions').select('status,plan').eq('user_id', user.id).eq('status', 'active').maybeSingle()
-        setIsPro(!!(data?.status === 'active'))
-      } catch(e) { setIsPro(false) }
-    }
-    checkSub()
-  }, [])
 
   useEffect(() => {
     loadCachedSetups()
@@ -363,7 +348,7 @@ export default function TopSetups() {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,flexWrap:'wrap',gap:12}}>
         <div>
           <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:24,fontWeight:800,margin:'0 0 4px'}}>AnkushAI Top Setups</h1>
-          <div style={{color:'#3d4e62',fontSize:11}}>100 analyst frameworks . 60+ symbol universe . Penny stock gate . Real dollar levels</div>
+          <div style={{color:'#3d4e62',fontSize:11}}>100 analyst frameworks  60+ symbol universe  Penny stock gate  Real dollar levels</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <span style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,padding:'4px 10px',color:'#4a5c7a',fontSize:10,fontFamily:'"DM Mono",monospace'}}> {scanMode}</span>
@@ -414,33 +399,28 @@ export default function TopSetups() {
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
           {sorted.map((setup, i) => {
             const locked = !isPro && i >= 3
-            return (
-              <div key={setup.symbol + i} style={{position:'relative'}}>
-                <SetupCard
-                  setup={setup}
-                  rank={i+1}
-                  onLogTrade={locked ? undefined : setLogTradeSetup}
-                />
-                {locked && (
-                  <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,18,0.82)',backdropFilter:'blur(6px)',borderRadius:12,border:'1px solid rgba(59,130,246,0.3)',zIndex:10,gap:12}}>
-                    <div style={{fontSize:24}}>LOCKED</div>
-                    <div style={{fontWeight:700,fontSize:15,color:'#f0f6ff',textAlign:'center'}}>Pro Setup</div>
-                    <div style={{fontSize:12,color:'#8899aa',textAlign:'center',maxWidth:200}}>Upgrade to see all setups</div>
-                    <a href="/billing" style={{marginTop:4,background:'#3b82f6',color:'#fff',borderRadius:8,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer',textDecoration:'none',display:'inline-block'}}>
-                      Upgrade to Pro
-                    </a>
-                  </div>
-                )}
+            return locked ? (
+              <div key={setup.symbol + i} style={{position:'relative',borderRadius:12,overflow:'hidden',border:'1px solid #1e2a3a'}}>
+                <div style={{filter:'blur(3px)',pointerEvents:'none'}}>
+                  <SetupCard setup={setup} rank={i+1} onLogTrade={null} />
+                </div>
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,18,0.85)',gap:10}}>
+                  <div style={{fontWeight:700,color:'#f0f6ff',fontSize:15}}>Pro Setup</div>
+                  <div style={{fontSize:12,color:'#8899aa'}}>Upgrade to unlock all setups</div>
+                  <a href="/billing" style={{background:'#3b82f6',color:'#fff',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:600,textDecoration:'none'}}>Upgrade to Pro</a>
+                </div>
               </div>
+            ) : (
+              <SetupCard
+              key={setup.symbol + i}
+              setup={setup}
+              rank={i+1}
+              onLogTrade={setLogTradeSetup}
+            />
             )
-          })}
+          ))}
         </div>
-        {!isPro && sorted.length > 3 && (
-          <div style={{textAlign:'center',marginTop:24,padding:'16px',background:'rgba(59,130,246,0.08)',borderRadius:12,border:'1px solid rgba(59,130,246,0.2)'}}>
-            <span style={{color:'#8899aa',fontSize:13}}>Showing <strong style={{color:'#f0f6ff'}}>3 of {sorted.length}</strong> setups. </span>
-            <a href="/billing" style={{color:'#3b82f6',fontSize:13,fontWeight:600,textDecoration:'none'}}>Upgrade to Pro to unlock all</a>
-          </div>
-        )}
+      )}
     </div>
   )
 }
