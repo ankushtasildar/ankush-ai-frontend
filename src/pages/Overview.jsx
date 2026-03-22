@@ -67,6 +67,8 @@ export default function Overview() {
   const [portfolio, setPortfolio] = useState({ trades:0, winRate:0 })
   const [loading, setLoading] = useState(true)
   const [scanLoading, setScanLoading] = useState(false)
+  const [scanUsed, setScanUsed] = useState(0)
+  const [isPro, setIsPro] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const load = useCallback(async () => {
@@ -158,6 +160,19 @@ export default function Overview() {
       </div>
 
       <div style={{ padding:'16px 20px' }}>
+        {/* Priya: scan usage banner for free users */}
+        {!isPro && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(37,99,235,0.06)', border:'1px solid rgba(37,99,235,0.12)', borderRadius:8, padding:'8px 14px', marginBottom:12 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ display:'flex', gap:3 }}>
+                {[0,1].map(i => <div key={i} style={{ width:8, height:8, borderRadius:2, background: i < (2 - scanUsed) ? '#3b82f6' : 'rgba(255,255,255,0.1)' }}/>)}
+              </div>
+              <span style={{ fontSize:12, color:'var(--text-muted)' }}>{Math.max(0, 2-scanUsed)} free scan{2-scanUsed!==1?'s':''} remaining today</span>
+            </div>
+            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited →</a>
+          </div>
+        )}
+        
         {/* Index tickers */}
         <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
           <TickerCard symbol='SPY' name='S&P 500 ETF' price={sp?.price} change={sp?.change} changePct={sp?.changePct} onClick={()=>nav('/app/charts?symbol=SPY')} />
@@ -196,8 +211,9 @@ export default function Overview() {
             </div>
             {loading ? [...Array(3)].map((_,i)=>(<div key={i} style={{ height:52, background:'var(--bg-elevated)', borderRadius:7, marginBottom:4 }} />)) : setups.length===0 ? (
               <div style={{ textAlign:'center', padding:'16px 0' }}>
-                <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:10 }}>No setups yet</div>
-                <button onClick={runScan} disabled={scanLoading} style={{ background:'var(--accent-dim)', color:'var(--accent)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600 }}>
+                <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:4 }}>No setups scanned yet</div>
+                <div style={{ fontSize:11, color:'var(--text-dim)', marginBottom:12, opacity:0.7 }}>AI scans 40+ tickers for institutional setups</div>
+                <button onClick={runScan} disabled={scanLoading} style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', border:'none', borderRadius:8, padding:'10px 22px', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 12px rgba(37,99,235,0.35)' }}>
                   {scanLoading ? 'Scanning...' : 'Run Scan'}
                 </button>
               </div>
@@ -213,12 +229,18 @@ export default function Overview() {
                 <button style={LA} onClick={()=>nav('/app/portfolio')}>Manage</button>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                {[['Open Trades',portfolio.trades],['Win Rate',portfolio.winRate?portfolio.winRate+'%':'--']].map(([l,v])=>(
+                {[['Open Trades',portfolio.trades||0],['Win Rate',portfolio.winRate?portfolio.winRate+'%':'--']].map(([l,v])=>(
                   <div key={l} style={{ background:'var(--bg-elevated)', borderRadius:7, padding:'10px 12px' }}>
                     <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>{l}</div>
                     <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)' }}>{v}</div>
                   </div>
                 ))}
+                {(portfolio.trades === 0 || portfolio.trades == null) && (
+                  <div style={{ marginTop:10, padding:'8px 10px', background:'rgba(37,99,235,0.06)', borderRadius:7, border:'1px solid rgba(37,99,235,0.12)', textAlign:'center' }}>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Track your edge over time</div>
+                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade →</a>
+                  </div>
+                )}
               </div>
             </div>
             <div style={C}>
