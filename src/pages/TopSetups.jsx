@@ -423,7 +423,7 @@ export default function TopSetups() {
                 />
                 {locked && (
                   <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,18,0.82)',backdropFilter:'blur(6px)',borderRadius:12,border:'1px solid rgba(59,130,246,0.3)',zIndex:10,gap:12}}>
-                    <div style={{fontSize:24}}>&#128274;</div>
+                    <div style={{fontSize:24}}>🔒</div>
                     <div style={{fontWeight:700,fontSize:15,color:'#f0f6ff',textAlign:'center'}}>Pro Setup</div>
                     <div style={{fontSize:12,color:'#8899aa',textAlign:'center',maxWidth:200}}>Upgrade to see all setups</div>
                     <a href="/billing" style={{marginTop:4,background:'#3b82f6',color:'#fff',borderRadius:8,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer',textDecoration:'none',display:'inline-block'}}>
