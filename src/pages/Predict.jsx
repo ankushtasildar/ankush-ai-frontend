@@ -133,9 +133,15 @@ export default function Predict(){
         </div>
       </div>
       {loading&&(
-        <div style={{textAlign:'center',padding:'50px 20px',color:'var(--text-muted)'}}>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--text-primary)',marginBottom:8}}>Computing Institutional Alpha...</div>
-          <div style={{fontSize:13}}>Macro regime - Supply/demand - Sector rotation - VWAP anchors</div>
+        <div style={{marginTop:16}}>
+          <style>{'@keyframes shimmer{0%,100%{opacity:0.4}50%{opacity:0.75}}'}</style>
+          {[{w:'45%'},{w:'92%'},{w:'78%'},{w:'85%'}].map((r,i)=>(
+            <div key={i} style={{background:'var(--bg-card)',borderRadius:10,padding:'16px 20px',marginBottom:10,animation:'shimmer 1.5s ease-in-out infinite',animationDelay:i*0.15+'s'}}>
+              <div style={{height:i===0?16:9,background:'#1a2c42',borderRadius:5,width:r.w,marginBottom:i===0?8:0}}/>
+              {i===0&&<><div style={{height:8,background:'#101d2c',borderRadius:4,width:'80%',marginBottom:5}}/><div style={{height:8,background:'#101d2c',borderRadius:4,width:'60%'}}/></>}
+            </div>
+          ))}
+          <div style={{textAlign:'center',color:'var(--text-muted)',fontSize:12,marginTop:10}}>⚡ Computing institutional analysis…</div>
         </div>
       )}
       {error&&(
@@ -147,6 +153,12 @@ export default function Predict(){
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12,flexWrap:'wrap',gap:12}}>
               <div>
                 <span style={{fontSize:28,fontWeight:700,cursor:'pointer',color:'var(--accent)'}} onClick={()=>nav('/app/charts?symbol='+data.symbol)}>{data.symbol}</span>
+                <button onClick={()=>{
+                  const txt=data.symbol+' $'+Number(data.currentPrice).toFixed(2)+' | '+(data.sentiment?.overall||'').toUpperCase()+' | Confidence: '+data.confidence+'% | Edge: '+data.edgeScore+'/100 | '+(data.leadingThesis||'').substring(0,100)+'... via AnkushAI ankushai.org'
+                  navigator.clipboard?.writeText(txt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500)}).catch(()=>{})
+                }} style={{marginLeft:10,background:copied?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',border:'1px solid '+(copied?'rgba(16,185,129,0.4)':'rgba(255,255,255,0.1)'),borderRadius:7,padding:'5px 11px',color:copied?'#10b981':'#8899aa',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
+                  {copied?'✓ Copied':'⎘ Share'}
+                </button>
                 <span style={{fontSize:20,fontWeight:600,marginLeft:12}}>${Number(data.currentPrice).toFixed(2)}</span>
                 <span style={{fontSize:14,color:sc,marginLeft:12,textTransform:'capitalize',fontWeight:600}}>{sent&&sent.overall}</span>
               </div>
