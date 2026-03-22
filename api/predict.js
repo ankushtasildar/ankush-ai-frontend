@@ -558,6 +558,7 @@ Current market session: ${sessionStatus}`,
       ...analysis,
       rawData: { macro, sentiment, supdem, rotation, rs },
       optionsContext: optionsCtx,
+      historicalEdge: edge, // Marcus: pass through to frontend for accuracy display
       tradeStyle: style,
       priceVerified: true,
       generatedAt: new Date().toISOString()
