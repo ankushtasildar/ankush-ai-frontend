@@ -32,9 +32,14 @@ async function polyFetch(url) {
 
 // ── Price + volume data ──────────────────────────────────────────
 async function getPriceData(symbol, days=90) {
-  const prev = await polyFetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true`)
-  const q = prev?.results?.[0]
-  if (!q) return null
+  // Try prev endpoint first, fall back to latest bar from range
+  let q = (await polyFetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true`))?.results?.[0]
+  if (!q) {
+    // Weekend fallback: get last bar from 7-day range
+    const fallback = await polyFetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${new Date(Date.now()-7*864e5).toISOString().split('T')[0]}/${new Date().toISOString().split('T')[0]}?adjusted=true&sort=desc&limit=1`)
+    q = fallback?.results?.[0]
+    if (!q) return null
+  }
   
   const to = new Date(); to.setDate(to.getDate()-1)
   const from = new Date(); from.setDate(from.getDate()-days)
