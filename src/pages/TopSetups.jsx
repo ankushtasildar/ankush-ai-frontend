@@ -56,7 +56,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
       <div style={{background:'#0d1420',border:'1px solid rgba(16,185,129,0.3)',borderRadius:16,padding:40,textAlign:'center'}}>
         <div style={{fontSize:48,marginBottom:12}}>✅</div>
         <div style={{fontFamily:'"Syne",sans-serif',fontSize:18,fontWeight:700,color:'#10b981'}}>Trade Logged!</div>
-        <div style={{color:'#4a5c7a',fontSize:12,marginTop:6}}>{setup.symbol} → Journal</div>
+        <div style={{color:'#4a5c7a',fontSize:12,marginTop:6}}>{setup.symbol}  Journal</div>
       </div>
     </div>
   )
@@ -420,15 +420,14 @@ export default function TopSetups() {
                   setup={setup}
                   rank={i+1}
                   onLogTrade={locked ? undefined : setLogTradeSetup}
-                  style={locked ? {filter:'blur(4px)',pointerEvents:'none',userSelect:'none'} : {}}
                 />
                 {locked && (
                   <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,18,0.82)',backdropFilter:'blur(6px)',borderRadius:12,border:'1px solid rgba(59,130,246,0.3)',zIndex:10,gap:12}}>
-                    <div style={{fontSize:28}}>🔒</div>
+                    <div style={{fontSize:24}}>&#128274;</div>
                     <div style={{fontWeight:700,fontSize:15,color:'#f0f6ff',textAlign:'center'}}>Pro Setup</div>
-                    <div style={{fontSize:12,color:'#8899aa',textAlign:'center',maxWidth:200}}>Upgrade to Pro to unlock all {sorted.length} setups</div>
-                    <a href="/billing" style={{marginTop:4,background:'#3b82f6',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer',textDecoration:'none',display:'inline-block'}}>
-                      Upgrade to Pro →
+                    <div style={{fontSize:12,color:'#8899aa',textAlign:'center',maxWidth:200}}>Upgrade to see all setups</div>
+                    <a href="/billing" style={{marginTop:4,background:'#3b82f6',color:'#fff',borderRadius:8,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer',textDecoration:'none',display:'inline-block'}}>
+                      Upgrade to Pro
                     </a>
                   </div>
                 )}
@@ -439,10 +438,9 @@ export default function TopSetups() {
         {!isPro && sorted.length > 3 && (
           <div style={{textAlign:'center',marginTop:24,padding:'16px',background:'rgba(59,130,246,0.08)',borderRadius:12,border:'1px solid rgba(59,130,246,0.2)'}}>
             <span style={{color:'#8899aa',fontSize:13}}>Showing <strong style={{color:'#f0f6ff'}}>3 of {sorted.length}</strong> setups. </span>
-            <a href="/billing" style={{color:'#3b82f6',fontSize:13,fontWeight:600,textDecoration:'none'}}>Upgrade to Pro to unlock all →</a>
+            <a href="/billing" style={{color:'#3b82f6',fontSize:13,fontWeight:600,textDecoration:'none'}}>Upgrade to Pro to unlock all</a>
           </div>
         )}
-      )}
     </div>
   )
 }
