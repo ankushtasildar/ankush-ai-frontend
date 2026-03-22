@@ -446,6 +446,37 @@ Return ONLY valid JSON (no markdown):
 `
 }
 
+
+async function fetchOptionsContext(symbol, price) {
+  try {
+    const POLY_KEY = process.env.POLYGON_API_KEY
+    if (!POLY_KEY) return null
+    const snap = await fetch(
+      'https://api.polygon.io/v3/snapshot/options/'+symbol+'?limit=30&apiKey='+POLY_KEY
+    ).then(r=>r.json())
+    if (!snap.results || snap.results.length === 0) return null
+    const opts = snap.results
+    const calls = opts.filter(o => o.details?.contract_type === 'call')
+    const puts = opts.filter(o => o.details?.contract_type === 'put')
+    const callVol = calls.reduce((a,o) => a+(o.day?.volume||0), 0)
+    const putVol = puts.reduce((a,o) => a+(o.day?.volume||0), 0)
+    const pcRatio = callVol > 0 ? parseFloat((putVol/callVol).toFixed(2)) : null
+    const atm = opts.filter(o => o.details?.strike_price && Math.abs(o.details.strike_price - price)/price < 0.03)
+    const ivs = atm.map(o => o.greeks?.implied_volatility).filter(Boolean)
+    const avgIV = ivs.length ? ivs.reduce((a,b)=>a+b,0)/ivs.length : null
+    const move1SD = avgIV ? parseFloat((price * avgIV * Math.sqrt(5/252)).toFixed(2)) : null
+    return {
+      ivRank: avgIV ? Math.min(100, Math.round(avgIV*200)) : null,
+      atmIV: avgIV ? parseFloat((avgIV*100).toFixed(1)) : null,
+      pcRatio,
+      expectedMove5d: move1SD,
+      callVolume: callVol,
+      putVolume: putVol,
+      sentiment: pcRatio > 1.4 ? 'bearish flow' : pcRatio < 0.8 ? 'bullish flow' : 'neutral flow'
+    }
+  } catch(e) { return null }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   if (req.method === 'OPTIONS') return res.status(200).end()
