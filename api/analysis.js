@@ -59,12 +59,13 @@ async function analyzeSingleCached(symbol, force) {
 
 function tradingDate(daysBack) {
   const d = new Date()
-  // Go back in calendar days, skip weekends
+  // Move to most recent trading day first
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1)
+  // Then go back daysBack additional trading days
   let count = 0
-  while (count < daysBack + 1) {
+  while (count < daysBack) {
     d.setDate(d.getDate() - 1)
-    const day = d.getDay()
-    if (day !== 0 && day !== 6) count++ // skip Sun(0) Sat(6)
+    if (d.getDay() !== 0 && d.getDay() !== 6) count++
   }
   return d.toISOString().split('T')[0]
 }
