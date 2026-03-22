@@ -1,11 +1,8 @@
 const Anthropic = require('@anthropic-ai/sdk')
-const { createClient } = require('@supabase/supabase-js')
 
 const anthropic = new Anthropic()
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
+const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 const OVERLAY_TTL_MS = 4 * 60 * 60 * 1000
 
@@ -124,16 +121,21 @@ async function buildOverlays(symbol) {
 
 async function getCached(symbol) {
   try {
-    const { data } = await supabase.from('symbol_analysis').select('result,updated_at').eq('symbol', symbol+'_overlay').single()
-    if (!data) return null
-    if (Date.now() - new Date(data.updated_at).getTime() > OVERLAY_TTL_MS) return null
-    return { ...data.result, _cached:true, _cacheAge: Math.round((Date.now()-new Date(data.updated_at).getTime())/60000)+'m' }
+    if (!SUPA_URL || !SUPA_KEY) return null
+    const r = await fetch(SUPA_URL + '/rest/v1/symbol_analysis?symbol=eq.' + encodeURIComponent(symbol+'_overlay') + '&select=result,updated_at&limit=1', { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } })
+    const rows = await r.json()
+    if (!rows || !rows[0]) return null
+    const age = Date.now() - new Date(rows[0].updated_at).getTime()
+    if (age > OVERLAY_TTL_MS) return null
+    return { ...rows[0].result, _cached:true, _cacheAge: Math.round(age/60000)+'m' }
   } catch(e) { return null }
 }
 
 async function setCache(symbol, result) {
-  try { await supabase.from('symbol_analysis').upsert({ symbol:symbol+'_overlay', result, updated_at:new Date().toISOString() }, { onConflict:'symbol' }) }
-  catch(e) { console.error('[overlay cache write]', e.message) }
+  try {
+    if (!SUPA_URL || !SUPA_KEY) return
+    await fetch(SUPA_URL + '/rest/v1/symbol_analysis', { method: 'POST', headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' }, body: JSON.stringify({ symbol: symbol+'_overlay', result, updated_at: new Date().toISOString() }) })
+  } catch(e) { console.error('[overlay cache]', e.message) }
 }
 
 module.exports = async function handler(req, res) {
