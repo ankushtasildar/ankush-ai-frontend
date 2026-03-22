@@ -507,11 +507,24 @@ module.exports = async function handler(req, res) {
     const rotation    = await getSectorRotation(symbol)
     const rs          = await getRelativeStrength(symbol, bars)
     
+    const sessionStatus = (() => {
+    const now = new Date();
+    const et = new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+    const d=et.getDay(), m=et.getHours()*60+et.getMinutes();
+    if(d===0||d===6) return 'WEEKEND — using last session close prices';
+    if(m<570) return 'PRE-MARKET session — extended hours context applies';
+    if(m<960) return 'REGULAR SESSION — live prices';
+    if(m<1200) return 'POST-MARKET session — after hours pricing';
+    return 'CLOSED — using last session close';
+  })();
     const prompt = buildAlphaPrompt(symbol, price, macro, sentiment||{}, supdem||{}, rotation, rs, edge, company, style, optionsCtx)
     
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2500,
+      system: `You are Marcus Webb, a senior institutional equity analyst trained at Goldman Sachs and Two Sigma. You have 20 years analyzing US equities. You think in terms of institutional positioning, options flow, risk-adjusted returns, and quantitative signals. You are NOT retail — you frame everything from smart money perspective. Return ONLY valid JSON.
+
+Current market session: ${sessionStatus}`,
       messages: [{ role: 'user', content: prompt }]
     })
     
