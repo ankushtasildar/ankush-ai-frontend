@@ -137,7 +137,7 @@ export default function Sectors() {
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>📊 Sector Heatmap</h1>
           <div style={{ color: '#3d4e62', fontSize: 11 }}>
-            {advancing} advancing Â· {declining} declining Â· {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}
+            {advancing} advancing · {declining} declining · {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
