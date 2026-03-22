@@ -57,6 +57,18 @@ async function analyzeSingleCached(symbol, force) {
   return result
 }
 
+function tradingDate(daysBack) {
+  const d = new Date()
+  // Go back in calendar days, skip weekends
+  let count = 0
+  while (count < daysBack + 1) {
+    d.setDate(d.getDate() - 1)
+    const day = d.getDay()
+    if (day !== 0 && day !== 6) count++ // skip Sun(0) Sat(6)
+  }
+  return d.toISOString().split('T')[0]
+}
+
 async function fetchRealPrices(symbols) {
   const POLYGON_KEY = process.env.POLYGON_API_KEY || process.env.POLYGON_KEY
   const prices = {}
