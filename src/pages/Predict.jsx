@@ -75,6 +75,8 @@ export default function Predict(){
   const [loading,setLoading]=useState(false)
   const [data,setData]=useState(null)
   const [error,setError]=useState(null)
+  const [copied,setCopied]=useState(false)
+  const [history,setHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem('alpha_history')||'[]')}catch{return []}})
 
   function run(){
     const s=sym.trim().toUpperCase()
@@ -82,7 +84,10 @@ export default function Predict(){
     setLoading(true);setError(null);setData(null)
     fetch('/api/predict?symbol='+s,{signal:AbortSignal.timeout(120000)})
       .then(r=>r.json())
-      .then(d=>{d.error?setError(d.error):setData(d)})
+      .then(d=>{d.error?setError(d.error):setData(d)
+      // Priya: persist to local history (last 5)
+      const entry={sym:s,thesis:d.leadingThesis?.substring(0,100),confidence:d.confidence,edgeScore:d.edgeScore,ts:Date.now()}
+      setHistory(prev=>{const next=[entry,...prev.filter(x=>x.sym!==s)].slice(0,5);localStorage.setItem('alpha_history',JSON.stringify(next));return next})})
       .catch(e=>setError(e.message))
       .finally(()=>setLoading(false))
   }
@@ -96,7 +101,7 @@ export default function Predict(){
     <div style={{background:'var(--bg-base)',minHeight:'100vh',padding:'14px 16px',fontFamily:'var(--font)',color:'var(--text-primary)'}}>
       <div style={{marginBottom:14}}>
         <div style={{fontSize:22,fontWeight:700,marginBottom:2}}>Alpha Intelligence</div>
-        <div style={{fontSize:13,color:'var(--text-muted)'}}>Leading indicators - Macro regime - Supply/demand zones - Sector rotation</div>
+        <div style={{fontSize:13,color:'var(--text-muted)'}}>Institutional-grade AI analysis · Live market data · Options flow · Scenario modeling</div>
       </div>
       <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
         <input value={sym} onChange={e=>setSym(e.target.value.toUpperCase())}
@@ -106,7 +111,19 @@ export default function Predict(){
                 style={{background:'linear-gradient(135deg,#7c3aed,#2563eb)',color:'#fff',border:'none',borderRadius:8,padding:'9px 22px',cursor:'pointer',fontWeight:700,fontSize:14}}>
           {loading?'Computing...':'Get Alpha'}
         </button>
-        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+        {history.length > 0 && (
+            <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:6,paddingTop:6,borderTop:'1px solid rgba(255,255,255,0.05)'}}>
+              <span style={{fontSize:10,color:'var(--text-dim)',alignSelf:'center',marginRight:2}}>Recent:</span>
+              {history.map(h=>(
+                <button key={h.sym+h.ts} onClick={()=>{setSym(h.sym)}}
+                  style={{background:'rgba(37,99,235,0.08)',color:'#6b7fa3',border:'1px solid rgba(37,99,235,0.15)',borderRadius:5,padding:'3px 9px',fontSize:11,fontWeight:600,cursor:'pointer'}}>
+                  {h.sym} <span style={{opacity:0.5,fontWeight:400}}>{h.confidence}%</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {/* preset chips */}
+          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
           {SYMS.map(s=>(
             <button key={s} onClick={()=>setSym(s)}
                     style={{background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-secondary)',padding:'4px 8px',cursor:'pointer',fontSize:12}}>
