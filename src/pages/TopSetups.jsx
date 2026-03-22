@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const fmt = (n, d=2) => n==null?'-':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
-const fmtDollar = n => n==null?'-':'$'+fmt(n)
+const fmt = (n, d=2) => n==null?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const fmtDollar = n => n==null?'—':'$'+fmt(n)
 
-//  LOG TRADE MODAL 
+// ═══ LOG TRADE MODAL ═══
 function LogTradeModal({ setup, onClose, onSaved }) {
   const [entry, setEntry] = useState(setup?.entryHigh?.toString() || setup?.entry_high?.toString() || '')
   const [stop, setStop] = useState(setup?.stopLoss?.toString() || setup?.stop_loss?.toString() || '')
@@ -54,9 +54,9 @@ function LogTradeModal({ setup, onClose, onSaved }) {
   if (saved) return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999}}>
       <div style={{background:'#0d1420',border:'1px solid rgba(16,185,129,0.3)',borderRadius:16,padding:40,textAlign:'center'}}>
-        <div style={{fontSize:48,marginBottom:12}}></div>
+        <div style={{fontSize:48,marginBottom:12}}>✅</div>
         <div style={{fontFamily:'"Syne",sans-serif',fontSize:18,fontWeight:700,color:'#10b981'}}>Trade Logged!</div>
-        <div style={{color:'#4a5c7a',fontSize:12,marginTop:6}}>{setup.symbol}  Journal</div>
+        <div style={{color:'#4a5c7a',fontSize:12,marginTop:6}}>{setup.symbol} → Journal</div>
       </div>
     </div>
   )
@@ -67,17 +67,17 @@ function LogTradeModal({ setup, onClose, onSaved }) {
       <div style={{background:'#0d1420',border:'1px solid rgba(255,255,255,0.1)',borderRadius:16,padding:24,width:400,maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
-            <div style={{fontFamily:'"Syne",sans-serif',fontSize:17,fontWeight:700}}> Log Trade: {setup.symbol}</div>
-            <div style={{color:'#4a5c7a',fontSize:11,marginTop:3}}>{setup.setupType || 'AI Setup'}  {setup.bias === 'bullish' ? ' Bullish' : ' Bearish'}  Conf {setup.confidence}/10</div>
+            <div style={{fontFamily:'"Syne",sans-serif',fontSize:17,fontWeight:700}}>📓 Log Trade: {setup.symbol}</div>
+            <div style={{color:'#4a5c7a',fontSize:11,marginTop:3}}>{setup.setupType || 'AI Setup'} · {setup.bias === 'bullish' ? '▲ Bullish' : '▼ Bearish'} · Conf {setup.confidence}/10</div>
           </div>
-          <button onClick={onClose} style={{background:'none',border:'none',color:'#4a5c7a',cursor:'pointer',fontSize:20,lineHeight:1}}></button>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'#4a5c7a',cursor:'pointer',fontSize:20,lineHeight:1}}>✕</button>
         </div>
 
         {/* Trade type */}
         <div style={{display:'flex',gap:6,marginBottom:14}}>
           {['stock','options'].map(t => (
             <button key={t} onClick={()=>setType(t)} style={{flex:1,padding:'8px',background:type===t?'rgba(37,99,235,0.12)':'rgba(255,255,255,0.04)',border:`1px solid ${type===t?'rgba(37,99,235,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:8,color:type===t?'#60a5fa':'#6b7a90',fontSize:11,cursor:'pointer'}}>
-              {t === 'stock' ? ' Stock / ETF' : ' Options'}
+              {t === 'stock' ? '📊 Stock / ETF' : '🎯 Options'}
             </button>
           ))}
         </div>
@@ -101,7 +101,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
         {rr && (
           <div style={{background:'rgba(37,99,235,0.06)',border:'1px solid rgba(37,99,235,0.15)',borderRadius:8,padding:'8px 12px',marginBottom:12,display:'flex',gap:16}}>
             <span style={{color:'#60a5fa',fontSize:11}}>R/R: <strong>{rr}:1</strong></span>
-            <span style={{color:parseFloat(rr)>=2?'#10b981':parseFloat(rr)>=1?'#f59e0b':'#ef4444',fontSize:11}}>{parseFloat(rr)>=2?' Strong':' Borderline'}</span>
+            <span style={{color:parseFloat(rr)>=2?'#10b981':parseFloat(rr)>=1?'#f59e0b':'#ef4444',fontSize:11}}>{parseFloat(rr)>=2?'✅ Strong':'⚠️ Borderline'}</span>
             {entry && stop && <span style={{color:'#4a5c7a',fontSize:11}}>Risk/share: ${fmt(Math.abs(parseFloat(entry)-parseFloat(stop)))}</span>}
           </div>
         )}
@@ -115,7 +115,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
         <div style={{display:'flex',gap:8}}>
           <button onClick={onClose} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,color:'#6b7a90',fontSize:12,cursor:'pointer'}}>Cancel</button>
           <button onClick={save} disabled={saving||!entry||!stop} style={{flex:2,padding:'10px',background:saving?'rgba(16,185,129,0.3)':'linear-gradient(135deg,#10b981,#059669)',border:'none',borderRadius:10,color:'#fff',fontSize:12,cursor:saving||!entry||!stop?'default':'pointer',fontWeight:600,opacity:!entry||!stop?.7:1}}>
-            {saving ? ' Saving...' : ' Log to Journal'}
+            {saving ? '⟳ Saving...' : '📓 Log to Journal'}
           </button>
         </div>
       </div>
@@ -123,7 +123,7 @@ function LogTradeModal({ setup, onClose, onSaved }) {
   )
 }
 
-//  SETUP CARD 
+// ═══ SETUP CARD ═══
 function SetupCard({ setup, rank, onLogTrade }) {
   const [expanded, setExpanded] = useState(false)
   const [inWatchlist, setInWatchlist] = useState(false)
@@ -161,7 +161,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontFamily:'"DM Mono",monospace',fontSize:20,fontWeight:800,color:'#f0f6ff'}}>{setup.symbol}</span>
             <span style={{background:isBull?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',border:`1px solid ${isBull?'rgba(16,185,129,0.3)':'rgba(239,68,68,0.3)'}`,borderRadius:5,padding:'2px 8px',color:isBull?'#10b981':'#ef4444',fontSize:10,fontFamily:'"DM Mono",monospace',fontWeight:700}}>
-              {isBull?' BULLISH':' BEARISH'}
+              {isBull?'▲ BULLISH':'▼ BEARISH'}
             </span>
           </div>
           <div style={{color:'#4a5c7a',fontSize:11,marginTop:3}}>{setup.setupType || setup.setup_type}</div>
@@ -224,7 +224,7 @@ function SetupCard({ setup, rank, onLogTrade }) {
       {setup.analysis && (
         <div>
           <button onClick={()=>setExpanded(!expanded)} style={{background:'none',border:'none',color:'#3d4e62',cursor:'pointer',fontSize:10,fontFamily:'"DM Mono",monospace',padding:'4px 0',width:'100%',textAlign:'left'}}>
-            {expanded?' Hide Analysis':' Full Analysis'}
+            {expanded?'▲ Hide Analysis':'▼ Full Analysis'}
           </button>
           {expanded && <div style={{color:'#6b7a90',fontSize:11,lineHeight:1.7,marginTop:6,padding:'10px 12px',background:'rgba(255,255,255,0.02)',borderRadius:8}}>{setup.analysis}</div>}
         </div>
@@ -232,24 +232,24 @@ function SetupCard({ setup, rank, onLogTrade }) {
 
       {/* Action buttons */}
       <div style={{display:'flex',gap:6,marginTop:10,paddingTop:10,borderTop:'1px solid rgba(255,255,255,0.05)'}}>
-        {/* LOG TRADE - the key new button */}
+        {/* LOG TRADE — the key new button */}
         <button onClick={()=>onLogTrade(setup)} style={{flex:2,padding:'7px 0',background:'linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.08))',border:'1px solid rgba(16,185,129,0.3)',borderRadius:7,color:'#10b981',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace',fontWeight:700,letterSpacing:'.04em',transition:'all .15s'}}
           onMouseEnter={e=>{e.currentTarget.style.background='rgba(16,185,129,0.2)';e.currentTarget.style.borderColor='rgba(16,185,129,0.5)'}}
           onMouseLeave={e=>{e.currentTarget.style.background='linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.08))';e.currentTarget.style.borderColor='rgba(16,185,129,0.3)'}}>
-           Log Trade
+          📓 Log Trade
         </button>
         <button onClick={()=>window.location.href='/app/charts?symbol='+setup.symbol} style={{flex:1,padding:'7px 0',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:7,color:'#6b7a90',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>
-           Chart
+          📈 Chart
         </button>
         <button onClick={toggleWatchlist} style={{padding:'7px 10px',background:'rgba(255,255,255,0.04)',border:`1px solid ${inWatchlist?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.08)'}`,borderRadius:7,color:inWatchlist?'#f59e0b':'#4a5c7a',fontSize:13,cursor:'pointer'}}>
-          {inWatchlist?'':''}
+          {inWatchlist?'★':'☆'}
         </button>
       </div>
     </div>
   )
 }
 
-//  MAIN PAGE 
+// ═══ MAIN PAGE ═══
 export default function TopSetups() {
   const [setups, setSetups] = useState([])
   const [loading, setLoading] = useState(false)
@@ -259,12 +259,22 @@ export default function TopSetups() {
   const [sortBy, setSortBy] = useState('Confidence')
   const [logTradeSetup, setLogTradeSetup] = useState(null)
   const [scanMode, setScanMode] = useState('BASELINE MODE')
-  const [isPro, setIsPro] = useState(true)
   const [stats, setStats] = useState({ total: 0, bullish: 0, bearish: 0, avgConf: 0, avgRR: 0, watchlist: 0, scansToday: 0 })
+  const [isPro, setIsPro] = useState(true)
   const scanRef = useRef(null)
 
   useEffect(() => {
     loadCachedSetups()
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const u = data && data.user
+      if (!u) { setIsPro(false); return }
+      if (u.email === 'ankushtasildar2@gmail.com') { setIsPro(true); return }
+      supabase.from('subscriptions').select('status').eq('user_id', u.id).eq('status', 'active').maybeSingle()
+        .then(({ data: sub }) => { setIsPro(!!sub) })
+    })
   }, [])
 
   async function loadCachedSetups() {
@@ -348,12 +358,12 @@ export default function TopSetups() {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,flexWrap:'wrap',gap:12}}>
         <div>
           <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:24,fontWeight:800,margin:'0 0 4px'}}>AnkushAI Top Setups</h1>
-          <div style={{color:'#3d4e62',fontSize:11}}>100 analyst frameworks  60+ symbol universe  Penny stock gate  Real dollar levels</div>
+          <div style={{color:'#3d4e62',fontSize:11}}>100 analyst frameworks · 60+ symbol universe · Penny stock gate · Real dollar levels</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <span style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,padding:'4px 10px',color:'#4a5c7a',fontSize:10,fontFamily:'"DM Mono",monospace'}}> {scanMode}</span>
+          <span style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,padding:'4px 10px',color:'#4a5c7a',fontSize:10,fontFamily:'"DM Mono",monospace'}}>● {scanMode}</span>
           <button onClick={runScan} disabled={scanning} style={{padding:'8px 18px',background:scanning?'rgba(37,99,235,0.3)':'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:8,color:'#fff',fontSize:12,cursor:scanning?'default':'pointer',fontWeight:600,fontFamily:'"DM Mono",monospace',opacity:scanning?.7:1}}>
-            {scanning?' Scanning...':' Force Rescan'}
+            {scanning?'⟳ Scanning...':'⚡ Force Rescan'}
           </button>
         </div>
       </div>
@@ -385,11 +395,11 @@ export default function TopSetups() {
       {/* Empty state */}
       {!loading && setups.length === 0 && (
         <div style={{textAlign:'center',padding:'60px 20px',color:'#3d4e62'}}>
-          <div style={{fontSize:48,marginBottom:16}}></div>
+          <div style={{fontSize:48,marginBottom:16}}>🎯</div>
           <div style={{fontSize:16,fontWeight:600,color:'#f0f6ff',marginBottom:8}}>No setups yet</div>
           <div style={{fontSize:12,marginBottom:20}}>Run a scan to get AI-powered setup recommendations</div>
           <button onClick={runScan} disabled={scanning} style={{padding:'10px 24px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:10,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:600}}>
-            {scanning?' Scanning...':' Run Scan'}
+            {scanning?'⟳ Scanning...':'⚡ Run Scan'}
           </button>
         </div>
       )}
@@ -397,28 +407,33 @@ export default function TopSetups() {
       {/* Setup cards grid */}
       {sorted.length > 0 && (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
-          {sorted.map((setup, i) => {
-            const locked = !isPro && i >= 3
-            return locked ? (
-              <div key={setup.symbol + i} style={{position:'relative',borderRadius:12,overflow:'hidden',border:'1px solid #1e2a3a'}}>
-                <div style={{filter:'blur(3px)',pointerEvents:'none'}}>
+          {sorted.map((setup, i) => (
+            i < 3 || isPro ? (
+              <SetupCard
+                key={setup.symbol + i}
+                setup={setup}
+                rank={i+1}
+                onLogTrade={setLogTradeSetup}
+              />
+            ) : (
+              <div key={setup.symbol + i} style={{position:'relative',borderRadius:14,overflow:'hidden',border:'1px solid #1e2a3a'}}>
+                <div style={{filter:'blur(4px)',pointerEvents:'none',userSelect:'none'}}>
                   <SetupCard setup={setup} rank={i+1} onLogTrade={null} />
                 </div>
-                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,18,0.85)',gap:10}}>
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,12,20,0.88)',gap:10}}>
                   <div style={{fontWeight:700,color:'#f0f6ff',fontSize:15}}>Pro Setup</div>
-                  <div style={{fontSize:12,color:'#8899aa'}}>Upgrade to unlock all setups</div>
-                  <a href="/billing" style={{background:'#3b82f6',color:'#fff',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:600,textDecoration:'none'}}>Upgrade to Pro</a>
+                  <div style={{fontSize:12,color:'#8899aa',textAlign:'center',maxWidth:200}}>Upgrade to unlock all setups</div>
+                  <a href="/billing" style={{background:'#3b82f6',color:'#fff',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:600,textDecoration:'none',display:'inline-block'}}>Upgrade to Pro</a>
                 </div>
               </div>
-            ) : (
-              <SetupCard
-              key={setup.symbol + i}
-              setup={setup}
-              rank={i+1}
-              onLogTrade={setLogTradeSetup}
-            />
             )
           ))}
+          {!isPro && sorted.length > 3 && (
+            <div style={{gridColumn:'1/-1',textAlign:'center',padding:'16px',background:'rgba(59,130,246,0.06)',borderRadius:12,border:'1px solid rgba(59,130,246,0.15)'}}>
+              <span style={{color:'#8899aa',fontSize:13}}>Showing 3 of {sorted.length} setups. </span>
+              <a href="/billing" style={{color:'#3b82f6',fontWeight:600,textDecoration:'none',fontSize:13}}>Upgrade to Pro to unlock all</a>
+            </div>
+          )}
         </div>
       )}
     </div>
