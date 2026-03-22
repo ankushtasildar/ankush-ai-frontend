@@ -477,7 +477,7 @@ module.exports = async function handler(req, res) {
         setup_type: 'alpha_prediction',
         bias: analysis.direction || analysis.bias,
         confidence: analysis.confidence || null,
-        price_at_execution: price,
+        price_at_generation: price,
         target_1: analysis.targets?.[0] || analysis.priceTarget1 || null,
         target_2: analysis.targets?.[1] || analysis.priceTarget2 || null,
         stop_loss: analysis.stopLoss || null,
