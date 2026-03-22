@@ -18,8 +18,16 @@ async function supaGet(table, qs) {
   } catch(e) { return [] }
 }
 async function supaInsert(table, row) {
-  if (!SUPA_URL||!SUPA_KEY) return
-  try { await fetch(SUPA_URL+'/rest/v1/'+table, {method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify(row)}) } catch(e) {}
+  if (!SUPA_URL||!SUPA_KEY) { console.error('[supaInsert] missing URL or KEY'); return }
+  try {
+    const r = await fetch(SUPA_URL+'/rest/v1/'+table, {
+      method:'POST',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify(row)
+    })
+    if (!r.ok) { const t = await r.text(); console.error('[supaInsert ERR]', r.status, t.substring(0,200)) }
+    else console.log('[supaInsert OK]', table)
+  } catch(e) { console.error('[supaInsert THROW]', e.message) }
 }
 const POLY = process.env.POLYGON_API_KEY
 
