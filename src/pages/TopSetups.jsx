@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { ScanRadar, TradeLoggedToast, WinStreak } from '../components/Gamification'
 
 const fmt = (n, d=2) => n==null?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
 const fmtDollar = n => n==null?'—':'$'+fmt(n)
@@ -261,6 +262,7 @@ export default function TopSetups() {
   const [scanMode, setScanMode] = useState('BASELINE MODE')
   const [stats, setStats] = useState({ total: 0, bullish: 0, bearish: 0, avgConf: 0, avgRR: 0, watchlist: 0, scansToday: 0 })
   const [isPro, setIsPro] = useState(true)
+  const [tradeToast, setTradeToast] = useState({ visible: false, symbol: '' })
   const scanRef = useRef(null)
 
   useEffect(() => {
@@ -350,7 +352,7 @@ export default function TopSetups() {
         <LogTradeModal
           setup={logTradeSetup}
           onClose={()=>setLogTradeSetup(null)}
-          onSaved={()=>{setLogTradeSetup(null)}}
+          onSaved={(sym)=>{setLogTradeSetup(null);setTradeToast({visible:true,symbol:sym||''});setTimeout(()=>setTradeToast({visible:false,symbol:''}),3000)}}
         />
       )}
 
