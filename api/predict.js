@@ -314,7 +314,7 @@ async function getHistoricalEdge(symbol) {
 // ── MASTER PROMPT ────────────────────────────────────────────────
 // This is the institutional investor VP intelligence layer
 // The prompt is designed to produce LEADING ALPHA — not confirmation
-function buildAlphaPrompt(symbol, price, macro, sentiment, supdem, rotation, rs, edge, company) {
+function buildAlphaPrompt(symbol, price, macro, sentiment, supdem, rotation, rs, edge, company, style='swing', optionsCtx=null) {
   return `You are the Chief Investment Strategist at AnkushAI — a senior institutional VP with 20+ years across Goldman Sachs, Citadel, and Two Sigma. You think like a hedge fund: ANTICIPATE moves, never confirm them.
 
 CORE PHILOSOPHY: Lagging indicators are evidence, NOT thesis. Your edge comes from:
@@ -443,6 +443,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   
   const symbol = req.query.symbol?.toUpperCase()
+  const style = req.query.style || 'swing' // daytrade | swing | leap
   if (!symbol) return res.status(400).json({ error: 'symbol required' })
 
   try {
@@ -453,6 +454,9 @@ module.exports = async function handler(req, res) {
     const edgeP = getHistoricalEdge(symbol)
 
     const [priceData, macro, company, edge] = await Promise.all([priceDataP, macroP, companyP, edgeP])
+
+    // Marcus: Options context layer (Dr. Kenji Tanaka)
+    const optionsCtx = await fetchOptionsContext(symbol, priceData?.price || 0).catch(() => null)
     
     if (!priceData) return res.status(404).json({ error: `No data for ${symbol}` })
     
@@ -464,7 +468,7 @@ module.exports = async function handler(req, res) {
     const rotation    = await getSectorRotation(symbol)
     const rs          = await getRelativeStrength(symbol, bars)
     
-    const prompt = buildAlphaPrompt(symbol, price, macro, sentiment||{}, supdem||{}, rotation, rs, edge, company)
+    const prompt = buildAlphaPrompt(symbol, price, macro, sentiment||{}, supdem||{}, rotation, rs, edge, company, style, optionsCtx)
     
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -501,6 +505,8 @@ module.exports = async function handler(req, res) {
     return res.json({
       ...analysis,
       rawData: { macro, sentiment, supdem, rotation, rs },
+      optionsContext: optionsCtx,
+      tradeStyle: style,
       priceVerified: true,
       generatedAt: new Date().toISOString()
     })
