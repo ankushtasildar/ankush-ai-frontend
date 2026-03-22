@@ -260,7 +260,23 @@ export default function TopSetups() {
   const [logTradeSetup, setLogTradeSetup] = useState(null)
   const [scanMode, setScanMode] = useState('BASELINE MODE')
   const [stats, setStats] = useState({ total: 0, bullish: 0, bearish: 0, avgConf: 0, avgRR: 0, watchlist: 0, scansToday: 0 })
+  const [isPro, setIsPro] = useState(true) // default true until checked
   const scanRef = useRef(null)
+
+  // ── Subscription check ─────────────────────────────────
+  useEffect(() => {
+    const checkSub = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setIsPro(false); return }
+        // Admin always pro
+        if (user.email === 'ankushtasildar2@gmail.com') { setIsPro(true); return }
+        const { data } = await supabase.from('subscriptions').select('status,plan').eq('user_id', user.id).eq('status', 'active').maybeSingle()
+        setIsPro(!!(data?.status === 'active'))
+      } catch(e) { setIsPro(false) }
+    }
+    checkSub()
+  }, [])
 
   useEffect(() => {
     loadCachedSetups()
@@ -396,15 +412,36 @@ export default function TopSetups() {
       {/* Setup cards grid */}
       {sorted.length > 0 && (
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
-          {sorted.map((setup, i) => (
-            <SetupCard
-              key={setup.symbol + i}
-              setup={setup}
-              rank={i+1}
-              onLogTrade={setLogTradeSetup}
-            />
-          ))}
+          {sorted.map((setup, i) => {
+            const locked = !isPro && i >= 3
+            return (
+              <div key={setup.symbol + i} style={{position:'relative'}}>
+                <SetupCard
+                  setup={setup}
+                  rank={i+1}
+                  onLogTrade={locked ? undefined : setLogTradeSetup}
+                  style={locked ? {filter:'blur(4px)',pointerEvents:'none',userSelect:'none'} : {}}
+                />
+                {locked && (
+                  <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,18,0.82)',backdropFilter:'blur(6px)',borderRadius:12,border:'1px solid rgba(59,130,246,0.3)',zIndex:10,gap:12}}>
+                    <div style={{fontSize:28}}>🔒</div>
+                    <div style={{fontWeight:700,fontSize:15,color:'#f0f6ff',textAlign:'center'}}>Pro Setup</div>
+                    <div style={{fontSize:12,color:'#8899aa',textAlign:'center',maxWidth:200}}>Upgrade to Pro to unlock all {sorted.length} setups</div>
+                    <a href="/billing" style={{marginTop:4,background:'#3b82f6',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer',textDecoration:'none',display:'inline-block'}}>
+                      Upgrade to Pro →
+                    </a>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
+        {!isPro && sorted.length > 3 && (
+          <div style={{textAlign:'center',marginTop:24,padding:'16px',background:'rgba(59,130,246,0.08)',borderRadius:12,border:'1px solid rgba(59,130,246,0.2)'}}>
+            <span style={{color:'#8899aa',fontSize:13}}>Showing <strong style={{color:'#f0f6ff'}}>3 of {sorted.length}</strong> setups. </span>
+            <a href="/billing" style={{color:'#3b82f6',fontSize:13,fontWeight:600,textDecoration:'none'}}>Upgrade to Pro to unlock all →</a>
+          </div>
+        )}
       )}
     </div>
   )
