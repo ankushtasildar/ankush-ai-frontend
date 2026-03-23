@@ -1,43 +1,16 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/premarket",
-      "schedule": "30 13 * * 1-5"
-    },
-    {
-      "path": "/api/cron/eod",
-      "schedule": "0 22 * * 1-5"
-    },
-    {
-      "path": "/api/cron/weekly",
-      "schedule": "0 11 * * 0"
-    },
-    {
-      "path": "/api/analysis?action=warm",
-      "schedule": "0 9 * * 1-5"
-    },
-    {
-      "path": "/api/analysis?action=warm",
-      "schedule": "0 13 * * 1-5"
-    },
-    {
-      "path": "/api/cron/resolve-outcomes",
-      "schedule": "0 2 * * 2-6"
-    }
-  ],
   "functions": {
-    "api/**/*.js": {
+    "api/ml-trainer.js": {
       "maxDuration": 60
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
     },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+    "api/chart-analysis.js": {
+      "maxDuration": 30
+    },
+    "api/predict.js": {
+      "maxDuration": 60
+    },
+    "api/analysis.js": {
+      "maxDuration": 30
     }
-  ]
+  }
 }
