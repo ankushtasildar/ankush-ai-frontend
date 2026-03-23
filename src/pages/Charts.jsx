@@ -103,7 +103,14 @@ function AITextPanel({ symbol }) {
                 </span>
               </div>
               {data.price && <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)' }}>${Number(data.price).toFixed(2)}</div>}
-              {data.confidence && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>Confidence: {data.confidence}%</div>}
+              {data.confidence && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>Confidence: {data.confidence}%</div>
+                {data.signals?.momentum && (
+                  <div style={{display:'flex',gap:10,marginTop:3,flexWrap:'wrap'}}>
+                    {[['5d',data.signals.momentum.roc5],['20d',data.signals.momentum.roc20],['60d',data.signals.momentum.roc60]].filter(([,v])=>v!=null).map(([lbl,val])=>(
+                      <span key={lbl} style={{fontSize:10,color:val>=0?'#10b981':'#ef4444',fontWeight:700}}>{lbl}: {val>=0?'+':''}{val}%</span>
+                    ))}
+                  </div>
+                )}}
             </div>
             {data.summary && (
               <div style={{ marginBottom:10 }}>
@@ -134,7 +141,26 @@ function AITextPanel({ symbol }) {
                 <div style={{ fontSize:12, color:'var(--text-secondary)', lineHeight:1.6 }}>{data.setup}</div>
               </div>
             )}
-            {(data.entry || data.target || data.stop) && (
+            {(data.tradeSetup || data.entry) && (
+              <div style={{ background:'var(--bg-elevated)', borderRadius:7, padding:8, marginBottom:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1 }}>Trade Levels</div>
+                  {(data.tradeSetup?.rrRatio || 0) > 0 && <span style={{fontSize:10,color:'#10b981',fontWeight:700}}>{data.tradeSetup.rrRatio}:1 R:R</span>}
+                </div>
+                {[
+                  ['Entry', data.tradeSetup?.entry ?? data.entry, 'var(--text-primary)'],
+                  ['Stop',  data.tradeSetup?.stop  ?? data.stop,  '#ef4444'],
+                  ['T1',    data.tradeSetup?.target1 ?? data.target, '#10b981'],
+                  ['T2',    data.tradeSetup?.target2, '#10b981'],
+                ].filter(([,v])=>v).map(([l,v,c])=>(
+                  <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'3px 0', fontSize:12 }}>
+                    <span style={{color:'var(--text-muted)'}}>{l}</span>
+                    <span style={{color:c, fontFamily:'var(--font-mono)'}}>{'$'+(v?.toFixed(2))}</span>
+                  </div>
+                ))}
+                {data.tradeSetup?.rationale && <div style={{fontSize:10,color:'var(--text-muted)',marginTop:4,lineHeight:1.4}}>{data.tradeSetup.rationale}</div>}
+              </div>
+            )}&& (
               <div style={{ background:'var(--bg-elevated)', borderRadius:7, padding:8, marginBottom:10 }}>
                 <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Trade Levels</div>
                 {[['Entry',data.entry,'var(--text-primary)'],['Target',data.target,'#10b981'],['Stop',data.stop,'#ef4444']].filter(([,v])=>v).map(([l,v,c])=>(
