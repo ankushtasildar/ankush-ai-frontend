@@ -210,7 +210,7 @@ async function attributeOutcome(symbol, analysisDate, thesis, scores, signals, m
     'What was the KEY factor that drove or killed the move? '+
     'Be specific — cite the actual signals, macro context, or news that mattered. '+
     'Then in 1 sentence: what signal combination should be added to future training to catch this pattern?\n\n'+
-    'Return JSON only: {"attribution":"2-3 sentence why","keyFactor":"single most important factor: earnings|macro_shift|sector_rotation|technical_breakdown|technical_squeeze|news_catalyst|mean_reversion|trend_continuation|vix_spike","lessonLearned":"1 sentence on what signal to watch for this pattern","patternTag":"brief_pattern_name_for_categorization"}'
+    'Return JSON only: {"attribution":"2-3 sentence why","keyFactor":"describe in your own words the single most important factor — be specific to THIS symbol and date, not generic categories","lessonLearned":"specific actionable lesson: what exact signal combination would have predicted this outcome and what should the model watch for next time on similar setups","patternTag":"brief_pattern_name_for_categorization"}'
 
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514', max_tokens: 400,
@@ -322,7 +322,19 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     (relStrength ? symbol+' 20d: '+(relStrength.sym20d>=0?'+':'')+relStrength.sym20d+'% vs SPY: '+(relStrength.spy20d>=0?'+':'')+relStrength.spy20d+'% | RS spread: '+(relStrength.rs>=0?'+':'')+relStrength.rs+'% → '+relStrength.signal : 'N/A')+'\n\n'+
     '=== NEWS CONTEXT (7 days before '+analysisDate+') ===\n'+
     (news.length ? news.slice(0,5).map(n=>n.date+' ['+n.sentiment+']: '+n.title).join('\n') : 'No significant news')+'\n\n'+
-    'Generate a 1-5 day forward directional thesis based ONLY on this data.\n'+
+    
+  // ── INJECT LEARNED PATTERNS: feed what the AI already knows back in ──
+  let learnedCtx = ''
+  try {
+    const lp = await supaFetch('ai_learned_patterns?order=prompt_weight.desc&limit=10&select=pattern_name,notes,prompt_weight,outcome_description')
+    if (lp && lp.length > 0) {
+      const topPatterns = lp.slice(0,5).map(p=>`  - ${p.pattern_name} (weight:${p.prompt_weight?.toFixed(2)}): ${p.notes?.substring(0,120)}`).join('\n')
+      const antiPatterns = lp.filter(p=>p.prompt_weight<1).slice(0,3).map(p=>`  - AVOID: ${p.pattern_name}: ${p.notes?.substring(0,80)}`).join('\n')
+      learnedCtx = '\n\n=== AI LEARNED PATTERNS (from past training — apply these lessons) ===\n'+topPatterns+(antiPatterns?'\nINVALIDATION PATTERNS (high failure rate):\n'+antiPatterns:'')
+    }
+  } catch(e) {}
+
+  'Generate a 1-5 day forward directional thesis based ONLY on this data.\n'+ learnedCtx +'\n'+
     'Return JSON only: {"thesis":"institutional-grade thesis","predictedDirection":"up|down|sideways","predictedMagnitudePct":X,"confidence":0-100,"keyRisk":"main invalidation","primarySignal":"single most important signal","setupType":"trend_continuation|mean_reversion|breakout|breakdown|squeeze|consolidation","expectedMoveByDays":5,"expectedPriceTarget":0.00}'
 
   const msg = await anthropic.messages.create({
@@ -392,7 +404,7 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     pattern_tag: attribution.patternTag||null,
     setup_type: thesis.setupType||null,
     started_at: startedAt, completed_at: new Date().toISOString(),
-    engine_version: 'v4', status: 'completed'
+    engine_version: 'v4', status: 'completed', progress_step: 'done'
   }
   await supaInsert('ml_training_runs', runLog).catch(()=>{})
 
@@ -427,7 +439,7 @@ module.exports = async function handler(req, res) {
   }
 
   if (mode==='batch') {
-    const n = Math.min(parseInt(req.query.n||'5'), 15)
+    const n = Math.min(parseInt(req.query.n||'10'), 25)
     const results = await Promise.allSettled(Array.from({length:n}, (_,i) => {
       const symbol = TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]
       const daysBack = Math.floor(Math.random()*700)+30
