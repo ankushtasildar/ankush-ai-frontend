@@ -33,11 +33,22 @@ export default function Journal() {
     try {
       const context = entries.slice(0,8).map(e=>`[${new Date(e.created_at).toLocaleDateString()}] ${e.symbol||''} ${e.side||''} P&L:${e.pnl||0} Mindset:${e.emotion_score||'?'} Notes:${e.notes||''}`).join('\n')
       const system = COACH_SYSTEM+(entries.length?`\n\nJOURNAL (recent ${Math.min(8,entries.length)} entries):\n`+context:'\n\nNo entries yet.')
-      const r = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,system,messages:msgs.map(m=>({role:m.role,content:m.content}))})
-      })
-      const d = await r.json()
+      (async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        const r_inner = await fetch('/api/ai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (session?.access_token || '')
+          },
+          body: JSON.stringify({
+            messages: msgs.map(m => ({ role: m.role, content: m.content })),
+            systemPrompt: system
+          })
+        })
+        return r_inner
+      })()
+      const d = await r_inner.json()
       setMessages(p=>[...p,{role:'assistant',content:d.content?.[0]?.text||'Error'}])
     } catch(e){setMessages(p=>[...p,{role:'assistant',content:'Error: '+e.message}])}
     setChatLoading(false)
