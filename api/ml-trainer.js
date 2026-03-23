@@ -352,7 +352,7 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     '"profitTargets":[{"pct":30,"action":"trim 40% of position"},{"pct":60,"action":"trim another 30%"},{"pct":100,"action":"close remaining or roll"}],'+
     '"stopLoss":{"pricePct":-8,"rule":"invalidation condition — not just price, explain WHY it means thesis is wrong"},'+
     '"optionsGuidance":{"recommendedDTE":"e.g. 45-60 DTE for swing to avoid theta crush","strikeNote":"ATM or 1 strike OTM for conviction plays, 2 OTM for spec","maxLossPct":25,"rollCondition":"if thesis intact with less than 21 DTE remaining, roll to next month","exitWarnings":["exit if single day premium drawdown exceeds 30%","exit if IV drops more than 20 points — means market pricing out the move","trim 50% at first target to recover cost basis","if stock reverses hard on volume — exit same day, do not hold through"]},'+
-    '"equityGuidance":{"dcaRule":"only DCA if weekly structure intact and pullback less than 8%","stopRule":"weekly close below key support with above-average volume","conviction":"low|medium|high — determines position sizing"}}')
+    '"equityGuidance":{"dcaRule":"only DCA if weekly structure intact and pullback less than 8%","stopRule":"weekly close below key support with above-average volume","conviction":"low|medium|high — determines position sizing"}}'
 
   const mode = req.query.mode||'single'
 
