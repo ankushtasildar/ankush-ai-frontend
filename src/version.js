@@ -1,3 +1,3 @@
-// AnkushAI Build 2026-03-23T03:58:34.943Z
-export const BUILD = '2026-03-23T03:58:34.943Z';
-export const VERSION = '2.3.0';
+// AnkushAI Build 2026-03-23T04:05:30.218Z
+export const BUILD = '2026-03-23T04:05:30.218Z';
+export const VERSION = '2.3.1';
