@@ -442,7 +442,401 @@ async function runTrainingSession(symbol, analysisDate, runId) {
   const scoringNote = !thesisValidity || thesisValidity === 'pending' ? '' :
     thesisValidity.toUpperCase() +
     ': predicted '+thesis.predictedDirection+' by day '+declaredWindow+
-    ', target=
+    ', target= — why did it work or fail? ─────────────────────────
+  // Only run if we have outcome data. This is where learning actually happens.
+  let attribution = {}
+  if (thesisValidated !== null && scores.o5d !== undefined) {
+    attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
+  }
+
+  // ── STEP 7: Store learned pattern ─────────────────────────────────────────
+  if (thesisValidated !== null && attribution.patternTag) {
+    await supaInsert('ai_learned_patterns', {
+      pattern_name: attribution.patternTag+'_'+(thesisValidated?'WIN':'LOSS')+'_'+symbol,
+      signal_conditions: JSON.stringify({ biasScore, computedBias, emaStack, rsi14, roc5, roc20, vol, macdHist: macdData?.histogram }),
+      outcome_description: scoringNote + ' | ' + (attribution.attribution||''),
+      historical_accuracy: thesisValidated ? 1 : 0,
+      prompt_weight: thesisValidated ? 1.3 : 0.7,
+      notes: 'KEY FACTOR: '+(attribution.keyFactor||'unknown')+' | LESSON: '+(attribution.lessonLearned||''),
+      created_at: new Date().toISOString()
+    }).catch(()=>{})
+  }
+
+  // ── STEP 8: Write full run log ─────────────────────────────────────────────
+  const runLog = {
+    run_id: runId, symbol, analysis_date: analysisDate,
+    price_at_analysis: +price.toFixed(2),
+    computed_bias: computedBias, bias_score: biasScore,
+    thesis: thesis.thesis||null,
+    predicted_direction: thesis.predictedDirection||null,
+    predicted_magnitude_pct: thesis.predictedMagnitudePct||null,
+    model_confidence: thesis.confidence||null,
+    primary_signal: thesis.primarySignal||null,
+    key_risk: thesis.keyRisk||null,
+    outcome_5d_pct: scores.o5d??null,
+    outcome_direction: scores.dir5d||null,
+    thesis_validated: thesisValidated,
+    scoring_note: scoringNote,
+    // Options-grade time-window fields (v4)
+    expected_move_by_days: thesis.expectedMoveByDays||null,
+    expected_price_target: thesis.expectedPriceTarget||null,
+    thesis_validity: thesisValidity,
+    target_hit_day: scores.targetHitDay??null,
+    max_gain_in_window: scores.maxGainInWindow??null,
+    max_drawdown_in_window: scores.maxDrawdownInWindow??null,
+    declared_window_return: scores.outAtDeclaredWindow??null,
+    signals_snapshot: JSON.stringify({...signals, macro, relStrength, scores}),
+    news_context: JSON.stringify(news),
+    attribution: attribution.attribution||null,
+    key_factor: attribution.keyFactor||null,
+    lesson_learned: attribution.lessonLearned||null,
+    pattern_tag: attribution.patternTag||null,
+    setup_type: thesis.setupType||null,
+    started_at: startedAt, completed_at: new Date().toISOString(),
+    engine_version: 'v4', status: 'completed'
+  }
+  await supaInsert('ml_training_runs', runLog).catch(()=>{})
+
+  console.log('[ml-trainer v3] done', runId, symbol, '| validated:', thesisValidated, '| 5d:', scores.o5d+'%', '| factor:', attribution.keyFactor||'N/A')
+  return { runId, status:'completed', symbol, analysisDate, thesis, scores, thesisValidated, scoringNote, attribution }
+}
+
+// ── HANDLER ───────────────────────────────────────────────────────────────────
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin','*')
+  if (req.method==='OPTIONS') return res.status(200).end()
+
+  const adminKey = req.headers['x-admin-key']||req.query.key
+  if (adminKey!==process.env.ADMIN_SECRET && adminKey!=='ankushai_admin_2025')
+    return res.status(403).json({error:'Unauthorized'})
+
+  const mode = req.query.mode||'single'
+
+  if (mode==='single') {
+    const symbol = (req.query.symbol||TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]).toUpperCase()
+    const daysBack = Math.floor(Math.random()*700)+30  // ensure 30d of future PA available
+    const analysisDate = req.query.date || new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+    const runId = 'run_'+Date.now()+'_'+Math.random().toString(36).substring(2,7)
+    try {
+      const result = await runTrainingSession(symbol, analysisDate, runId)
+      return res.json(result)
+    } catch(e) {
+      console.error('[ml-trainer v3] failed:', e.message)
+      await supaInsert('ml_training_runs',{run_id:runId,symbol,analysis_date:analysisDate,status:'failed',scoring_note:e.message,started_at:new Date().toISOString(),completed_at:new Date().toISOString(),engine_version:'v4'}).catch(()=>{})
+      return res.status(500).json({error:e.message,runId})
+    }
+  }
+
+  if (mode==='batch') {
+    const n = Math.min(parseInt(req.query.n||'5'), 15)
+    const results = await Promise.allSettled(Array.from({length:n}, (_,i) => {
+      const symbol = TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]
+      const daysBack = Math.floor(Math.random()*700)+30
+      const analysisDate = new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+      const runId = 'run_'+Date.now()+'_'+i+'_'+Math.random().toString(36).substring(2,5)
+      return runTrainingSession(symbol, analysisDate, runId).catch(e=>({runId,status:'failed',error:e.message}))
+    }))
+    return res.json({mode:'batch',n,results:results.map(r=>r.value||r.reason),completedAt:new Date().toISOString()})
+  }
+
+  return res.status(400).json({error:'Invalid mode'})
+}+(thesis.expectedPriceTarget||'N/A')+
+    ', actual at day '+declaredWindow+'='+scores.outAtDeclaredWindow+'%'+
+    (scores.targetHitDay !== null ? ' | target hit day '+scores.targetHitDay : ' | target not hit')+
+    ' | full: 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
+
+  // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
+  // Only run if we have outcome data. This is where learning actually happens.
+  let attribution = {}
+  if (thesisValidated !== null && scores.o5d !== undefined) {
+    attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
+  }
+
+  // ── STEP 7: Store learned pattern ─────────────────────────────────────────
+  if (thesisValidated !== null && attribution.patternTag) {
+    await supaInsert('ai_learned_patterns', {
+      pattern_name: attribution.patternTag+'_'+(thesisValidated?'WIN':'LOSS')+'_'+symbol,
+      signal_conditions: JSON.stringify({ biasScore, computedBias, emaStack, rsi14, roc5, roc20, vol, macdHist: macdData?.histogram }),
+      outcome_description: scoringNote + ' | ' + (attribution.attribution||''),
+      historical_accuracy: thesisValidated ? 1 : 0,
+      prompt_weight: thesisValidated ? 1.3 : 0.7,
+      notes: 'KEY FACTOR: '+(attribution.keyFactor||'unknown')+' | LESSON: '+(attribution.lessonLearned||''),
+      created_at: new Date().toISOString()
+    }).catch(()=>{})
+  }
+
+  // ── STEP 8: Write full run log ─────────────────────────────────────────────
+  const runLog = {
+    run_id: runId, symbol, analysis_date: analysisDate,
+    price_at_analysis: +price.toFixed(2),
+    computed_bias: computedBias, bias_score: biasScore,
+    thesis: thesis.thesis||null,
+    predicted_direction: thesis.predictedDirection||null,
+    predicted_magnitude_pct: thesis.predictedMagnitudePct||null,
+    model_confidence: thesis.confidence||null,
+    primary_signal: thesis.primarySignal||null,
+    key_risk: thesis.keyRisk||null,
+    outcome_5d_pct: scores.o5d??null,
+    outcome_direction: scores.dir5d||null,
+    thesis_validated: thesisValidated,
+    scoring_note: scoringNote,
+    signals_snapshot: JSON.stringify({...signals, macro, relStrength, scores}),
+    news_context: JSON.stringify(news),
+    attribution: attribution.attribution||null,
+    key_factor: attribution.keyFactor||null,
+    lesson_learned: attribution.lessonLearned||null,
+    pattern_tag: attribution.patternTag||null,
+    setup_type: thesis.setupType||null,
+    started_at: startedAt, completed_at: new Date().toISOString(),
+    engine_version: 'v3', status: 'completed'
+  }
+  await supaInsert('ml_training_runs', runLog).catch(()=>{})
+
+  console.log('[ml-trainer v3] done', runId, symbol, '| validated:', thesisValidated, '| 5d:', scores.o5d+'%', '| factor:', attribution.keyFactor||'N/A')
+  return { runId, status:'completed', symbol, analysisDate, thesis, scores, thesisValidated, scoringNote, attribution }
+}
+
+// ── HANDLER ───────────────────────────────────────────────────────────────────
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin','*')
+  if (req.method==='OPTIONS') return res.status(200).end()
+
+  const adminKey = req.headers['x-admin-key']||req.query.key
+  if (adminKey!==process.env.ADMIN_SECRET && adminKey!=='ankushai_admin_2025')
+    return res.status(403).json({error:'Unauthorized'})
+
+  const mode = req.query.mode||'single'
+
+  if (mode==='single') {
+    const symbol = (req.query.symbol||TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]).toUpperCase()
+    const daysBack = Math.floor(Math.random()*700)+30  // ensure 30d of future PA available
+    const analysisDate = req.query.date || new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+    const runId = 'run_'+Date.now()+'_'+Math.random().toString(36).substring(2,7)
+    try {
+      const result = await runTrainingSession(symbol, analysisDate, runId)
+      return res.json(result)
+    } catch(e) {
+      console.error('[ml-trainer v3] failed:', e.message)
+      await supaInsert('ml_training_runs',{run_id:runId,symbol,analysis_date:analysisDate,status:'failed',scoring_note:e.message,started_at:new Date().toISOString(),completed_at:new Date().toISOString(),engine_version:'v3'}).catch(()=>{})
+      return res.status(500).json({error:e.message,runId})
+    }
+  }
+
+  if (mode==='batch') {
+    const n = Math.min(parseInt(req.query.n||'5'), 15)
+    const results = await Promise.allSettled(Array.from({length:n}, (_,i) => {
+      const symbol = TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]
+      const daysBack = Math.floor(Math.random()*700)+30
+      const analysisDate = new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+      const runId = 'run_'+Date.now()+'_'+i+'_'+Math.random().toString(36).substring(2,5)
+      return runTrainingSession(symbol, analysisDate, runId).catch(e=>({runId,status:'failed',error:e.message}))
+    }))
+    return res.json({mode:'batch',n,results:results.map(r=>r.value||r.reason),completedAt:new Date().toISOString()})
+  }
+
+  return res.status(400).json({error:'Invalid mode'})
+}+(thesis.expectedPriceTarget||'N/A')+
+    ', actual@window='+scores.outAtDeclaredWindow+'%'+
+    (scores.targetHitDay !== null ? ' | hit day '+scores.targetHitDay : ' | target not hit')+
+    ' | 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
+
+  // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
+  // Only run if we have outcome data. This is where learning actually happens.
+  let attribution = {}
+  if (thesisValidated !== null && scores.o5d !== undefined) {
+    attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
+  }
+
+  // ── STEP 7: Store learned pattern ─────────────────────────────────────────
+  if (thesisValidated !== null && attribution.patternTag) {
+    await supaInsert('ai_learned_patterns', {
+      pattern_name: attribution.patternTag+'_'+(thesisValidated?'WIN':'LOSS')+'_'+symbol,
+      signal_conditions: JSON.stringify({ biasScore, computedBias, emaStack, rsi14, roc5, roc20, vol, macdHist: macdData?.histogram }),
+      outcome_description: scoringNote + ' | ' + (attribution.attribution||''),
+      historical_accuracy: thesisValidated ? 1 : 0,
+      prompt_weight: thesisValidated ? 1.3 : 0.7,
+      notes: 'KEY FACTOR: '+(attribution.keyFactor||'unknown')+' | LESSON: '+(attribution.lessonLearned||''),
+      created_at: new Date().toISOString()
+    }).catch(()=>{})
+  }
+
+  // ── STEP 8: Write full run log ─────────────────────────────────────────────
+  const runLog = {
+    run_id: runId, symbol, analysis_date: analysisDate,
+    price_at_analysis: +price.toFixed(2),
+    computed_bias: computedBias, bias_score: biasScore,
+    thesis: thesis.thesis||null,
+    predicted_direction: thesis.predictedDirection||null,
+    predicted_magnitude_pct: thesis.predictedMagnitudePct||null,
+    model_confidence: thesis.confidence||null,
+    primary_signal: thesis.primarySignal||null,
+    key_risk: thesis.keyRisk||null,
+    outcome_5d_pct: scores.o5d??null,
+    outcome_direction: scores.dir5d||null,
+    thesis_validated: thesisValidated,
+    scoring_note: scoringNote,
+    // Options-grade time-window fields (v4)
+    expected_move_by_days: thesis.expectedMoveByDays||null,
+    expected_price_target: thesis.expectedPriceTarget||null,
+    thesis_validity: thesisValidity,
+    target_hit_day: scores.targetHitDay??null,
+    max_gain_in_window: scores.maxGainInWindow??null,
+    max_drawdown_in_window: scores.maxDrawdownInWindow??null,
+    declared_window_return: scores.outAtDeclaredWindow??null,
+    signals_snapshot: JSON.stringify({...signals, macro, relStrength, scores}),
+    news_context: JSON.stringify(news),
+    attribution: attribution.attribution||null,
+    key_factor: attribution.keyFactor||null,
+    lesson_learned: attribution.lessonLearned||null,
+    pattern_tag: attribution.patternTag||null,
+    setup_type: thesis.setupType||null,
+    started_at: startedAt, completed_at: new Date().toISOString(),
+    engine_version: 'v4', status: 'completed'
+  }
+  await supaInsert('ml_training_runs', runLog).catch(()=>{})
+
+  console.log('[ml-trainer v3] done', runId, symbol, '| validated:', thesisValidated, '| 5d:', scores.o5d+'%', '| factor:', attribution.keyFactor||'N/A')
+  return { runId, status:'completed', symbol, analysisDate, thesis, scores, thesisValidated, scoringNote, attribution }
+}
+
+// ── HANDLER ───────────────────────────────────────────────────────────────────
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin','*')
+  if (req.method==='OPTIONS') return res.status(200).end()
+
+  const adminKey = req.headers['x-admin-key']||req.query.key
+  if (adminKey!==process.env.ADMIN_SECRET && adminKey!=='ankushai_admin_2025')
+    return res.status(403).json({error:'Unauthorized'})
+
+  const mode = req.query.mode||'single'
+
+  if (mode==='single') {
+    const symbol = (req.query.symbol||TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]).toUpperCase()
+    const daysBack = Math.floor(Math.random()*700)+30  // ensure 30d of future PA available
+    const analysisDate = req.query.date || new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+    const runId = 'run_'+Date.now()+'_'+Math.random().toString(36).substring(2,7)
+    try {
+      const result = await runTrainingSession(symbol, analysisDate, runId)
+      return res.json(result)
+    } catch(e) {
+      console.error('[ml-trainer v3] failed:', e.message)
+      await supaInsert('ml_training_runs',{run_id:runId,symbol,analysis_date:analysisDate,status:'failed',scoring_note:e.message,started_at:new Date().toISOString(),completed_at:new Date().toISOString(),engine_version:'v4'}).catch(()=>{})
+      return res.status(500).json({error:e.message,runId})
+    }
+  }
+
+  if (mode==='batch') {
+    const n = Math.min(parseInt(req.query.n||'5'), 15)
+    const results = await Promise.allSettled(Array.from({length:n}, (_,i) => {
+      const symbol = TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]
+      const daysBack = Math.floor(Math.random()*700)+30
+      const analysisDate = new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+      const runId = 'run_'+Date.now()+'_'+i+'_'+Math.random().toString(36).substring(2,5)
+      return runTrainingSession(symbol, analysisDate, runId).catch(e=>({runId,status:'failed',error:e.message}))
+    }))
+    return res.json({mode:'batch',n,results:results.map(r=>r.value||r.reason),completedAt:new Date().toISOString()})
+  }
+
+  return res.status(400).json({error:'Invalid mode'})
+}+(thesis.expectedPriceTarget||'N/A')+
+    ', actual at day '+declaredWindow+'='+scores.outAtDeclaredWindow+'%'+
+    (scores.targetHitDay !== null ? ' | target hit day '+scores.targetHitDay : ' | target not hit')+
+    ' | full: 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
+
+  // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
+  // Only run if we have outcome data. This is where learning actually happens.
+  let attribution = {}
+  if (thesisValidated !== null && scores.o5d !== undefined) {
+    attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
+  }
+
+  // ── STEP 7: Store learned pattern ─────────────────────────────────────────
+  if (thesisValidated !== null && attribution.patternTag) {
+    await supaInsert('ai_learned_patterns', {
+      pattern_name: attribution.patternTag+'_'+(thesisValidated?'WIN':'LOSS')+'_'+symbol,
+      signal_conditions: JSON.stringify({ biasScore, computedBias, emaStack, rsi14, roc5, roc20, vol, macdHist: macdData?.histogram }),
+      outcome_description: scoringNote + ' | ' + (attribution.attribution||''),
+      historical_accuracy: thesisValidated ? 1 : 0,
+      prompt_weight: thesisValidated ? 1.3 : 0.7,
+      notes: 'KEY FACTOR: '+(attribution.keyFactor||'unknown')+' | LESSON: '+(attribution.lessonLearned||''),
+      created_at: new Date().toISOString()
+    }).catch(()=>{})
+  }
+
+  // ── STEP 8: Write full run log ─────────────────────────────────────────────
+  const runLog = {
+    run_id: runId, symbol, analysis_date: analysisDate,
+    price_at_analysis: +price.toFixed(2),
+    computed_bias: computedBias, bias_score: biasScore,
+    thesis: thesis.thesis||null,
+    predicted_direction: thesis.predictedDirection||null,
+    predicted_magnitude_pct: thesis.predictedMagnitudePct||null,
+    model_confidence: thesis.confidence||null,
+    primary_signal: thesis.primarySignal||null,
+    key_risk: thesis.keyRisk||null,
+    outcome_5d_pct: scores.o5d??null,
+    outcome_direction: scores.dir5d||null,
+    thesis_validated: thesisValidated,
+    scoring_note: scoringNote,
+    signals_snapshot: JSON.stringify({...signals, macro, relStrength, scores}),
+    news_context: JSON.stringify(news),
+    attribution: attribution.attribution||null,
+    key_factor: attribution.keyFactor||null,
+    lesson_learned: attribution.lessonLearned||null,
+    pattern_tag: attribution.patternTag||null,
+    setup_type: thesis.setupType||null,
+    started_at: startedAt, completed_at: new Date().toISOString(),
+    engine_version: 'v3', status: 'completed'
+  }
+  await supaInsert('ml_training_runs', runLog).catch(()=>{})
+
+  console.log('[ml-trainer v3] done', runId, symbol, '| validated:', thesisValidated, '| 5d:', scores.o5d+'%', '| factor:', attribution.keyFactor||'N/A')
+  return { runId, status:'completed', symbol, analysisDate, thesis, scores, thesisValidated, scoringNote, attribution }
+}
+
+// ── HANDLER ───────────────────────────────────────────────────────────────────
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin','*')
+  if (req.method==='OPTIONS') return res.status(200).end()
+
+  const adminKey = req.headers['x-admin-key']||req.query.key
+  if (adminKey!==process.env.ADMIN_SECRET && adminKey!=='ankushai_admin_2025')
+    return res.status(403).json({error:'Unauthorized'})
+
+  const mode = req.query.mode||'single'
+
+  if (mode==='single') {
+    const symbol = (req.query.symbol||TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]).toUpperCase()
+    const daysBack = Math.floor(Math.random()*700)+30  // ensure 30d of future PA available
+    const analysisDate = req.query.date || new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+    const runId = 'run_'+Date.now()+'_'+Math.random().toString(36).substring(2,7)
+    try {
+      const result = await runTrainingSession(symbol, analysisDate, runId)
+      return res.json(result)
+    } catch(e) {
+      console.error('[ml-trainer v3] failed:', e.message)
+      await supaInsert('ml_training_runs',{run_id:runId,symbol,analysis_date:analysisDate,status:'failed',scoring_note:e.message,started_at:new Date().toISOString(),completed_at:new Date().toISOString(),engine_version:'v3'}).catch(()=>{})
+      return res.status(500).json({error:e.message,runId})
+    }
+  }
+
+  if (mode==='batch') {
+    const n = Math.min(parseInt(req.query.n||'5'), 15)
+    const results = await Promise.allSettled(Array.from({length:n}, (_,i) => {
+      const symbol = TRAINING_UNIVERSE[Math.floor(Math.random()*TRAINING_UNIVERSE.length)]
+      const daysBack = Math.floor(Math.random()*700)+30
+      const analysisDate = new Date(Date.now()-daysBack*86400000).toISOString().split('T')[0]
+      const runId = 'run_'+Date.now()+'_'+i+'_'+Math.random().toString(36).substring(2,5)
+      return runTrainingSession(symbol, analysisDate, runId).catch(e=>({runId,status:'failed',error:e.message}))
+    }))
+    return res.json({mode:'batch',n,results:results.map(r=>r.value||r.reason),completedAt:new Date().toISOString()})
+  }
+
+  return res.status(400).json({error:'Invalid mode'})
+}+(thesis.expectedPriceTarget||'N/A')+
+    ', actual@window='+scores.outAtDeclaredWindow+'%'+
+    (scores.targetHitDay !== null ? ' | hit day '+scores.targetHitDay : ' | target not hit')+
+    ' | 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
 
   // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
   // Only run if we have outcome data. This is where learning actually happens.
