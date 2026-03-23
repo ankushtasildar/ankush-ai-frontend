@@ -442,8 +442,8 @@ async function runTrainingSession(symbol, analysisDate, runId) {
   const scoringNote = !thesisValidity || thesisValidity === 'pending' ? '' :
     thesisValidity.toUpperCase() +
     ': predicted '+thesis.predictedDirection+' by day '+declaredWindow+
-    ', target= — why did it work or fail? ─────────────────────────
-  // Only run if we have outcome data. This is where learning actually happens.
+    ', target=$'+(thesis.expectedPriceTarget||'N/A')+
+    ', @window='+scores.outAtDeclaredWindow+'%'+(scores.targetHitDay!==null?' | hit day '+scores.targetHitDay:' | target not hit')+'  1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
   let attribution = {}
   if (thesisValidated !== null && scores.o5d !== undefined) {
     attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
