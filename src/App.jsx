@@ -22,6 +22,7 @@ import MLTrainingLog from './pages/MLTrainingLog'
 import Login from './pages/Login'
 import AdminLogin from './pages/AdminLogin'
 import AuthCallback from './pages/AuthCallback'
+import LandingPage from './pages/LandingPage'
 
 // Priya Nair: Grouped nav — Intelligence first, then Research, then My Trading
 const NAV_GROUPS = [
@@ -199,12 +200,13 @@ function AppShell() {
 
   const isAuthRoute = ['/login', '/auth/callback', '/admin/login'].some(p => location.pathname.startsWith(p))
   if (!user && !isAuthRoute) {
-    return <Navigate to='/login' replace />
+    return <Navigate to='/' replace />
   }
 
   if (isAuthRoute) {
     return (
       <Routes>
+        <Route path='/' element={<LandingPage />} />
         <Route path='/login' element={<Login />} />
         <Route path='/auth/callback' element={<AuthCallback />} />
         <Route path='/admin/login' element={<AdminLogin />} />
