@@ -200,7 +200,7 @@ function AppShell() {
 
   const isAuthRoute = ['/login', '/auth/callback', '/admin/login'].some(p => location.pathname.startsWith(p))
   if (!user && !isAuthRoute) {
-    return <Navigate to='/' replace />
+    return <Navigate to='/login' replace />
   }
 
   if (isAuthRoute) {
