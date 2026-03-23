@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { WinStreak, TradeLoggedToast, SignalMeter } from '../components/Gamification'
 import { useNavigate } from 'react-router-dom'
 
 const fmt = (n, d=2) => n==null?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
@@ -8,7 +9,9 @@ const fmtPct = n => n==null?'—':(n>=0?'+':'')+fmt(n)+'%'
 
 export default function Portfolio() {
   const navigate = useNavigate()
-  const [positions, setPositions] = useState([])   // open journal entries
+  const [positions, setPositions] = useState([])
+  const [tradeLogged, setTradeLogged] = useState(false)
+  const [lastLoggedSymbol, setLastLoggedSymbol] = useState('')   // open journal entries
   const [closed, setClosed] = useState([])          // closed journal entries
   const [prices, setPrices] = useState({})          // live prices keyed by symbol
   const [loading, setLoading] = useState(true)
