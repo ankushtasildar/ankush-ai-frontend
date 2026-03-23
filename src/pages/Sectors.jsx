@@ -102,12 +102,12 @@ export default function Sectors() {
         // Extract sector quotes from context
         if (d.sectors) {
           const q = {}
-          d.sectors.forEach(s => { q[s.ticker] = { price: s.price, changePercent: s.change, volume: s.volume } })
+          d.sectors.forEach(s => { q[s.symbol||s.ticker] = { price: s.price, changePercent: s.changePercent ?? s.change ?? 0, volume: s.volume } })
           setQuotes(q)
         } else {
           // Fallback: fetch sector ETFs directly
           const syms = SECTOR_ETFS.map(s => s.ticker).join(',')
-          const r2 = await fetch('/api/market?action=quotes&symbols=' + syms)
+          const r2 = await fetch('/api/market?action=sectors'' + syms)
           if (r2.ok) setQuotes(await r2.json())
         }
         setLastUpdated(new Date())
