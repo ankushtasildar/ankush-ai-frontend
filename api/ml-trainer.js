@@ -540,11 +540,6 @@ module.exports = async function handler(req, res) {
   }
 
   return res.status(400).json({error:'Invalid mode'})
-}+(thesis.expectedPriceTarget||'N/A')+
-    ', actual at day '+declaredWindow+'='+scores.outAtDeclaredWindow+'%'+
-    (scores.targetHitDay !== null ? ' | target hit day '+scores.targetHitDay : ' | target not hit')+
-    ' | full: 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
-
   // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
   // Only run if we have outcome data. This is where learning actually happens.
   let attribution = {}
