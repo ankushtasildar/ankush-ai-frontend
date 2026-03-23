@@ -215,26 +215,26 @@ export default function Predict(){
               </div>
             )}
           </div>
-          {sent&&(
-            {/* Marcus: Historical accuracy from outcome resolution loop — shows real track record */}
-            {data.historicalEdge && data.historicalEdge.total > 0 && (
-              <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center',padding:'10px 14px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8,marginBottom:12}}>
-                <div style={{fontSize:10,fontWeight:700,color:'#10b981',textTransform:'uppercase',letterSpacing:'0.05em'}}>Track Record</div>
-                <div style={{display:'flex',gap:16,flex:1,flexWrap:'wrap',alignItems:'center'}}>
-                  <span style={{fontSize:14,fontWeight:700,color:parseInt(data.historicalEdge.winRate)>=60?'#10b981':parseInt(data.historicalEdge.winRate)>=50?'#f59e0b':'#ef4444'}}>
-                    {data.historicalEdge.winRate}% Win Rate
+          {/* Marcus: Track Record — historical accuracy from outcome resolution loop */}
+          {data.historicalEdge && data.historicalEdge.total > 0 && (
+            <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center',padding:'10px 14px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8,marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#10b981',textTransform:'uppercase',letterSpacing:'0.05em'}}>Track Record</div>
+              <div style={{display:'flex',gap:16,flex:1,flexWrap:'wrap',alignItems:'center'}}>
+                <span style={{fontSize:14,fontWeight:700,color:parseInt(data.historicalEdge.winRate)>=60?'#10b981':parseInt(data.historicalEdge.winRate)>=50?'#f59e0b':'#ef4444'}}>
+                  {data.historicalEdge.winRate}% Win Rate
+                </span>
+                <span style={{fontSize:12,color:'var(--text-muted)'}}>{data.historicalEdge.total} predictions tracked</span>
+                {data.historicalEdge.recent?.length > 0 && (
+                  <span style={{display:'flex',gap:3,alignItems:'center'}}>
+                    {data.historicalEdge.recent.map((o,i)=>(
+                      <span key={i} style={{width:8,height:8,borderRadius:'50%',display:'inline-block',background:o==='win'?'#10b981':o==='loss'?'#ef4444':'#64748b'}} title={o}/>
+                    ))}
                   </span>
-                  <span style={{fontSize:12,color:'var(--text-muted)'}}>{data.historicalEdge.total} predictions tracked</span>
-                  {data.historicalEdge.recent?.length > 0 && (
-                    <span style={{display:'flex',gap:3,alignItems:'center'}}>
-                      {data.historicalEdge.recent.map((o,i)=>(
-                        <span key={i} style={{width:8,height:8,borderRadius:'50%',display:'inline-block',background:o==='win'?'#10b981':o==='loss'?'#ef4444':'#64748b'}} title={o}/>
-                      ))}
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
+          {sent&&(
             <div style={card}>
               <div style={ct}>Sentiment - Multi-Timeframe</div>
               <div style={{display:'flex',gap:20,alignItems:'flex-end',marginBottom:10}}>
