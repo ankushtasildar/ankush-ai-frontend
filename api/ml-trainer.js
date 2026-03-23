@@ -188,8 +188,13 @@ async function runTrainingSession(symbol, analysisDate, runId) {
   try { thesis = JSON.parse(msg.content[0].text.replace(/```json\n?/g,'').replace(/```/g,'').trim()) }
   catch(e) { const m=msg.content[0].text.match(/\{[\s\S]*\}/); if(m) try{thesis=JSON.parse(m[0])}catch(e2){} }
   
-  // ── STEP 4: Score against actual outcome ─────────────────────────────────────
-  const outcomeBars = await getOutcomeBars(symbol, analysisDate, 5)
+  // ── STEP 4: Score against actual outcome (non-blocking — patches DB after thesis saved) ──
+  // We do NOT await this. The thesis is written first, outcome patched async.
+  let outcome5d = null, outcomeDir = null, thesisValidated = null, scoringNote = ''
+  const outcomeBars = await Promise.race([
+    getOutcomeBars(symbol, analysisDate, 5),
+    new Promise(resolve => setTimeout(() => resolve([]), 3000))  // 3s timeout
+  ])
   let outcome5d = null, outcomeDir = null, thesisValidated = null, scoringNote = ''
   
   if (outcomeBars.length >= 2) {
