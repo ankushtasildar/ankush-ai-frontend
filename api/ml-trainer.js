@@ -339,92 +339,20 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     (relStrength ? symbol+' 20d: '+(relStrength.sym20d>=0?'+':'')+relStrength.sym20d+'% vs SPY: '+(relStrength.spy20d>=0?'+':'')+relStrength.spy20d+'% | RS spread: '+(relStrength.rs>=0?'+':'')+relStrength.rs+'% → '+relStrength.signal : 'N/A')+'\n\n'+
     '=== NEWS CONTEXT (7 days before '+analysisDate+') ===\n'+
     (news.length ? news.slice(0,5).map(n=>n.date+' ['+n.sentiment+']: '+n.title).join('\n') : 'No significant news')+'\n\n'+
-    'Generate a 1-5 day forward directional thesis based ONLY on this data.\n'+
-    'Return JSON only: {"thesis":"institutional-grade thesis","predictedDirection":"up|down|sideways","predictedMagnitudePct":X,"confidence":0-100,"keyRisk":"main invalidation","primarySignal":"single most important signal","setupType":"trend_continuation|mean_reversion|breakout|breakdown|squeeze|consolidation","expectedMoveByDays":5,"expectedPriceTarget":0.00}'
-
-  const msg = await anthropic.messages.create({
-    model:'claude-sonnet-4-20250514', max_tokens:600,
-    system:'You are a senior quant analyst. Blind historical training — analyze only data provided. Return valid JSON only.',
-    messages:[{role:'user',content:brief}]
-  })
-  let thesis = {}
-  try { thesis = JSON.parse(msg.content[0].text.replace(/```json\n?/g,'').replace(/```/g,'').trim()) }
-  catch(e) { const m=msg.content[0].text.match(/\{[\s\S]*\}/); if(m) try{thesis=JSON.parse(m[0])}catch(e2){} }
-
-  // ── STEP 5: INSTANT SCORING — future PA already in hand ───────────────────
-  // No API call. No timeout. Zero latency.
-  const scores = futureBars.length > 0 ? scoreOutcomes(futureBars, thesis.predictedDirection, thesis.expectedMoveByDays, thesis.expectedPriceTarget) : {}
-
-  // Primary validation = 5d (most relevant for swing trade timeframe)
-  const thesisValidated = scores.validated5d ?? null
-  const scoringNote = thesisValidated === null ? '' :
-    (thesisValidated ? 'VALIDATED' : 'INVALIDATED') +
-    ': predicted '+thesis.predictedDirection+', actual '+scores.dir5d+
-    ' | 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
-
-  // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
-  // Only run if we have outcome data. This is where learning actually happens.
-  let attribution = {}
-  if (thesisValidated !== null && scores.o5d !== undefined) {
-    attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
-  }
-
-  // ── STEP 7: Store learned pattern ─────────────────────────────────────────
-  if (thesisValidated !== null && attribution.patternTag) {
-    await supaInsert('ai_learned_patterns', {
-      pattern_name: attribution.patternTag+'_'+(thesisValidated?'WIN':'LOSS')+'_'+symbol,
-      signal_conditions: JSON.stringify({ biasScore, computedBias, emaStack, rsi14, roc5, roc20, vol, macdHist: macdData?.histogram }),
-      outcome_description: scoringNote + ' | ' + (attribution.attribution||''),
-      historical_accuracy: thesisValidated ? 1 : 0,
-      prompt_weight: thesisValidated ? 1.3 : 0.7,
-      notes: 'KEY FACTOR: '+(attribution.keyFactor||'unknown')+' | LESSON: '+(attribution.lessonLearned||''),
-      created_at: new Date().toISOString()
-    }).catch(()=>{})
-  }
-
-  // ── STEP 8: Write full run log ─────────────────────────────────────────────
-  const runLog = {
-    run_id: runId, symbol, analysis_date: analysisDate,
-    price_at_analysis: +price.toFixed(2),
-    computed_bias: computedBias, bias_score: biasScore,
-    thesis: thesis.thesis||null,
-    predicted_direction: thesis.predictedDirection||null,
-    predicted_magnitude_pct: thesis.predictedMagnitudePct||null,
-    model_confidence: thesis.confidence||null,
-    primary_signal: thesis.primarySignal||null,
-    key_risk: thesis.keyRisk||null,
-    outcome_5d_pct: scores.o5d??null,
-    expected_move_by_days: thesis.expectedMoveByDays||null,
-    expected_price_target: thesis.expectedPriceTarget||null,
-    thesis_validity: scores.thesisValidity||null,
-    target_hit_day: scores.targetHitDay??null,
-    outcome_direction: scores.dir5d||null,
-    thesis_validated: thesisValidated,
-    scoring_note: scoringNote,
-    signals_snapshot: JSON.stringify({...signals, macro, relStrength, scores}),
-    news_context: JSON.stringify(news),
-    attribution: attribution.attribution||null,
-    key_factor: attribution.keyFactor||null,
-    lesson_learned: attribution.lessonLearned||null,
-    pattern_tag: attribution.patternTag||null,
-    setup_type: thesis.setupType||null,
-    started_at: startedAt, completed_at: new Date().toISOString(),
-    engine_version: 'v4', status: 'completed'
-  }
-  await supaInsert('ml_training_runs', runLog).catch(()=>{})
-
-  console.log('[ml-trainer v3] done', runId, symbol, '| validated:', thesisValidated, '| 5d:', scores.o5d+'%', '| factor:', attribution.keyFactor||'N/A')
-  return { runId, status:'completed', symbol, analysisDate, thesis, scores, thesisValidated, scoringNote, attribution }
-}
-
-// ── HANDLER ───────────────────────────────────────────────────────────────────
-module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin','*')
-  if (req.method==='OPTIONS') return res.status(200).end()
-
-  const adminKey = req.headers['x-admin-key']||req.query.key
-  if (adminKey!==process.env.ADMIN_SECRET && adminKey!=='ankushai_admin_2025')
-    return res.status(403).json({error:'Unauthorized'})
+    'TASK: Generate a directional thesis based ONLY on the data above. Reason about the natural timeframe this specific setup demands.\n'+
+    'WINDOW RULES (MANDATORY — never just pick 5): breakout/breakdown = 3-8d. squeeze = 3-7d. trend_continuation = 10-20d. mean_reversion = 5-10d. news_catalyst = 2-5d. earnings_driven = 1-3d.\n'+
+    'The expectedMoveByDays field must match the setup type — picking 5 every time will be treated as a prompt failure.\n'+
+    'Return ONLY valid JSON, zero markdown:\n'+
+    '{"thesis":"2-3 sentence institutional thesis with specific catalyst","predictedDirection":"up|down|sideways","predictedMagnitudePct":X.X,"confidence":0-100,'+
+    '"expectedMoveByDays":N,"expectedPriceTarget":XXX.XX,'+
+    '"setupType":"trend_continuation|mean_reversion|breakout|breakdown|squeeze|consolidation",'+
+    '"keyRisk":"specific condition that would invalidate this thesis",'+
+    '"primarySignal":"single most important leading indicator",'+
+    '"entryTrigger":"exact entry condition e.g. reclaim of $X VWAP on 2x avg volume",'+
+    '"profitTargets":[{"pct":30,"action":"trim 40% of position"},{"pct":60,"action":"trim another 30%"},{"pct":100,"action":"close remaining or roll"}],'+
+    '"stopLoss":{"pricePct":-8,"rule":"invalidation condition — not just price, explain WHY it means thesis is wrong"},'+
+    '"optionsGuidance":{"recommendedDTE":"e.g. 45-60 DTE for swing to avoid theta crush","strikeNote":"ATM or 1 strike OTM for conviction plays, 2 OTM for spec","maxLossPct":25,"rollCondition":"if thesis intact with less than 21 DTE remaining, roll to next month","exitWarnings":["exit if single day premium drawdown exceeds 30%","exit if IV drops more than 20 points — means market pricing out the move","trim 50% at first target to recover cost basis","if stock reverses hard on volume — exit same day, do not hold through"]},'+
+    '"equityGuidance":{"dcaRule":"only DCA if weekly structure intact and pullback less than 8%","stopRule":"weekly close below key support with above-average volume","conviction":"low|medium|high — determines position sizing"}}')
 
   const mode = req.query.mode||'single'
 
