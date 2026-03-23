@@ -103,14 +103,18 @@ function AITextPanel({ symbol }) {
                 </span>
               </div>
               {data.price && <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)' }}>${Number(data.price).toFixed(2)}</div>}
-              {data.confidence && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>Confidence: {data.confidence}%</div>
-                {data.signals?.momentum && (
-                  <div style={{display:'flex',gap:10,marginTop:3,flexWrap:'wrap'}}>
-                    {[['5d',data.signals.momentum.roc5],['20d',data.signals.momentum.roc20],['60d',data.signals.momentum.roc60]].filter(([,v])=>v!=null).map(([lbl,val])=>(
-                      <span key={lbl} style={{fontSize:10,color:val>=0?'#10b981':'#ef4444',fontWeight:700}}>{lbl}: {val>=0?'+':''}{val}%</span>
-                    ))}
-                  </div>
-                )}}
+              {(data.confidence || data.signals?.momentum) && (
+                <div>
+                  {data.confidence && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>Confidence: {data.confidence}%</div>}
+                  {data.signals?.momentum && (
+                    <div style={{display:'flex',gap:10,marginTop:3,flexWrap:'wrap'}}>
+                      {[['5d',data.signals.momentum.roc5],['20d',data.signals.momentum.roc20],['60d',data.signals.momentum.roc60]].filter(([,v])=>v!=null).map(([lbl,val])=>(
+                        <span key={lbl} style={{fontSize:10,color:val>=0?'#10b981':'#ef4444',fontWeight:700}}>{lbl}: {val>=0?'+':''}{val}%</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {data.summary && (
               <div style={{ marginBottom:10 }}>
