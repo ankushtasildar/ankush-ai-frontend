@@ -171,7 +171,24 @@ function scoreOutcomes(futureBars, predictedDirection, expectedMoveByDays, expec
     // Consistency: did it hold direction?
     consistent5d: dir(o1d) === dir(o5d),
     consistent20d: dir(o5d) === dir(o20d),
-    barCount: futureBars.length
+    barCount: futureBars.length,
+    // v4 options-grade validity scoring
+    thesisValidity: (() => {
+      if (!expectedMoveByDays || !expectedPriceTarget || !predictedDirection) return null
+      const winBars = futureBars.slice(0, expectedMoveByDays)
+      const targetHit = winBars.findIndex(b => predictedDirection === 'up' ? b.h >= expectedPriceTarget : b.l <= expectedPriceTarget)
+      if (targetHit >= 0) return 'valid'
+      const atWindow = winBars.length > 0 ? winBars[winBars.length-1].c : null
+      if (atWindow === null) return null
+      const dirAtWindow = atWindow > entry ? 'up' : atWindow < entry ? 'down' : 'sideways'
+      return dirAtWindow === predictedDirection ? 'expired' : 'miss'
+    })(),
+    targetHitDay: (() => {
+      if (!expectedMoveByDays || !expectedPriceTarget || !predictedDirection) return null
+      const winBars = futureBars.slice(0, expectedMoveByDays)
+      const i = winBars.findIndex(b => predictedDirection === 'up' ? b.h >= expectedPriceTarget : b.l <= expectedPriceTarget)
+      return i >= 0 ? i + 1 : null
+    })()
   }
 }
 
