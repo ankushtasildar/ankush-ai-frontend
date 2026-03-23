@@ -102,6 +102,35 @@ function RunDetail({ run, onClose }) {
             {validated===true?'✅ THESIS VALIDATED':validated===false?'❌ THESIS INVALIDATED':'⏳ OUTCOME PENDING'}
           </div>
           {run.scoring_note && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>{run.scoring_note}</div>}
+              {/* Multi-timeframe outcomes — v3 engine */}
+              {(run.signals_snapshot && JSON.parse(run.signals_snapshot||'{}')?.scores) && (() => {
+                const s = JSON.parse(run.signals_snapshot).scores;
+                return <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
+                  {[['1d',s.o1d],['2d',s.o2d],['5d',s.o5d],['10d',s.o10d],['20d',s.o20d]].map(([label,pct])=>pct!=null&&(
+                    <div key={label} style={{background:pct>=0?'#052e1680':'#2d0a0a80',border:'1px solid '+(pct>=0?'#10b981':'#ef4444'),borderRadius:5,padding:'3px 8px',fontSize:11}}>
+                      <span style={{color:'var(--text-muted)'}}>{label}: </span>
+                      <span style={{color:pct>=0?'#10b981':'#ef4444',fontWeight:600}}>{pct>=0?'+':''}{pct}%</span>
+                    </div>
+                  ))}
+                  {s.maxGainPct!=null && <div style={{background:'#052e1640',border:'1px solid #10b98160',borderRadius:5,padding:'3px 8px',fontSize:11}}>
+                    <span style={{color:'var(--text-muted)'}}>max gain: </span><span style={{color:'#10b981'}}>+{s.maxGainPct}%</span>
+                  </div>}
+                  {s.maxDrawdownPct!=null && <div style={{background:'#2d0a0a40',border:'1px solid #ef444460',borderRadius:5,padding:'3px 8px',fontSize:11}}>
+                    <span style={{color:'var(--text-muted)'}}>max dd: </span><span style={{color:'#ef4444'}}>{s.maxDrawdownPct}%</span>
+                  </div>}
+                </div>;
+              })()}
+              {/* Attribution — WHY the thesis worked or failed */}
+              {run.attribution && <div style={{marginTop:12,padding:'10px 12px',background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:8}}>
+                <div style={{fontSize:10,color:'var(--text-muted)',letterSpacing:'0.08em',marginBottom:4}}>ATTRIBUTION — WHY IT {run.thesis_validated?'WORKED':'FAILED'}</div>
+                <div style={{fontSize:12,color:'var(--text-secondary)',lineHeight:1.5}}>{run.attribution}</div>
+                {run.key_factor && <div style={{marginTop:6,display:'flex',gap:6,alignItems:'center'}}>
+                  <span style={{fontSize:10,color:'var(--text-muted)'}}>KEY FACTOR:</span>
+                  <span style={{fontSize:11,background:'#7c3aed30',border:'1px solid #7c3aed60',color:'#a78bfa',borderRadius:4,padding:'2px 7px'}}>{run.key_factor}</span>
+                  {run.pattern_tag && <span style={{fontSize:11,background:'#1e3a5f',border:'1px solid #3b82f680',color:'#93c5fd',borderRadius:4,padding:'2px 7px'}}>{run.pattern_tag}</span>}
+                </div>}
+                {run.lesson_learned && <div style={{marginTop:6,fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>📚 {run.lesson_learned}</div>}
+              </div>}
         </div>
         
         {/* Thesis */}
