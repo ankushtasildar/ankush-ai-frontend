@@ -1,7 +1,72 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const fmt = (n, dec=2) => n == null ? '--' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
 const fmtVol = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n?.toFixed(0) || '--'
+
+// US Market Holidays 2025-2027 (NYSE) — Jordan Hayes
+const MARKET_HOLIDAYS = new Set([
+  '2025-01-01','2025-01-20','2025-02-17','2025-04-18','2025-05-26','2025-06-19',
+  '2025-07-04','2025-09-01','2025-11-27','2025-12-25',
+  '2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19',
+  '2026-07-03','2026-08-31','2026-11-26','2026-12-25',
+  '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31','2027-06-18',
+  '2027-07-05','2027-09-06','2027-11-25','2027-12-24',
+])
+
+function getNextMarketOpen() {
+  const now = new Date()
+  const etNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  let check = new Date(etNow)
+  // Move to next day if past 4pm ET
+  if (check.getHours() >= 16) { check.setDate(check.getDate() + 1) }
+  // Find next weekday that isn't a holiday
+  for (let i = 0; i < 10; i++) {
+    const dow = check.getDay()
+    const dateStr = check.toISOString().split('T')[0]
+    if (dow !== 0 && dow !== 6 && !MARKET_HOLIDAYS.has(dateStr)) {
+      // Market opens at 9:30 AM ET
+      const openET = new Date(check)
+      openET.setHours(9, 30, 0, 0)
+      // Convert ET open time to UTC for comparison
+      const openUTC = new Date(openET.toLocaleString('en-US', { timeZone: 'UTC' }))
+      // Simple: return the open time in ET as a display string
+      const dayLabel = check.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' })
+      return { label: dayLabel + ' 9:30 AM ET', openET }
+    }
+    check.setDate(check.getDate() + 1)
+    check.setHours(0, 0, 0, 0)
+  }
+  return null
+}
+
+function useCountdown(session) {
+  const [countdown, setCountdown] = useState(null)
+  const [nextOpen, setNextOpen] = useState(null)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    if (!session || session.session === 'regular') { setCountdown(null); return }
+    const next = getNextMarketOpen()
+    if (!next) return
+    setNextOpen(next)
+
+    function tick() {
+      const now = new Date()
+      const etNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+      const diff = next.openET - etNow
+      if (diff <= 0) { setCountdown('Opening now...'); return }
+      const h = Math.floor(diff / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      setCountdown((h > 0 ? h + 'h ' : '') + m + 'm ' + s + 's')
+    }
+    tick()
+    timerRef.current = setInterval(tick, 1000)
+    return () => clearInterval(timerRef.current)
+  }, [session?.session])
+
+  return { countdown, nextOpen }
+}
 
 const SECTOR_ETFS = [
   { ticker: 'XLK',  name: 'Technology',     icon: 'TEC', subSymbols: ['NVDA','MSFT','AAPL','AVGO','ORCL'] },
@@ -127,8 +192,8 @@ export default function Sectors() {
     return 0
   })
 
-  const advancing = SECTOR_ETFS.filter(s => (quotes[s.ticker]?.changePercent || 0) > 0).length
-  const declining = SECTOR_ETFS.filter(s => (quotes[s.ticker]?.changePercent || 0) < 0).length
+  const advancing = SECTOR_ETFS.filter(s => (quotes[s.symbol]?.changePercent || 0) > 0).length
+  const declining = SECTOR_ETFS.filter(s => (quotes[s.symbol]?.changePercent || 0) < 0).length
   const topSector = sorted[0]
   const worstSector = sorted[sorted.length - 1]
 
@@ -140,7 +205,17 @@ export default function Sectors() {
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>📊 Sector Heatmap</h1>
           <div style={{ color: '#3d4e62', fontSize: 11 }}>
-            {advancing} advancing · {declining} declining · {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}
+            {session && session.session !== 'regular'
+              ? <>
+                  <span style={{color:'#f59e0b',fontWeight:600}}>
+                    {session.session==='weekend'?'Weekend · Last Session':''}
+                    {session.session==='premarket'?'Pre-Market · vs Prior Close':''}
+                    {session.session==='postmarket'?'After Hours · vs Close':''}
+                  </span>
+                  {' · '}{advancing} advancing · {declining} declining · Updated {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'}
+                </>
+              : <>{advancing} advancing · {declining} declining · {lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : 'Loading...'}</>
+            }
               {session && (
                 <span style={{marginLeft:8,padding:'1px 7px',borderRadius:10,fontSize:10,fontWeight:700,background:
                   session.session==='regular'?'rgba(16,185,129,0.15)':
@@ -174,7 +249,44 @@ export default function Sectors() {
       {loading ? (
         <div style={{ textAlign: 'center', color: '#4a5c7a', padding: 40 }}>Loading sector data...</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 10 }}>
+        <div {/* Session status banner — countdown when closed/weekend/premarket */}
+        {session && session.session !== 'regular' && (
+          <div style={{
+            margin: '0 0 16px',
+            padding: '10px 16px',
+            borderRadius: 10,
+            background: session.session === 'weekend' ? 'rgba(100,116,139,0.1)' : 'rgba(245,158,11,0.08)',
+            border: '1px solid ' + (session.session === 'weekend' ? 'rgba(100,116,139,0.2)' : 'rgba(245,158,11,0.2)'),
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8
+          }}>
+            <div>
+              <div style={{fontSize:12,fontWeight:700,color:session.session==='weekend'?'#64748b':'#f59e0b',marginBottom:2}}>
+                {session.session==='weekend' && '🔒 Market Closed — Weekend'}
+                {session.session==='premarket' && '🌅 Pre-Market Trading · Prices vs Prior Close'}
+                {session.session==='postmarket' && '🌙 After-Hours Trading · Prices vs Close'}
+              </div>
+              {nextOpen && session.session !== 'premarket' && session.session !== 'postmarket' && (
+                <div style={{fontSize:11,color:'var(--text-muted)'}}>Next session: {nextOpen.label}</div>
+              )}
+            </div>
+            {countdown && session.session !== 'regular' && (
+              <div style={{
+                display:'flex',alignItems:'center',gap:8,
+                padding:'6px 14px',borderRadius:20,
+                background: session.session==='weekend' ? 'rgba(100,116,139,0.15)' : 'rgba(245,158,11,0.12)',
+                border:'1px solid '+(session.session==='weekend'?'rgba(100,116,139,0.3)':'rgba(245,158,11,0.3)')
+              }}>
+                <span style={{fontSize:10,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.08em'}}>
+                  {session.session==='weekend'||session.session==='postmarket'?'Opens in':'Pre-Market closes'}
+                </span>
+                <span style={{fontSize:14,fontWeight:800,color:session.session==='weekend'?'#94a3b8':'#f59e0b',fontFamily:'var(--font-mono)',letterSpacing:'0.05em'}}>
+                  {countdown}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 10 }}>
           {sorted.map(sector => (
             <HeatmapCell key={sector.ticker} sector={sector} quote={quotes[sector.ticker]} isLarge={false} />
           ))}
