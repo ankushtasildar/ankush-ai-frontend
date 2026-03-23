@@ -282,7 +282,7 @@ export default function MLTrainingLog() {
           <StatCard label="Avg 5d Outcome" value={(stats.avgOutcome>=0?'+':'')+stats.avgOutcome+'%'} sub="across all scored runs" color={stats.avgOutcome>=0?'#10b981':'#ef4444'} />
           <StatCard label="Bull Hit Rate" value={stats.bullValidationRate!==null?stats.bullValidationRate+'%':'—'} sub="bullish thesis accuracy" color="#10b981" />
           <StatCard label="Bear Hit Rate" value={stats.bearValidationRate!==null?stats.bearValidationRate+'%':'—'} sub="bearish thesis accuracy" color="#ef4444" />
-          <StatCard label="Completed" value={stats.completed} sub="of "+stats.total+" runs" />
+          <StatCard label="Completed" value={stats.completed} sub={`of ${stats.total} runs`} />
         </div>
       )}
       
