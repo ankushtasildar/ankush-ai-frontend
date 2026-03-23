@@ -66,8 +66,8 @@ function AITextPanel({ symbol }) {
   useEffect(() => { run(false) }, [run])
 
   const sc = !data ? 'var(--text-muted)'
-    : data.sentiment === 'bullish' ? '#10b981'
-    : data.sentiment === 'bearish' ? '#ef4444' : '#f59e0b'
+    : data.bias === 'bullish' ? '#10b981'
+    : data.bias === 'bearish' ? '#ef4444' : '#f59e0b'
 
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column' }}>
@@ -99,7 +99,7 @@ function AITextPanel({ symbol }) {
                 <span style={{ fontWeight:700, fontSize:14 }}>{symbol}</span>
                 <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:3,
                                background: sc+'22', color:sc, textTransform:'uppercase' }}>
-                  {data.sentiment}
+                  {data.bias}
                 </span>
               </div>
               {data.price && <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)' }}>${Number(data.price).toFixed(2)}</div>}
