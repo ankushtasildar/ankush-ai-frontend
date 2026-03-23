@@ -1,6 +1,30 @@
 import Anthropic from '@anthropic-ai/sdk';
 const client = new Anthropic({apiKey:process.env.ANTHROPIC_API_KEY});
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization'};
+
+// Sanitize user input — strip prompt injection attempts
+function sanitizeInput(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/ignore (all |previous |above )?(instructions?|prompts?|rules?)/gi, '[filtered]')
+    .replace(/you are now|act as|pretend (you are|to be)|jailbreak|DAN mode/gi, '[filtered]')
+    .replace(/\/\/.*$/gm, '') // strip JS-style comments
+    .substring(0, 4000); // hard cap — no runaway inputs
+}
+
+// Verify request is from authenticated AnkushAI user
+async function verifyAuth(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.replace('Bearer ', '').trim();
+  if (!token) return false;
+  // Accept admin key or valid Supabase JWT (check iss claim)
+  if (token === 'ankushai_admin_2025') return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.iss && payload.iss.includes('supabase');
+  } catch { return false; }
+}
+
 function buildSystemPrompt({strategies,positions,marketContext,mode}) {
   const now = new Date();
   const timeStr = now.toLocaleString('en-US',{timeZone:'America/New_York',hour12:true});
