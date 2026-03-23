@@ -255,8 +255,8 @@ export default function Portfolio() {
           <button onClick={()=>navigate('/app/setups')} style={{padding:'10px 24px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',border:'none',borderRadius:10,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:600}}>Go to Top Setups</button>
         </div>
       )}
-    </div>
       {/* Toast notification when trade logged */}
       <TradeLoggedToast visible={tradeLogged} symbol={lastLoggedSymbol} />
+    </div>
   )
 }
