@@ -18,6 +18,7 @@ import EODDebrief from './pages/EODDebrief'
 import Billing from './pages/Billing'
 import Intelligence from './pages/Intelligence'
 import Admin from './pages/Admin'
+import MLTrainingLog from './pages/MLTrainingLog'
 import Login from './pages/Login'
 import AdminLogin from './pages/AdminLogin'
 import AuthCallback from './pages/AuthCallback'
@@ -73,6 +74,7 @@ function Sidebar({ user, isAdmin, session }) {
   const adminItems = isAdmin ? [
     { to: 'intelligence', label: 'Intelligence', badge: null },
     { to: 'admin',        label: 'Admin',        badge: null },
+    { to: 'admin/ml-log', label: 'ML Training',   badge: 'NEW' },
   ] : []
 
   const groups = adminItems.length > 0
@@ -230,6 +232,7 @@ function AppShell() {
           <Route path='app/billing'     element={<Billing />} />
           {isAdmin && <Route path='app/intelligence' element={<Intelligence />} />}
           {isAdmin && <Route path='app/admin'        element={<Admin />} />}
+          {isAdmin && <Route path='app/admin/ml-log'   element={<MLTrainingLog />} />}
           <Route path='app/*'           element={<Navigate to='app/overview' replace />} />
           <Route path='*'               element={<Navigate to='app/overview' replace />} />
         </Routes>
