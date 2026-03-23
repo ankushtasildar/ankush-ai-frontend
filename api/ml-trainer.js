@@ -323,7 +323,7 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     '=== NEWS CONTEXT (7 days before '+analysisDate+') ===\n'+
     (news.length ? news.slice(0,5).map(n=>n.date+' ['+n.sentiment+']: '+n.title).join('\n') : 'No significant news')+'\n\n'+
     'Generate a 1-5 day forward directional thesis based ONLY on this data.\n'+
-    'Return JSON only: {"thesis":"institutional-grade thesis","predictedDirection":"up|down|sideways","predictedMagnitudePct":X,"confidence":0-100,"keyRisk":"main invalidation","primarySignal":"single most important signal","setupType":"trend_continuation|mean_reversion|breakout|breakdown|squeeze|consolidation"}'
+    'Return JSON only: {"thesis":"institutional-grade thesis","predictedDirection":"up|down|sideways","predictedMagnitudePct":X,"confidence":0-100,"keyRisk":"main invalidation","primarySignal":"single most important signal","setupType":"trend_continuation|mean_reversion|breakout|breakdown|squeeze|consolidation","expectedMoveByDays":5,"expectedPriceTarget":0.00}'
 
   const msg = await anthropic.messages.create({
     model:'claude-sonnet-4-20250514', max_tokens:600,
