@@ -126,7 +126,7 @@ let cache = null;
 let cacheTs = 0;
 const CACHE_TTL = 60000; // 60s during market hours
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
 
