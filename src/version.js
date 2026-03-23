@@ -1,2 +1,3 @@
-// AnkushAI Production — auth fix atomic commit
-export const VERSION = '1773818604258';
+// AnkushAI Build 2026-03-23T02:15:54.936Z
+export const BUILD = '2026-03-23T02:15:54.936Z';
+export const VERSION = '2.1.0';
