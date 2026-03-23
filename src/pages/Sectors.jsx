@@ -95,24 +95,25 @@ export default function Sectors() {
 
   async function loadData() {
     try {
-      const r = await fetch('/api/market?action=context')
-      if (r.ok) {
-        const d = await r.json()
+      // Fetch context (for SPY/VIX/session) AND sectors in parallel
+      const [ctxRes, sectRes] = await Promise.all([
+        fetch('/api/market?action=context'),
+        fetch('/api/market?action=sectors')
+      ])
+      if (ctxRes.ok) {
+        const d = await ctxRes.json()
         setSpyData(d)
-        // Extract sector quotes from context
-        if (d.sectors) {
-          const q = {}
-          d.sectors.forEach(s => { q[s.symbol||s.ticker] = { price: s.price, changePercent: s.changePercent ?? s.change ?? 0, volume: s.volume } })
-          setQuotes(q)
-        } else {
-          // Fallback: fetch sector ETFs directly
-          const syms = SECTOR_ETFS.map(s => s.ticker).join(',')
-          const r2 = await fetch('/api/market?action=sectors'' + syms)
-          if (r2.ok) setQuotes(await r2.json())
-        }
-        setLastUpdated(new Date())
-      if (d.session) setSession(d.session)
+        if (d.session) setSession(d.session)
       }
+      if (sectRes.ok) {
+        const arr = await sectRes.json()
+        if (Array.isArray(arr)) {
+          const q = {}
+          arr.forEach(s => { q[s.symbol] = { price: s.price, changePercent: s.changePercent ?? 0, change: s.change ?? 0, volume: s.volume } })
+          setQuotes(q)
+        }
+      }
+      setLastUpdated(new Date())
     } catch (e) {
       console.log('Sector fetch error:', e.message)
     }
