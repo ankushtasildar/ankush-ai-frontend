@@ -11,6 +11,9 @@
     },
     "api/analysis.js": {
       "maxDuration": 30
+    },
+    "api/eod-debrief.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
