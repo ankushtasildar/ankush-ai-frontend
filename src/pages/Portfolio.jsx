@@ -104,6 +104,8 @@ export default function Portfolio() {
           <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:22,fontWeight:800,margin:'0 0 2px'}}>Portfolio</h1>
           <div style={{color:'#3d4e62',fontSize:11}}>Live P&L from journal trades · {positions.length} open · {closed.length} closed</div>
         </div>
+        {/* Gamification — win streak badge */}
+        {closed.length >= 2 && <WinStreak outcomes={closed.map(t=>({outcome:t.outcome_type||'closed',pnl:t.realized_pnl}))} />}
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {editingSize ? (
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -254,5 +256,7 @@ export default function Portfolio() {
         </div>
       )}
     </div>
+      {/* Toast notification when trade logged */}
+      <TradeLoggedToast visible={tradeLogged} symbol={lastLoggedSymbol} />
   )
 }
