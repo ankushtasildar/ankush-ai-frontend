@@ -13,7 +13,7 @@ async function fetchRuns(limit=100, offset=0, filter={}) {
   let url = SUPA_URL+'/rest/v1/ml_training_runs?order=started_at.desc&limit='+limit+'&offset='+offset+'&select=*'
   if (filter.symbol) url += '&symbol=eq.'+filter.symbol
   if (filter.status) url += '&status=eq.'+filter.status
-  if (filter.validated !== undefined) url += '&thesis_validated=eq.'+filter.validated
+  if (filter.validated !== undefined && filter.validated !== '') url += '&thesis_validated=eq.'+filter.validated
   const r = await fetch(url, { headers:{ apikey:SUPA_ANON, Authorization:'Bearer '+SUPA_ANON } })
   return r.json()
 }
