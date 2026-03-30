@@ -235,8 +235,8 @@ function AppShell() {
           {isAdmin && <Route path='app/intelligence' element={<Intelligence />} />}
           {isAdmin && <Route path='app/admin'        element={<Admin />} />}
           {isAdmin && <Route path='app/admin/ml-log'   element={<MLTrainingLog />} />}
-          <Route path='app/*'           element={<Navigate to='app/overview' replace />} />
-          <Route path='*'               element={<Navigate to='app/overview' replace />} />
+          <Route path='app/*'           element={<Navigate to='/app/overview' replace />} />
+          <Route path='*'               element={<Navigate to='/app/overview' replace />} />
         </Routes>
       </main>
     </div>
