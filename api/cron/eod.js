@@ -1,172 +1,81 @@
-// api/cron/eod.js — End-of-day debrief at 5pm ET weekdays
-// Generates AI market recap, saves to daily_recaps, updates performance snapshots
-// Vercel cron: "0 22 * * 1-5" (5pm ET = 10pm UTC) — replaces old daily.js
+// api/cron/eod.js - EOD Debrief generator (CommonJS + plain fetch)
+const Anthropic = require('@anthropic-ai/sdk');
 
-import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@supabase/supabase-js';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const SUPA_URL = process.env.SUPABASE_URL || '';
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const POLY = process.env.POLYGON_API_KEY;
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+async function supaGet(table, query) {
+  if (!SUPA_URL || !SUPA_KEY) return [];
+  try { const r = await fetch(SUPA_URL + '/rest/v1/' + table + '?' + query, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } }); return r.ok ? await r.json() : []; } catch { return []; }
+}
+async function supaInsert(table, row) {
+  if (!SUPA_URL || !SUPA_KEY) return;
+  try { await fetch(SUPA_URL + '/rest/v1/' + table, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(row) }); } catch {}
+}
 
-export default async function handler(req, res) {
-  const secret = req.headers['x-cron-secret'] || req.query.secret;
-  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+async function getMarketData() {
+  try {
+    const [spyR, vixR] = await Promise.all([
+      fetch('https://api.polygon.io/v2/aggs/ticker/SPY/prev?apiKey=' + POLY).then(r => r.json()),
+      fetch('https://api.polygon.io/v2/aggs/ticker/VIX/prev?apiKey=' + POLY).then(r => r.json())
+    ]);
+    const spy = spyR?.results?.[0];
+    const vix = vixR?.results?.[0];
+    return {
+      spy: spy ? { price: spy.c, change: ((spy.c - spy.o) / spy.o * 100).toFixed(2) + '%', high: spy.h, low: spy.l, volume: spy.v } : null,
+      vix: vix ? { price: vix.c } : null
+    };
+  } catch { return { spy: null, vix: null }; }
+}
 
-  const t0 = Date.now();
-  const today = new Date().toISOString().split('T')[0];
-  console.log('[eod-cron] Starting for', today);
+module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   try {
-    // Check if already run today
-    const { data: existing } = await supabase
-      .from('daily_recaps')
-      .select('id')
-      .eq('date', today)
-      .single();
+    const market = await getMarketData();
+    const today = new Date().toISOString().split('T')[0];
 
-    if (existing) {
-      return res.json({ status: 'skipped', reason: 'already_ran_today', date: today });
+    // Check if we already have today's debrief
+    const existing = await supaGet('daily_recaps', 'select=*&recap_date=eq.' + today + '&limit=1');
+    if (existing.length > 0) {
+      return res.json({ ...existing[0], _cached: true });
     }
 
-    // Get market data
-    const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://www.ankushai.org';
-    const [contextRes, sectorsRes] = await Promise.all([
-      fetch(`${base}/api/market?action=context`).then(r => r.json()),
-      fetch(`${base}/api/market?action=sectors`).then(r => r.json()),
-    ]);
+    // Get recent setups for context
+    const recentSetups = await supaGet('setup_records', 'select=symbol,computed_bias,confidence&order=created_at.desc&limit=10');
 
-    // Get today's setups that were tracked
-    const { data: setupsToday } = await supabase
-      .from('setup_records')
-      .select('symbol, bias, confidence, setup_type')
-      .eq('scan_date', today)
-      .limit(10);
-
-    // Get upcoming macro events (next 5 days)
-    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-    const { data: upcomingMacro } = await supabase
-      .from('macro_events')
-      .select('event_date, title, impact')
-      .gte('event_date', today)
-      .lte('event_date', nextWeek)
-      .order('event_date')
-      .limit(5);
-
-    const sectorSummary = Array.isArray(sectorsRes)
-      ? sectorsRes.map(s => `${s.name}: ${s.changePercent > 0 ? '+' : ''}${(s.changePercent || 0).toFixed(2)}%`).join(', ')
-      : 'Data unavailable';
-
-    const prompt = `You are AnkushAI's end-of-day market analyst. Write a concise, professional market debrief for ${today}.
-
-MARKET DATA:
-- SPY: ${contextRes.spy?.toFixed(2) || 'N/A'} (${contextRes.spyChange > 0 ? '+' : ''}${contextRes.spyChange?.toFixed(2) || 0}%)
-- VIX: ${contextRes.vix || 'N/A'} (${contextRes.mood || 'Unknown'})
-- Market Regime: ${contextRes.regime || 'Unknown'}
-- Advancing Sectors: ${contextRes.advancing || 0} | Declining: ${contextRes.declining || 0}
-- Leader: ${contextRes.leader || 'N/A'} (${contextRes.leaderChange > 0 ? '+' : ''}${(contextRes.leaderChange || 0).toFixed(2)}%)
-- Laggard: ${contextRes.laggard || 'N/A'}
-
-SECTOR PERFORMANCE: ${sectorSummary}
-
-AI SETUPS TRACKED TODAY: ${setupsToday?.length || 0} setups (${setupsToday?.map(s => s.symbol).join(', ') || 'none'})
-
-UPCOMING MACRO: ${upcomingMacro?.map(e => `${e.event_date}: ${e.title} [${e.impact}]`).join(' | ') || 'None in next 7 days'}
-
-Write a structured debrief covering:
-1. **Market Summary** — what happened today in 2-3 sentences
-2. **Key Observations** — 3 bullet points of important technicals/macro observations  
-3. **Sector Rotation** — what's leading/lagging and what it signals
-4. **Tomorrow's Focus** — 2-3 specific things to watch for
-5. **Options Positioning** — what the VIX level implies for options strategy
-
-Keep it professional, institutional-grade, data-driven. 250-350 words total.`;
-
-    const msg = await anthropic.messages.create({
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+    const msg = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }]
+      max_tokens: 2048,
+      system: 'You are Marcus Webb, institutional market analyst. Generate a concise end-of-day market debrief. Respond ONLY with valid JSON.',
+      messages: [{ role: 'user', content: 'Generate EOD debrief for ' + today + '. Market data: SPY ' + JSON.stringify(market.spy) + ', VIX ' + JSON.stringify(market.vix) + '. Recent AI setups: ' + JSON.stringify(recentSetups.slice(0,5)) + '. Return JSON: {"date":"' + today + '","headline":"...","marketSummary":"2-3 sentences","keyLevels":{"spy":{"support":0,"resistance":0}},"sectorHighlights":"...","setupRecap":"...","tomorrowOutlook":"...","riskLevel":"low|medium|high","keyEvents":"upcoming events"}' }]
     });
 
-    const content = msg.content[0]?.text || 'Unable to generate recap';
+    const raw = msg.content[0].text;
+    var analysis;
+    try { analysis = JSON.parse(raw); } catch {
+      var m = raw.match(/\{[\s\S]*\}/);
+      if (m) analysis = JSON.parse(m[0]);
+      else return res.status(500).json({ error: 'Failed to parse AI response' });
+    }
 
     // Save to daily_recaps
-    await supabase.from('daily_recaps').upsert({
-      date: today,
-      content,
-      market_mood: contextRes.mood || 'Unknown',
-      spy_change: contextRes.spyChange || 0,
-      vix_close: contextRes.vix || 0,
-      sector_summary: sectorSummary,
-      tomorrow_focus: 'See full recap above',
-    }, { onConflict: 'date' });
-
-    // Resolve open setups outcomes (did they work?)
-    await resolveSetupOutcomes(today, base);
-
-    console.log(`[eod-cron] Done in ${Date.now() - t0}ms`);
-    return res.json({
-      status: 'success',
-      date: today,
-      mood: contextRes.mood,
-      vix: contextRes.vix,
-      ms: Date.now() - t0
+    await supaInsert('daily_recaps', {
+      recap_date: today,
+      headline: analysis.headline,
+      content: analysis,
+      spy_close: market.spy?.price,
+      vix_close: market.vix?.price,
+      created_at: new Date().toISOString()
     });
 
-  } catch(e) {
-    console.error('[eod-cron] Error:', e.message);
-    return res.status(500).json({ error: e.message, ms: Date.now() - t0 });
+    return res.json({ ...analysis, generatedAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('[cron/eod] Error:', err.message);
+    return res.status(500).json({ error: err.message });
   }
-}
-
-async function resolveSetupOutcomes(date, base) {
-  try {
-    // Get setups from 1-5 days ago that haven't been resolved
-    const cutoff = new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0];
-    const { data: setups } = await supabase
-      .from('setup_records')
-      .select('*')
-      .gte('scan_date', cutoff)
-      .lt('scan_date', date)
-      .is('outcome', null)
-      .limit(20);
-
-    if (!setups?.length) return;
-
-    for (const setup of setups.slice(0, 10)) {
-      try {
-        const q = await fetch(`${base}/api/market?action=quote&symbol=${setup.symbol}`)
-          .then(r => r.json());
-        if (!q.price || !setup.entry_high) continue;
-
-        const hitTarget = setup.target_1 && q.price >= setup.target_1;
-        const hitStop = setup.stop_loss && q.price <= setup.stop_loss;
-        const outcome = hitTarget ? 'win' : hitStop ? 'loss' : 'open';
-
-        if (outcome !== 'open') {
-          await supabase.from('setup_records').update({
-            outcome,
-            exit_price: q.price,
-            resolved_at: new Date().toISOString()
-          }).eq('id', setup.id);
-
-          await supabase.from('setup_outcomes').insert({
-            setup_id: setup.id,
-            symbol: setup.symbol,
-            outcome,
-            entry_price: setup.entry_high,
-            exit_price: q.price,
-            pnl_percent: setup.entry_high ? (q.price - setup.entry_high) / setup.entry_high * 100 : 0,
-            days_held: Math.round((Date.now() - new Date(setup.created_at).getTime()) / 86400000),
-          }).catch(() => {});
-        }
-      } catch(e) { /* skip individual failures */ }
-    }
-  } catch(e) {
-    console.warn('[eod-cron] resolve outcomes error:', e.message);
-  }
-}
+};
