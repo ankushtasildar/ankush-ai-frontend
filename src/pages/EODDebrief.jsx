@@ -25,6 +25,7 @@ export default function EODDebrief() {
     try {
       const r = await fetch('/api/cron/eod', { signal: AbortSignal.timeout(60000) })
       const d = await r.json()
+      if (d && !d.error) { setRecaps(prev => [{ recap_date: d.date || new Date().toISOString().split('T')[0], content: d, headline: d.headline, spy_close: d.keyLevels?.spy?.support, vix_close: null, created_at: new Date().toISOString() }, ...prev]); setSelected({ recap_date: d.date, content: d, headline: d.headline }); }
       if (d.status === 'success') { await loadRecaps(); alert('EOD Debrief generated! Mood: ' + d.mood + ', VIX: ' + d.vix) }
       else if (d.status === 'skipped') { alert('Already generated today.') }
       else alert('Error: ' + (d.error || JSON.stringify(d)))
