@@ -1,570 +1,331 @@
-// api/predict.js v2 — AnkushAI Alpha-First Leading Intelligence
-// NOT lagging indicators. Anticipates moves BEFORE they happen.
-// Data: flow signals, macro regime, relative strength, supply/demand zones,
-//       earnings cycles, sector rotation, segmented sentiment
-const Anthropic = require('@anthropic-ai/sdk')
+// predict.js — Alpha Intelligence Engine v5
+// CLEAN REWRITE — no patches, no accumulated fragments
+// Uses calendar dates (not tradingDate), proper error handling
 
-const anthropic = new Anthropic()
+const Anthropic = require('@anthropic-ai/sdk');
 
-// Supabase REST (no SDK — avoids ESM crash)
-const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
-const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
+const POLY = process.env.POLYGON_API_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
-async function supaGet(table, qs) {
-  if (!SUPA_URL||!SUPA_KEY) return []
+// ── Helper: Supabase REST ──
+async function supaGet(table, query) {
+  if (!SUPA_URL || !SUPA_KEY) return [];
   try {
-    const r = await fetch(SUPA_URL+'/rest/v1/'+table+'?'+qs, {headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}})
-    const d = await r.json(); return Array.isArray(d)?d:[]
-  } catch(e) { return [] }
+    const r = await fetch(SUPA_URL + '/rest/v1/' + table + '?' + query, {
+      headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY }
+    });
+    return r.ok ? await r.json() : [];
+  } catch { return []; }
 }
+
 async function supaInsert(table, row) {
-  if (!SUPA_URL||!SUPA_KEY) { console.error('[supaInsert] missing URL or KEY'); return }
+  if (!SUPA_URL || !SUPA_KEY) return;
   try {
-    const r = await fetch(SUPA_URL+'/rest/v1/'+table, {
-      method:'POST',
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify(row)
-    })
-    if (!r.ok) { const t = await r.text(); console.error('[supaInsert ERR]', r.status, t.substring(0,200)) }
-    else console.log('[supaInsert OK]', table)
-  } catch(e) { console.error('[supaInsert THROW]', e.message) }
+    await fetch(SUPA_URL + '/rest/v1/' + table, {
+      method: 'POST',
+      headers: {
+        apikey: SUPA_KEY,
+        Authorization: 'Bearer ' + SUPA_KEY,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify(row)
+    });
+  } catch {}
 }
-const POLY = process.env.POLYGON_API_KEY
 
+// ── Helper: Polygon fetch ──
 async function polyFetch(url) {
+  if (!POLY) return null;
   try {
-    const r = await fetch(url+'&apiKey='+POLY, {signal:AbortSignal.timeout(8000)})
-    return await r.json()
-  } catch(e) { return null }
+    const sep = url.includes('?') ? '&' : '?';
+    const r = await fetch(url + sep + 'apiKey=' + POLY);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
 }
 
-// ── Price + volume data ──────────────────────────────────────────
-async function getPriceData(symbol, days=90) {
-  // Try prev endpoint first, fall back to latest bar from range
-  let q = (await polyFetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true`))?.results?.[0]
-  if (!q) {
-    // Weekend fallback: get last bar from 7-day range
-    const fallback = await polyFetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${new Date(Date.now()-7*864e5).toISOString().split('T')[0]}/${new Date().toISOString().split('T')[0]}?adjusted=true&sort=desc&limit=1`)
-    q = fallback?.results?.[0]
-    if (!q) return null
-  }
-  
-  const to = new Date(); to.setDate(to.getDate()-1)
-  const from = new Date(); from.setDate(from.getDate()-days)
-  const fmt = d => d.toISOString().split('T')[0]
-  
-  const hist = await polyFetch(`https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${fmt(from)}/${fmt(to)}?adjusted=true&sort=asc&limit=${days}`)
-  const bars = hist?.results || []
-  
-  return { price:q.c, open:q.o, high:q.h, low:q.l, volume:q.v, vwap:q.vw, bars }
-}
+// ── GET PRICE DATA — uses calendar dates, NEVER fails on weekends ──
+async function getPriceData(symbol) {
+  // Use simple calendar dates — Polygon automatically skips non-trading days
+  const now = new Date();
+  const to = now.toISOString().split('T')[0]; // today YYYY-MM-DD
+  const fromDate = new Date(now);
+  fromDate.setDate(fromDate.getDate() - 150); // 150 calendar days = ~100 trading days
+  const from = fromDate.toISOString().split('T')[0];
 
-// ── Macro regime signals ─────────────────────────────────────────
-async function getMacroRegime() {
-  const [spy, vxx, tlt, hyd, iwm, qqq] = await Promise.all([
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/2025-12-22/2026-03-22?adjusted=true&sort=desc&limit=90'),
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/VXX/prev?adjusted=true'),
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/TLT/prev?adjusted=true'),
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/HYG/prev?adjusted=true'),  // credit spreads proxy
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/IWM/prev?adjusted=true'),
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/QQQ/prev?adjusted=true'),
-  ])
+  // Fetch daily bars
+  const aggs = await polyFetch(
+    'https://api.polygon.io/v2/aggs/ticker/' + symbol + '/range/1/day/' + from + '/' + to + '?adjusted=true&sort=asc&limit=200'
+  );
 
-  const spyPrev = await polyFetch('https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/2025-01-01/2026-01-01?adjusted=true&sort=desc&limit=10')
-  const spyBars = spyPrev?.results || []
-  
-  const vixLevel = vxx?.results?.[0]?.c || 20
-  const vixTrend = vixLevel > 30 ? 'spike' : vixLevel > 25 ? 'elevated' : vixLevel > 18 ? 'normal' : 'complacency'
-  
-  // TLT trend = bond market view on economy
-  const tltPrice = tlt?.results?.[0]?.c
-  const tltChg = tlt?.results?.[0] ? ((tlt.results[0].c - tlt.results[0].o) / tlt.results[0].o * 100) : 0
-  
-  // HYG = credit health. Falling HYG = credit stress = risk-off coming
-  const hygChg = hyd?.results?.[0] ? ((hyd.results[0].c - hyd.results[0].o) / hyd.results[0].o * 100) : 0
-  
-  // Small cap vs large cap relative strength (IWM/SPY ratio)
-  const iwmPrice = iwm?.results?.[0]?.c || 0
-  const spyLatest = spyBars[0]?.c || 0
-  
-  // SPY momentum across timeframes
-  const spy5d = spyBars.length >= 5 ? ((spyBars[0].c - spyBars[4].c) / spyBars[4].c * 100) : 0
-  
-  let regime = 'neutral'
-  let regimeStrength = 50
-  
-  if (vixLevel > 30 && hygChg < -0.3) { regime = 'risk_off_stress'; regimeStrength = 85 }
-  else if (vixLevel > 25 && spy5d < -2) { regime = 'distribution'; regimeStrength = 70 }
-  else if (vixLevel < 18 && spy5d > 1 && hygChg > 0) { regime = 'risk_on_strong'; regimeStrength = 75 }
-  else if (vixLevel < 20 && spy5d > 0) { regime = 'risk_on_mild'; regimeStrength = 60 }
-  else if (vixLevel > 20 && vixLevel < 28 && spy5d > -1) { regime = 'choppy_transition'; regimeStrength = 45 }
-  
-  return {
-    vix: vixLevel, vixTrend, regime, regimeStrength,
-    tltChg: tltChg.toFixed(2),  // bonds: rising = fear/recession bid
-    hygChg: hygChg.toFixed(2),   // credit: falling = risk-off warning
-    spy5d: spy5d.toFixed(2),
-    spyPrice: spyLatest,
-    notes: vixLevel > 25 ? 'Elevated fear — defined-risk plays favored' :
-           hygChg < -0.3 ? 'Credit stress signal — reduce leverage' :
-           regime === 'risk_on_strong' ? 'All systems risk-on — momentum strategies' :
-           'Mixed signals — wait for confirmation'
-  }
-}
+  const bars = aggs && aggs.results && aggs.results.length > 0 ? aggs.results : null;
 
-// ── Segmented sentiment (90d/30d/7d/today) ──────────────────────
-async function getSegmentedSentiment(symbol, bars) {
-  if (!bars || bars.length < 5) return null
-  
-  function periodReturn(b, days) {
-    if (b.length < days) return null
-    const start = b[b.length-days].c
-    const end   = b[b.length-1].c
-    return ((end-start)/start*100)
-  }
-  
-  function periodStrength(b, days) {
-    // % of days that closed green
-    const slice = b.slice(-days)
-    const green = slice.filter((x,i) => i>0 && x.c > slice[i-1].c).length
-    return slice.length > 1 ? (green/(slice.length-1)*100).toFixed(0) : null
-  }
-  
-  // Average volume trend
-  const recent5AvgVol  = bars.slice(-5).reduce((a,b)=>a+b.v,0)/5
-  const prior20AvgVol  = bars.slice(-25,-5).reduce((a,b)=>a+b.v,0)/20
-  const relativeVol = prior20AvgVol > 0 ? (recent5AvgVol/prior20AvgVol).toFixed(2) : 1
-  
-  // Price vs VWAP anchors at different time horizons
-  const currentPrice = bars[bars.length-1].c
-  const vwap30 = bars.slice(-30).reduce((a,b)=>a+(b.c*b.v),0) / bars.slice(-30).reduce((a,b)=>a+b.v,0)
-  const vwap90 = bars.slice(-90).reduce((a,b)=>a+(b.c*b.v),0) / bars.slice(-90).reduce((a,b)=>a+b.v,0)
-  
-  return {
-    today: bars.length > 1 ? ((bars[bars.length-1].c - bars[bars.length-2].c)/bars[bars.length-2].c*100).toFixed(2) : 0,
-    week:  periodReturn(bars, 5),
-    month: periodReturn(bars, 22),
-    quarter: periodReturn(bars, 65),
-    weekStrength:  periodStrength(bars, 5),    // % green days
-    monthStrength: periodStrength(bars, 22),
-    relativeVol,   // recent vol vs 20d avg
-    priceVsVwap30: ((currentPrice/vwap30-1)*100).toFixed(2),  // vs 30d vwap anchor
-    priceVsVwap90: ((currentPrice/vwap90-1)*100).toFixed(2),  // vs 90d vwap anchor
-    interpretation: currentPrice > vwap30 && currentPrice > vwap90 ? 'Above both VWAP anchors — institutional carry' :
-                   currentPrice < vwap30 && currentPrice < vwap90 ? 'Below both anchors — institutional distribution zone' :
-                   currentPrice > vwap90 && currentPrice < vwap30 ? 'Between anchors — compression, watch for resolution' :
-                   'Mean reversion zone near anchors'
-  }
-}
-
-// ── Supply/demand zones from volume profile ──────────────────────
-function getSupplyDemandZones(bars, currentPrice) {
-  if (bars.length < 20) return null
-  
-  // Find high-volume price clusters (institutional activity zones)
-  const priceStep = currentPrice * 0.01  // 1% buckets
-  const volByPrice = {}
-  bars.slice(-60).forEach(b => {
-    const bucket = Math.round(b.c / priceStep) * priceStep
-    volByPrice[bucket] = (volByPrice[bucket]||0) + b.v
-  })
-  
-  const sorted = Object.entries(volByPrice).sort((a,b)=>b[1]-a[1])
-  const topZones = sorted.slice(0,5).map(([p,v])=>({price:parseFloat(p).toFixed(2), vol:v}))
-  
-  // Nearest support (highest vol zone below price)
-  const below = topZones.filter(z=>parseFloat(z.price) < currentPrice).sort((a,b)=>parseFloat(b.price)-parseFloat(a.price))
-  const above = topZones.filter(z=>parseFloat(z.price) > currentPrice).sort((a,b)=>parseFloat(a.price)-parseFloat(b.price))
-  
-  // Recent swing highs/lows
-  const recent = bars.slice(-20)
-  const swingHigh = Math.max(...recent.map(b=>b.h))
-  const swingLow  = Math.min(...recent.map(b=>b.l))
-  const poc = sorted[0]  // Point of control (highest volume price)
-  
-  return {
-    poc: parseFloat(poc?.[0]).toFixed(2),        // institutional accumulation/distribution center
-    nearestSupport: below[0]?.price || (currentPrice*0.97).toFixed(2),
-    nearestResistance: above[0]?.price || (currentPrice*1.03).toFixed(2),
-    swingHigh: swingHigh.toFixed(2),
-    swingLow: swingLow.toFixed(2),
-    keyZones: topZones.slice(0,3).map(z=>z.price),
-    interpretation: Math.abs(currentPrice - parseFloat(poc?.[0]||currentPrice))/currentPrice < 0.01 
-      ? 'At high-volume node — breakout or rejection imminent'
-      : currentPrice > parseFloat(poc?.[0]||0) ? 'Above POC — buyers in control, support below'
-      : 'Below POC — supply overhead, needs reclaim'
-  }
-}
-
-// ── Sector rotation signals ──────────────────────────────────────
-async function getSectorRotation(symbol) {
-  // Get symbol's sector ETF performance to identify rotation
-  const sectorMap = {
-    NVDA:'XLK',MSFT:'XLK',AAPL:'XLK',GOOGL:'XLK',META:'XLK',AMD:'XLK',
-    JPM:'XLF',GS:'XLF',BAC:'XLF',V:'XLF',MA:'XLF',
-    XOM:'XLE',CVX:'XLE',
-    LLY:'XLV',UNH:'XLV',ABBV:'XLV',
-    AMZN:'XLY',TSLA:'XLY',
-    WMT:'XLP',COST:'XLP',
-  }
-  
-  const sector = sectorMap[symbol]
-  if (!sector) return null
-  
-  // Compare sector vs SPY over 5d and 20d
-  const [secData, spyData] = await Promise.all([
-    polyFetch(`https://api.polygon.io/v2/aggs/ticker/${sector}/range/1/day/2025-09-01/2026-04-01?adjusted=true&sort=desc&limit=25`),
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/2025-09-01/2026-04-01?adjusted=true&sort=desc&limit=25'),
-  ])
-  
-  const sb = secData?.results || []
-  const spb = spyData?.results || []
-  
-  if (sb.length < 5 || spb.length < 5) return { sector, signal: 'insufficient data' }
-  
-  const sec5d  = sb.length>=5  ? (sb[0].c-sb[4].c)/sb[4].c*100   : 0
-  const spy5d  = spb.length>=5 ? (spb[0].c-spb[4].c)/spb[4].c*100 : 0
-  const sec20d = sb.length>=20  ? (sb[0].c-sb[19].c)/sb[19].c*100  : 0
-  const spy20d = spb.length>=20 ? (spb[0].c-spb[19].c)/spb[19].c*100 : 0
-  
-  const rs5  = sec5d  - spy5d
-  const rs20 = sec20d - spy20d
-  
-  return {
-    sector,
-    rs5d: rs5.toFixed(2),    // positive = sector outperforming SPY
-    rs20d: rs20.toFixed(2),
-    signal: rs5 > 1 && rs20 > 2 ? 'ROTATION_IN — sector money flowing in, tailwind' :
-            rs5 < -1 && rs20 < -2 ? 'ROTATION_OUT — smart money leaving sector' :
-            rs5 > 1 && rs20 < 0 ? 'RECOVERING — short-term rotation in, watch continuation' :
-            'NEUTRAL — no clear sector rotation signal'
-  }
-}
-
-// ── Earnings and catalyst timing ────────────────────────────────
-async function getEarningsContext(symbol) {
-  try {
-    const r = await polyFetch(`https://api.polygon.io/v3/reference/tickers/${symbol}?apiKey=${POLY}`)
-    const info = r?.results
-    if (!info) return null
-    
-    return {
-      name: info.name,
-      marketCap: info.market_cap ? (info.market_cap/1e9).toFixed(1)+'B' : null,
-      employees: info.total_employees,
-      description: info.description?.substring(0,150),
-      listDate: info.list_date,
-      // Earnings from macro_events table
-    earningsDaysOut: await (async()=>{
-      try {
-        const rows = await supaGet('macro_events','event_type=eq.earnings&symbol=eq.'+symbol+'&event_date=gte.'+new Date().toISOString().split('T')[0]+'&select=event_date,event_type&order=event_date.asc&limit=1')
-        if (rows[0]?.event_date) {
-          const days = Math.round((new Date(rows[0].event_date)-new Date())/(1000*86400))
-          return days >= 0 ? days : null
-        }
-        return null
-      } catch(e) { return null }
-    })(),
+  if (!bars || bars.length < 5) {
+    // Fallback: try prev endpoint which always works
+    const prev = await polyFetch('https://api.polygon.io/v2/aggs/ticker/' + symbol + '/prev');
+    if (prev && prev.results && prev.results.length > 0) {
+      const p = prev.results[0];
+      return {
+        currentPrice: p.c,
+        bars: [{ t: p.t, o: p.o, h: p.h, l: p.l, c: p.c, v: p.v }],
+        source: 'polygon-prev'
+      };
     }
-  } catch(e) { return null }
-}
-
-// ── Relative strength vs sector + market ────────────────────────
-async function getRelativeStrength(symbol, bars) {
-  if (!bars || bars.length < 20) return null
-  
-  // Beta-adjusted relative strength
-  const [spyData] = await Promise.all([
-    polyFetch('https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/2025-09-01/2026-04-01?adjusted=true&sort=desc&limit=25'),
-  ])
-  const spyBars = spyData?.results?.slice(0,20).reverse() || []
-  
-  if (spyBars.length < 5 || bars.length < 5) return null
-  
-  function ret(b, d) { return b.length>=d ? (b[b.length-1].c-b[b.length-d].c)/b[b.length-d].c*100 : null }
-  
-  const sym1m = ret(bars,22), spy1m = ret(spyBars,Math.min(22,spyBars.length))
-  const sym5d = ret(bars,5),  spy5d = ret(spyBars,5)
-  
-  return {
-    rs5d:  sym5d !== null && spy5d !== null  ? (sym5d-spy5d).toFixed(2)  : null,
-    rs1m:  sym1m !== null && spy1m !== null  ? (sym1m-spy1m).toFixed(2)  : null,
-    sym5d: sym5d?.toFixed(2), sym1m: sym1m?.toFixed(2),
-    spy5d: spy5d?.toFixed(2), spy1m: spy1m?.toFixed(2),
-    signal: sym5d !== null && spy5d !== null && (sym5d-spy5d) > 2 ? 'LEADING_MARKET — outperforming, institutional interest' :
-            sym5d !== null && spy5d !== null && (sym5d-spy5d) < -2 ? 'LAGGING_MARKET — institutional rotation out' : 'MARKET_NEUTRAL'
+    return null; // truly no data
   }
+
+  return {
+    currentPrice: bars[bars.length - 1].c,
+    bars: bars,
+    source: 'polygon-aggs'
+  };
 }
 
-// ── Historical outcome tracking ──────────────────────────────────
+// ── COMPUTE TECHNICALS from bars ──
+function computeTechnicals(bars) {
+  if (!bars || bars.length < 20) return {};
+  const closes = bars.map(b => b.c);
+  const n = closes.length;
+  const last = closes[n - 1];
+
+  // EMAs
+  function ema(data, period) {
+    const k = 2 / (period + 1);
+    let val = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    for (let i = period; i < data.length; i++) val = data[i] * k + val * (1 - k);
+    return val;
+  }
+
+  // RSI
+  function rsi(data, period) {
+    let gains = 0, losses = 0;
+    for (let i = data.length - period; i < data.length; i++) {
+      const d = data[i] - data[i - 1];
+      if (d > 0) gains += d; else losses -= d;
+    }
+    if (losses === 0) return 100;
+    const rs = (gains / period) / (losses / period);
+    return 100 - 100 / (1 + rs);
+  }
+
+  // ATR
+  function atr(bars14) {
+    let sum = 0;
+    for (let i = 1; i < bars14.length; i++) {
+      const tr = Math.max(bars14[i].h - bars14[i].l, Math.abs(bars14[i].h - bars14[i - 1].c), Math.abs(bars14[i].l - bars14[i - 1].c));
+      sum += tr;
+    }
+    return sum / (bars14.length - 1);
+  }
+
+  const ema8 = ema(closes, 8);
+  const ema21 = ema(closes, 21);
+  const ema50 = n >= 50 ? ema(closes, 50) : null;
+  const ema200 = n >= 200 ? ema(closes, 200) : null;
+  const rsi14 = n >= 15 ? rsi(closes, 14) : null;
+  const atr14 = bars.length >= 15 ? atr(bars.slice(-15)) : null;
+
+  // Rate of change
+  const roc = (period) => n > period ? ((last - closes[n - 1 - period]) / closes[n - 1 - period] * 100) : null;
+
+  // Volume trend
+  const vol5 = bars.slice(-5).reduce((a, b) => a + b.v, 0) / 5;
+  const vol20 = bars.slice(-20).reduce((a, b) => a + b.v, 0) / Math.min(20, bars.length);
+
+  // 52-week high/low
+  const highs = bars.map(b => b.h);
+  const lows = bars.map(b => b.l);
+  const high52 = Math.max(...highs);
+  const low52 = Math.min(...lows);
+
+  return {
+    price: last,
+    ema8, ema21, ema50, ema200,
+    rsi14,
+    atr14,
+    roc1d: roc(1), roc5d: roc(5), roc10d: roc(10), roc20d: roc(20),
+    volumeTrend: vol5 / vol20,
+    high52w: high52, low52w: low52,
+    drawdownFromHigh: ((last - high52) / high52 * 100),
+    bullStack: last > ema8 && ema8 > ema21 && (ema50 === null || ema21 > ema50),
+    bearStack: last < ema8 && ema8 < ema21 && (ema50 === null || ema21 < ema50)
+  };
+}
+
+// ── GET MACRO CONTEXT ──
+async function getMacroContext() {
+  // SPY for market direction, VIX for fear
+  const [spyData, vixPrev] = await Promise.all([
+    getPriceData('SPY'),
+    polyFetch('https://api.polygon.io/v2/aggs/ticker/VIX/prev')
+  ]);
+  const vix = vixPrev && vixPrev.results && vixPrev.results[0] ? vixPrev.results[0].c : null;
+  const spyPrice = spyData ? spyData.currentPrice : null;
+  const spyTech = spyData && spyData.bars ? computeTechnicals(spyData.bars) : {};
+
+  // Upcoming events from Supabase
+  const events = await supaGet('macro_events', 'event_date=gte.' + new Date().toISOString().split('T')[0] + '&order=event_date.asc&limit=5');
+
+  return {
+    spy: spyPrice, spyRoc5d: spyTech.roc5d, spyRoc20d: spyTech.roc20d,
+    vix: vix,
+    regime: vix > 30 ? 'high_fear' : vix > 20 ? 'elevated' : 'low_vol',
+    upcomingEvents: events.map(e => e.title + ' ' + e.event_date).join('; ')
+  };
+}
+
+// ── GET HISTORICAL EDGE (learned patterns) ──
 async function getHistoricalEdge(symbol) {
-  try {
-    const { data } = await supabase.from('setup_records')
-      .select('bias,outcome,confidence,rr_ratio,created_at,entry_high,stop_loss,target_1')
-      .eq('symbol', symbol).not('outcome','is',null)
-      .order('created_at',{ascending:false}).limit(30)
-    if (!data?.length) return null
-    const wins = data.filter(r=>r.outcome==='win')
-    const recent = data.slice(0,5).map(r=>r.outcome)
-    const avgConf = data.reduce((a,b)=>a+(b.confidence||0),0)/data.length
-    return { total:data.length, winRate:(wins.length/data.length*100).toFixed(0), recent, avgConfidence:avgConf.toFixed(0) }
-  } catch(e) { return null }
+  const patterns = await supaGet('ai_learned_patterns', 'order=win_rate.desc&limit=5');
+  const setupHistory = await supaGet('setup_records', 'symbol=eq.' + symbol + '&order=created_at.desc&limit=10');
+  const total = setupHistory.length;
+  const wins = setupHistory.filter(s => s.thesis_validated === true).length;
+  return {
+    patterns: patterns.map(p => p.pattern_name + ' (win:' + (p.win_rate || 0) + '%)').join(', '),
+    winRate: total > 0 ? Math.round(wins / total * 100) : null,
+    total: total,
+    recentOutcomes: setupHistory.slice(0, 5).map(s => s.symbol + ':' + (s.thesis_validated ? 'W' : s.thesis_validated === false ? 'L' : '?')).join(', ')
+  };
 }
 
-// ── MASTER PROMPT ────────────────────────────────────────────────
-// This is the institutional investor VP intelligence layer
-// The prompt is designed to produce LEADING ALPHA — not confirmation
-function buildAlphaPrompt(symbol, price, macro, sentiment, supdem, rotation, rs, edge, company, style='swing', optionsCtx=null) {
-  return `You are the Chief Investment Strategist at AnkushAI — a senior institutional VP with 20+ years across Goldman Sachs, Citadel, and Two Sigma. You think like a hedge fund: ANTICIPATE moves, never confirm them.
-
-CORE PHILOSOPHY: Lagging indicators are evidence, NOT thesis. Your edge comes from:
-- Identifying WHERE smart money is positioning BEFORE the move
-- Reading macro regime shifts 2-4 weeks ahead of consensus
-- Spotting supply/demand imbalances at institutional price levels
-- Recognizing earnings revision cycles BEFORE analysts update
-- Detecting sector rotation BEFORE it becomes obvious
-
-REAL MARKET DATA:
-Symbol: ${symbol}${company?.name ? ' ('+company.name+')' : ''}
-Current Price: $${price} | Market Cap: ${company?.marketCap||'N/A'}
-${company?.description ? 'Company: '+company.description : ''}
-${company?.earningsDaysOut != null ? 'UPCOMING EARNINGS: '+company.earningsDaysOut+' days out — HIGH-ALPHA WINDOW: pre-earnings positioning, IV expansion, options flow spike expected.\n' : ''}
-
-MACRO REGIME:
-VIX: ${macro.vix} (${macro.vixTrend}) | Regime: ${macro.regime} (strength: ${macro.regimeStrength}%)
-SPY 5-day: ${macro.spy5d}% | TLT (bonds): ${macro.tltChg}% | HYG (credit): ${macro.hygChg}%
-Regime note: ${macro.notes}
-
-SEGMENTED SENTIMENT (multi-timeframe):
-Today: ${sentiment.today}% | This week: ${sentiment.week}% | 30 days: ${sentiment.month}% | 90 days: ${sentiment.quarter}%
-Week green days: ${sentiment.weekStrength}% | Month green days: ${sentiment.monthStrength}%
-Relative volume (5d vs 20d avg): ${sentiment.relativeVol}x
-vs 30d VWAP anchor: ${sentiment.priceVsVwap30}% | vs 90d VWAP: ${sentiment.priceVsVwap90}%
-VWAP interpretation: ${sentiment.interpretation}
-
-SUPPLY/DEMAND (Volume Profile):
-Point of Control (institutional center): $${supdem.poc}
-Nearest support: $${supdem.nearestSupport} | Nearest resistance: $${supdem.nearestResistance}
-Swing high: $${supdem.swingHigh} | Swing low: $${supdem.swingLow}
-Key institutional zones: ${supdem.keyZones?.join(', ')||'N/A'}
-POC interpretation: ${supdem.interpretation}
-
-${rotation ? `SECTOR ROTATION (${rotation.sector}):
-5d RS vs SPY: ${rotation.rs5d}% | 20d RS vs SPY: ${rotation.rs20d}%
-Rotation signal: ${rotation.signal}` : ''}
-
-${rs ? `RELATIVE STRENGTH:
-5d vs SPY: ${rs.rs5d}% | 1M vs SPY: ${rs.rs1m}%
-Symbol performance: 5d ${rs.sym5d}%, 1M ${rs.sym1m}%
-Signal: ${rs.signal}` : ''}
-
-${edge ? `ANKUSHAI HISTORICAL EDGE:
-${edge.total} tracked setups | ${edge.winRate}% win rate | Avg confidence: ${edge.avgConfidence}
-Recent outcomes: ${edge.recent?.join(', ')}` : 'No prior tracking data for this symbol.'}
-
-YOUR ANALYSIS MANDATE:
-Produce LEADING ALPHA — what will happen and why, not what has happened.
-Focus on: supply/demand imbalances, institutional positioning, regime transitions, rotation flows, catalyst timing.
-The sentiment data is context, NOT the thesis.
-
-${optionsCtx ? `
-OPTIONS FLOW (Dr. Kenji Tanaka, vol desk):
-IV Rank: ${optionsCtx.ivRank}/100 | ATM IV: ${optionsCtx.atmIV}% | Put/Call Ratio: ${optionsCtx.pcRatio}
-Expected 5-day 1SD move: ${optionsCtx.expectedMove5d} | Options flow: ${optionsCtx.sentiment}
-Call volume: ${optionsCtx.callVolume} | Put volume: ${optionsCtx.putVolume}
-` : ''}
-TRADE STYLE CONTEXT: ${style === 'daytrade' ? 'DAY TRADE - focus 0-2 DTE options, intraday levels, gamma. User needs clear entry trigger and same-day exit.' : style === 'leap' ? 'LEAP - 9-12 month outlook. Focus fundamental catalysts, deep ITM calls, avoid theta decay. Think like the PM/ZYN trade.' : 'SWING TRADE (DEFAULT) - 3 days to 9 months. Balance technical + fundamental. Options: 30-60 DTE ATM strikes.'}
-
-Return ONLY valid JSON (no markdown):
-{
-  "symbol": "${symbol}",
-  "currentPrice": ${price},
-  "leadingThesis": "2-3 sentence institutional thesis on WHY price will move — based on regime, flow, supply/demand, rotation. NOT RSI. NOT moving averages. LEAD.",
-  "alphaEdge": "What specific edge does AnkushAI have here that retail traders miss? What are institutions doing?",
-  "sentiment": {
-    "overall": "bullish|bearish|neutral",
-    "90day": "bullish|bearish|neutral",
-    "30day": "bullish|bearish|neutral", 
-    "7day": "bullish|bearish|neutral",
-    "today": "bullish|bearish|neutral",
-    "momentum": "accelerating|decelerating|flat",
-    "note": "One sentence on how sentiment trend feeds or contradicts the leading thesis"
-  },
-  "confidence": 0-100,
-  "edgeScore": 0-100,
-  "scenarios": [
-    {
-      "name": "Primary Alpha Play",
-      "probability": 40,
-      "priceTarget": 0.00,
-      "percentMove": "+X%",
-      "timeToPlay": "X-Y weeks",
-      "alphaRationale": "Why THIS move specifically — institutional catalyst, rotation, regime shift, supply/demand",
-      "entryTrigger": "SPECIFIC event or price action that confirms the thesis is playing out",
-      "whatToWatch": ["leading indicator 1 — something that moves BEFORE price", "leading indicator 2", "leading indicator 3"],
-      "invalidatedBy": "specific leading signal that kills this thesis before it plays out",
-      "positionStrategy": "specific options or equity approach given current IV and regime"
-    },
-    {
-      "name": "Base Case",
-      "probability": 35,
-      "priceTarget": 0.00,
-      "percentMove": "±X%",
-      "timeToPlay": "X-Y weeks",
-      "alphaRationale": "Most probable outcome and why",
-      "entryTrigger": "What confirms this scenario",
-      "whatToWatch": ["thing 1", "thing 2"],
-      "invalidatedBy": "what breaks this",
-      "positionStrategy": "approach"
-    },
-    {
-      "name": "Bear/Hedge Case",
-      "probability": 25,
-      "priceTarget": 0.00,
-      "percentMove": "-X%",
-      "timeToPlay": "X-Y weeks",
-      "alphaRationale": "Leading downside signals",
-      "entryTrigger": "What confirms downside",
-      "whatToWatch": ["risk signal 1", "risk signal 2"],
-      "invalidatedBy": "what negates bear case",
-      "positionStrategy": "hedge approach"
-    }
-  ],
-  "institutionalLevels": {
-    "accumulation": 0.00,
-    "distribution": 0.00,
-    "breakoutLevel": 0.00,
-    "stopLevel": 0.00
-  },
-  "macroTailwinds": ["specific macro factor 1 that LEADS price", "factor 2", "factor 3"],
-  "macroHeadwinds": ["specific risk factor 1", "risk 2"],
-  "sectorRotationView": "Is money rotating INTO or OUT of this sector and what does it mean for this specific name?",
-  "leadingIndicatorsToTrack": ["leading indicator 1 with specific metric", "indicator 2", "indicator 3", "indicator 4"],
-  "timeDecay": "How does this thesis change if it doesn't play out in X weeks?",
-  "optionsAlpha": "Specific options edge — IV environment, preferred strikes, expiry, why this structure captures the thesis"
-}
-`
+// ── GET EARNINGS CONTEXT ──
+async function getEarningsContext(symbol) {
+  const today = new Date().toISOString().split('T')[0];
+  const future = new Date();
+  future.setDate(future.getDate() + 90);
+  const futureStr = future.toISOString().split('T')[0];
+  const events = await supaGet('macro_events', 'event_type=eq.earnings&symbol=eq.' + symbol + '&event_date=gte.' + today + '&event_date=lte.' + futureStr + '&order=event_date.asc&limit=1');
+  if (events.length > 0) {
+    const daysOut = Math.ceil((new Date(events[0].event_date) - new Date()) / 86400000);
+    return { earningsDate: events[0].event_date, earningsDaysOut: daysOut };
+  }
+  return { earningsDate: null, earningsDaysOut: null };
 }
 
+// ── BUILD THE ALPHA PROMPT ──
+function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style) {
+  const styleContext = style === 'daytrade' ? 'Focus on INTRADAY setups (0-2 days). Gamma risk, IV crush, delta decay matter enormously.'
+    : style === 'leap' ? 'Focus on LONG-TERM setups (3-12 months). Fundamental catalysts, macro regime shifts, LEAPS premium decay.'
+    : 'Focus on SWING setups (3 days to 9 months). Earnings cycles, sector rotation, technical breakout/breakdown patterns.';
 
-async function fetchOptionsContext(symbol, price) {
-  try {
-    const POLY_KEY = process.env.POLYGON_API_KEY
-    if (!POLY_KEY) return null
-    const snap = await fetch(
-      'https://api.polygon.io/v3/snapshot/options/'+symbol+'?limit=30&apiKey='+POLY_KEY
-    ).then(r=>r.json())
-    if (!snap.results || snap.results.length === 0) return null
-    const opts = snap.results
-    const calls = opts.filter(o => o.details?.contract_type === 'call')
-    const puts = opts.filter(o => o.details?.contract_type === 'put')
-    const callVol = calls.reduce((a,o) => a+(o.day?.volume||0), 0)
-    const putVol = puts.reduce((a,o) => a+(o.day?.volume||0), 0)
-    const pcRatio = callVol > 0 ? parseFloat((putVol/callVol).toFixed(2)) : null
-    const atm = opts.filter(o => o.details?.strike_price && Math.abs(o.details.strike_price - price)/price < 0.03)
-    const ivs = atm.map(o => o.greeks?.implied_volatility).filter(Boolean)
-    const avgIV = ivs.length ? ivs.reduce((a,b)=>a+b,0)/ivs.length : null
-    const move1SD = avgIV ? parseFloat((price * avgIV * Math.sqrt(5/252)).toFixed(2)) : null
-    return {
-      ivRank: avgIV ? Math.min(100, Math.round(avgIV*200)) : null,
-      atmIV: avgIV ? parseFloat((avgIV*100).toFixed(1)) : null,
-      pcRatio,
-      expectedMove5d: move1SD,
-      callVolume: callVol,
-      putVolume: putVol,
-      sentiment: pcRatio > 1.4 ? 'bearish flow' : pcRatio < 0.8 ? 'bullish flow' : 'neutral flow'
-    }
-  } catch(e) { return null }
+  const earningsStr = earnings.earningsDaysOut ? 'UPCOMING EARNINGS: ' + earnings.earningsDaysOut + ' days out (' + earnings.earningsDate + ') - HIGH-ALPHA WINDOW. Factor this into time horizon and IV expectations.' : 'No imminent earnings.';
+
+  return 'You are Marcus Webb, a senior institutional VP with 20 years at Goldman Sachs and Two Sigma. You provide LEADING indicators, not lagging confirmation. Your analysis must be forward-looking.\n\n'
+    + 'SYMBOL: ' + symbol + '\n'
+    + 'REAL PRICE: $' + (priceData.currentPrice || 0).toFixed(2) + '\n'
+    + 'SOURCE: ' + (priceData.source || 'unknown') + '\n\n'
+    + 'TECHNICALS:\n'
+    + 'EMA8: ' + (technicals.ema8 || 0).toFixed(2) + ' | EMA21: ' + (technicals.ema21 || 0).toFixed(2)
+    + (technicals.ema50 ? ' | EMA50: ' + technicals.ema50.toFixed(2) : '') + '\n'
+    + 'RSI(14): ' + (technicals.rsi14 || 0).toFixed(1) + '\n'
+    + 'ATR(14): ' + (technicals.atr14 || 0).toFixed(2) + '\n'
+    + 'ROC 1d:' + (technicals.roc1d || 0).toFixed(2) + '% 5d:' + (technicals.roc5d || 0).toFixed(2) + '% 20d:' + (technicals.roc20d || 0).toFixed(2) + '%\n'
+    + 'Stack: ' + (technicals.bullStack ? 'BULLISH' : technicals.bearStack ? 'BEARISH' : 'MIXED') + '\n'
+    + 'Volume trend (5d/20d): ' + (technicals.volumeTrend || 0).toFixed(2) + 'x\n'
+    + '52w High: ' + (technicals.high52w || 0).toFixed(2) + ' | Low: ' + (technicals.low52w || 0).toFixed(2) + ' | Drawdown: ' + (technicals.drawdownFromHigh || 0).toFixed(1) + '%\n\n'
+    + 'MACRO: SPY $' + (macro.spy || 0).toFixed(2) + ' (5d:' + (macro.spyRoc5d || 0).toFixed(1) + '% 20d:' + (macro.spyRoc20d || 0).toFixed(1) + '%) | VIX: ' + (macro.vix || 0).toFixed(1) + ' (' + macro.regime + ')\n'
+    + 'Events: ' + (macro.upcomingEvents || 'none') + '\n\n'
+    + earningsStr + '\n\n'
+    + 'HISTORICAL EDGE: ' + (edge.patterns || 'no patterns yet') + '\n'
+    + 'Win rate on ' + symbol + ': ' + (edge.winRate !== null ? edge.winRate + '%' : 'N/A') + ' (' + edge.total + ' predictions)\n'
+    + 'Recent: ' + (edge.recentOutcomes || 'none') + '\n\n'
+    + 'TRADE STYLE: ' + (style || 'swing') + '\n' + styleContext + '\n\n'
+    + 'Respond ONLY with valid JSON:\n'
+    + '{"sentiment":{"overall":"bullish|bearish|neutral","confidence":0-100,"timeframe":"short|medium|long"},'
+    + '"leadingThesis":"2-3 sentence FORWARD-LOOKING thesis",'
+    + '"institutionalEdge":"what smart money sees that retail misses",'
+    + '"scenarios":[{"name":"Primary Alpha Play","probability":0-100,"target":0.00,"timeframe":"Xd-Yd","whatToWatch":"...","positionStrategy":"specific options or equity strategy"},'
+    + '{"name":"Base Case","probability":0-100,"target":0.00,"timeframe":"..."},'
+    + '{"name":"Bear/Hedge Case","probability":0-100,"target":0.00,"timeframe":"...","hedgeStrategy":"..."}],'
+    + '"institutionalLevels":{"accumulation":0.00,"distribution":0.00,"breakoutAbove":0.00,"breakdownBelow":0.00},'
+    + '"optionsAlpha":{"ivEnvironment":"low|moderate|high","recommendedStrategy":"...","strikeSelection":"...","expiryGuidance":"...","maxRiskPercent":0,"exitRules":"..."},'
+    + '"sectorRotation":{"signal":"...","relativeStrength":"..."},'
+    + '"riskFactors":["..."],'
+    + '"edgeScore":0-100}';
 }
 
+// ── MAIN HANDLER ──
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  if (req.method === 'OPTIONS') return res.status(200).end()
-  
-  const symbol = req.query.symbol?.toUpperCase()
-  const style = req.query.style || 'swing' // daytrade | swing | leap
-  if (!symbol) return res.status(400).json({ error: 'symbol required' })
+  const symbol = (req.query.symbol || 'SPY').toUpperCase();
+  const style = req.query.style || 'swing';
+
+  if (!ANTHROPIC_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  }
 
   try {
-    // Fetch all signals in parallel — minimize latency
-    const priceDataP = getPriceData(symbol, 90)
-    const macroP = getMacroRegime()
-    const companyP = getEarningsContext(symbol)
-    const edgeP = getHistoricalEdge(symbol)
+    // Fetch all data in parallel
+    const [priceData, macro, edge, earnings] = await Promise.all([
+      getPriceData(symbol),
+      getMacroContext(),
+      getHistoricalEdge(symbol),
+      getEarningsContext(symbol)
+    ]);
 
-    const [priceData, macro, company, edge] = await Promise.all([priceDataP, macroP, companyP, edgeP])
+    if (!priceData) {
+      return res.status(503).json({
+        error: 'No market data available for ' + symbol,
+        suggestion: 'Market may be closed. Try again during trading hours or check if the ticker symbol is correct.'
+      });
+    }
 
-    // Marcus: Options context layer (Dr. Kenji Tanaka)
-    const optionsCtx = await fetchOptionsContext(symbol, priceData?.price || 0).catch(() => null)
-    
-    if (!priceData) return res.status(404).json({ error: `No data for ${symbol}` })
-    
-    const { price, bars } = priceData
-    
-    // Compute signals from price data
-    const sentiment   = await getSegmentedSentiment(symbol, bars)
-    const supdem      = getSupplyDemandZones(bars, price)
-    const rotation    = await getSectorRotation(symbol)
-    const rs          = await getRelativeStrength(symbol, bars)
-    
-    const sessionStatus = (() => {
-    const now = new Date();
-    const et = new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
-    const d=et.getDay(), m=et.getHours()*60+et.getMinutes();
-    if(d===0||d===6) return 'WEEKEND — using last session close prices';
-    if(m<570) return 'PRE-MARKET session — extended hours context applies';
-    if(m<960) return 'REGULAR SESSION — live prices';
-    if(m<1200) return 'POST-MARKET session — after hours pricing';
-    return 'CLOSED — using last session close';
-  })();
-    const prompt = buildAlphaPrompt(symbol, price, macro, sentiment||{}, supdem||{}, rotation, rs, edge, company, style, optionsCtx)
-    
-    const msg = await anthropic.messages.create({
+    const technicals = priceData.bars ? computeTechnicals(priceData.bars) : {};
+    const prompt = buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style);
+
+    // Call Claude
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+    const msg = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: `You are Marcus Webb, a senior institutional equity analyst trained at Goldman Sachs and Two Sigma. You have 20 years analyzing US equities. You think in terms of institutional positioning, options flow, risk-adjusted returns, and quantitative signals. You are NOT retail — you frame everything from smart money perspective. Return ONLY valid JSON.
-
-Current market session: ${sessionStatus}`,
+      system: 'You are Marcus Webb, ex-Goldman Sachs Strats and Two Sigma. 20 years institutional experience. Your analysis uses LEADING indicators, not lagging. All price levels MUST be derived from the real data provided. Never invent prices. Respond ONLY with valid JSON, no markdown, no preamble.',
       messages: [{ role: 'user', content: prompt }]
-    })
-    
-    let analysis = {}
-    const text = msg.content[0]?.text || '{}'
+    });
+
+    const raw = msg.content[0].text;
+
+    // Parse JSON - handle potential wrapping
+    let analysis;
     try {
-      const clean = text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()
-      analysis = JSON.parse(clean)
-    } catch(e) {
-      const match = text.match(/\{[\s\S]*\}/)
-      if (match) try { analysis = JSON.parse(match[0]) } catch(e2) {}
+      analysis = JSON.parse(raw);
+    } catch {
+      // Try extracting JSON from text
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        analysis = JSON.parse(match[0]);
+      } else {
+        return res.status(500).json({ error: 'Failed to parse AI response', raw: raw.substring(0, 200) });
+      }
     }
-    
-    // Save to setup_records for backtesting loop
-    try {
-      await supaInsert('setup_records', {
-        symbol,
-        name: symbol + ' Alpha Prediction',
-        setup_type: 'alpha_prediction',
-        bias: analysis.sentiment?.overall || analysis.alphaEdge?.split(' ')?.[0] || 'neutral',
-        confidence: analysis.confidence || null,
-        price_at_generation: price,
-        target_1: analysis.scenarios?.[0]?.target || null,
-        target_2: analysis.scenarios?.[1]?.target || null,
-        stop_loss: analysis.institutionalLevels?.keySupport?.[0] || null,
-        options_trade: analysis.optionsAlpha?.strategy || null,
-        created_at: new Date().toISOString()
-      })
-      } catch(e) { console.error('[save setup]', e.message) }
+
+    // Save to setup_records for backtesting
+    supaInsert('setup_records', {
+      symbol: symbol,
+      name: symbol + ' Alpha Prediction',
+      setup_type: 'alpha_prediction',
+      computed_bias: analysis.sentiment ? analysis.sentiment.overall : 'neutral',
+      confidence: analysis.sentiment ? analysis.sentiment.confidence : null,
+      price_at_generation: priceData.currentPrice,
+      engine_version: 'v5'
+    }).catch(function() {});
+
     return res.json({
+      symbol: symbol,
+      currentPrice: priceData.currentPrice,
+      priceSource: priceData.source,
+      barsUsed: priceData.bars ? priceData.bars.length : 0,
+      style: style,
       ...analysis,
-      rawData: { macro, sentiment, supdem, rotation, rs },
-      optionsContext: optionsCtx,
-      historicalEdge: edge, // Marcus: pass through to frontend for accuracy display
-      tradeStyle: style,
-      priceVerified: true,
+      historicalEdge: edge,
+      earningsContext: earnings,
+      macroContext: { vix: macro.vix, regime: macro.regime, spyPrice: macro.spy },
       generatedAt: new Date().toISOString()
-    })
-  } catch(e) {
-    console.error('[predict v2]', e.message)
-    return res.status(500).json({ error: e.message })
+    });
+
+  } catch (err) {
+    console.error('[predict] Error:', err.message);
+    return res.status(500).json({ error: err.message });
   }
-}
+};
