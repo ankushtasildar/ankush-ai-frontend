@@ -175,7 +175,12 @@ function parseTrade(message) {
   let match;
   while ((match = pricePattern.exec(m)) !== null) {
     const val = parseFloat(match[1]);
-    if (val > 0.5 && val < 100000) prices.push({ val, idx: match.index });
+    if (val > 0.5 && val < 100000) {
+      // Skip numbers followed by quantity words (shares, contracts, lots, units)
+      const after = m.substring(match.index + match[0].length, match.index + match[0].length + 15).toLowerCase();
+      if (/^\s*(shares|contracts|lots|units|calls|puts|qty)/i.test(after)) continue;
+      prices.push({ val, idx: match.index });
+    }
   }
 
   if (prices.length > 0) {
@@ -258,6 +263,31 @@ function scanOutput(response) {
 // ============================================================
 // MODEL ROUTER
 // ============================================================
+
+// Groq — FREE, 750+ tokens/sec, 1000 RPD on Llama 3.3 70B
+async function callGroq(messages) {
+  const KEY = process.env.GROQ_API_KEY;
+  if (!KEY) return null;
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + KEY },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: messages,
+        max_tokens: 1024,
+        temperature: 0.7
+      })
+    });
+    if (!res.ok) { console.log('[journal-ai] Groq returned ' + res.status); return null; }
+    const data = await res.json();
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      return { content: data.choices[0].message.content, model: 'llama-3.3-70b-groq', provider: 'groq' };
+    }
+    return null;
+  } catch (e) { console.log('[journal-ai] Groq error:', e.message); return null; }
+}
+
 async function callNVIDIA(messages) {
   const KEY = process.env.NVIDIA_API_KEY;
   if (!KEY) return null;
@@ -430,8 +460,9 @@ module.exports = async function handler(req, res) {
       { role: 'user', content: message.substring(0, 3000) }
     ];
 
-    // --- MODEL ROUTER ---
-    let result = await callNVIDIA(messages);
+    // --- MODEL ROUTER: Groq (free, fast) -> NVIDIA (free) -> Anthropic (paid fallback) ---
+    let result = await callGroq(messages);
+    if (!result) result = await callNVIDIA(messages);
     if (!result) result = await callAnthropic(messages);
     if (!result) return res.status(503).json({ error: 'AI temporarily unavailable. Try again shortly.' });
 
