@@ -164,6 +164,7 @@ function AITextPanel({ symbol }) {
                 ))}
                 {data.tradeSetup?.rationale && <div style={{fontSize:10,color:'var(--text-muted)',marginTop:4,lineHeight:1.4}}>{data.tradeSetup.rationale}</div>}
               </div>
+            )}
             {data._cached && <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:8 }}>Cached {data._cacheAge} ago - Auto-refreshes every 4h</div>}
             {!data._cached && data.timestamp && <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:8 }}>Generated {new Date(data.timestamp).toLocaleTimeString()}</div>}
           </div>
