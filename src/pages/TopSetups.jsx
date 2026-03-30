@@ -263,6 +263,20 @@ export default function TopSetups() {
   const [stats, setStats] = useState({ total: 0, bullish: 0, bearish: 0, avgConf: 0, avgRR: 0, watchlist: 0, scansToday: 0 })
   const [isPro, setIsPro] = useState(true)
   const [tradeToast, setTradeToast] = useState({ visible: false, symbol: '' })
+
+  // Auto-fetch cached setups on mount
+  useEffect(() => {
+    fetch('/api/analysis?cached=1&_t=' + Date.now())
+      .then(r => r.json())
+      .then(d => {
+        if (d.setups && d.setups.length > 0) {
+          setSetups(d.setups)
+          setLastScan(d.cachedAt || new Date().toISOString())
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   const scanRef = useRef(null)
 
   useEffect(() => {
