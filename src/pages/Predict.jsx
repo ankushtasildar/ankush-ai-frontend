@@ -292,7 +292,7 @@ export default function Predict(){
             <div>
               <div style={{...card,marginBottom:10}}>
                 <div style={ct}>Options Alpha</div>
-                <div style={{fontSize:13,color:'var(--text-secondary)',lineHeight:1.6}}>{data.optionsAlpha}</div>
+                <div style={{fontSize:13,color:'var(--text-secondary)',lineHeight:1.6}}>{typeof data.optionsAlpha === 'object' ? [data.optionsAlpha.recommendedStrategy, data.optionsAlpha.ivEnvironment && ' | IV: ' + data.optionsAlpha.ivEnvironment, data.optionsAlpha.strikeSelection && ' | Strikes: ' + data.optionsAlpha.strikeSelection, data.optionsAlpha.expiryGuidance && ' | Expiry: ' + data.optionsAlpha.expiryGuidance, data.optionsAlpha.exitRules && ' | Exit: ' + data.optionsAlpha.exitRules].filter(Boolean).join('') : data.optionsAlpha}</div>
               </div>
               <div style={card}>
                 <div style={ct}>Time Decay Warning</div>
