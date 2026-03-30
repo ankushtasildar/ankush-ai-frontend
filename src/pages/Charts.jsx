@@ -322,6 +322,136 @@ function AIOverlayPanel({ symbol, onClose }) {
   )
 }
 
+
+// ---- AI Chart Vision Component ----
+function ChartVision({ symbol, timeframe }) {
+  const [image, setImage] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [analysis, setAnalysis] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    function handlePaste(e) {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') > -1) {
+          processFile(items[i].getAsFile())
+          e.preventDefault()
+          break
+        }
+      }
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
+  function processFile(file) {
+    if (!file || file.size > 5242880) { setError('Max 5MB'); return }
+    const reader = new FileReader()
+    reader.onload = (e) => { setPreview(e.target.result); setImage(e.target.result); setAnalysis(null); setError(null) }
+    reader.readAsDataURL(file)
+  }
+
+  async function analyze() {
+    if (!image) return
+    setLoading(true); setError(null)
+    try {
+      const r = await fetch('/api/chart-vision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image, symbol, timeframe })
+      })
+      const d = await r.json()
+      d.error ? setError(d.error) : setAnalysis(d)
+    } catch(e) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  const box = { padding:10, background:'var(--bg-elevated)', borderRadius:6, border:'1px solid var(--border)', marginBottom:8 }
+  const lbl = { fontSize:10, color:'var(--text-muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'.5px', fontFamily:'var(--font-mono)' }
+
+  return (
+    <div style={{ position:'absolute', top:0, right:0, width:340, height:'100%', background:'var(--bg-base)', borderLeft:'1px solid var(--border)', zIndex:10, overflowY:'auto', padding:12 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+        <div style={{ fontSize:12, fontWeight:700 }}>AI Chart Vision</div>
+        <button onClick={()=>{setImage(null);setPreview(null);setAnalysis(null);setError(null)}} style={{ fontSize:10, background:'none', border:'1px solid var(--border)', borderRadius:4, padding:'3px 8px', cursor:'pointer', color:'var(--text-muted)' }}>Clear</button>
+      </div>
+
+      {!preview && (
+        <div onDrop={(e)=>{e.preventDefault();processFile(e.dataTransfer?.files?.[0])}} onDragOver={(e)=>e.preventDefault()}
+             onClick={()=>{const i=document.createElement('input');i.type='file';i.accept='image/*';i.onchange=(e)=>processFile(e.target.files[0]);i.click()}}
+             style={{ border:'2px dashed var(--border)', borderRadius:8, padding:24, textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.02)' }}>
+          <div style={{ fontSize:20, marginBottom:6 }}>\uD83D\uDCF7</div>
+          <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', marginBottom:4 }}>Drop chart screenshot here</div>
+          <div style={{ fontSize:10, color:'var(--text-muted)' }}>or click to upload \u00B7 or Cmd+V to paste</div>
+        </div>
+      )}
+
+      {preview && !analysis && (
+        <div>
+          <img src={preview} style={{ width:'100%', borderRadius:6, border:'1px solid var(--border)', marginBottom:8 }} />
+          <button onClick={analyze} disabled={loading}
+            style={{ width:'100%', padding:'10px', background: loading ? 'var(--bg-elevated)' : '#10b981', color:'#fff', border:'none', borderRadius:6, fontSize:12, fontWeight:600, cursor: loading ? 'wait' : 'pointer' }}>
+            {loading ? 'Analyzing chart...' : '\uD83E\uDDE0 Analyze Chart'}
+          </button>
+        </div>
+      )}
+
+      {error && <div style={{ padding:8, background:'rgba(239,68,68,0.1)', borderRadius:6, color:'#ef4444', fontSize:11, marginBottom:8 }}>{error}</div>}
+
+      {analysis && (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {preview && <img src={preview} style={{ width:'100%', borderRadius:6, border:'1px solid var(--border)', marginBottom:4 }} />}
+
+          <div style={box}>
+            <div style={lbl}>Trend</div>
+            <div style={{ fontWeight:600, color: analysis.trend?.direction==='bullish'?'#10b981':analysis.trend?.direction==='bearish'?'#ef4444':'var(--text-primary)' }}>
+              {analysis.trend?.direction?.toUpperCase()} \u2014 {analysis.trend?.strength}
+            </div>
+            <div style={{ fontSize:11, marginTop:4, color:'var(--text-secondary)' }}>{analysis.trend?.description}</div>
+          </div>
+
+          <div style={box}>
+            <div style={lbl}>AI Summary</div>
+            <div style={{ fontSize:12, lineHeight:1.5 }}>{analysis.summary}</div>
+          </div>
+
+          {analysis.keyLevels && <div style={box}>
+            <div style={lbl}>Key Levels</div>
+            {analysis.keyLevels.resistance?.map((l,i) => <div key={'r'+i} style={{ display:'flex', justifyContent:'space-between', fontSize:11, padding:'2px 0' }}><span style={{ color:'#ef4444' }}>R: ${l.price}</span><span style={{ color:'var(--text-muted)', fontSize:10 }}>{l.reason}</span></div>)}
+            {analysis.keyLevels.support?.map((l,i) => <div key={'s'+i} style={{ display:'flex', justifyContent:'space-between', fontSize:11, padding:'2px 0' }}><span style={{ color:'#10b981' }}>S: ${l.price}</span><span style={{ color:'var(--text-muted)', fontSize:10 }}>{l.reason}</span></div>)}
+          </div>}
+
+          {analysis.tradeSetup && <div style={box}>
+            <div style={lbl}>Trade Setup</div>
+            <div style={{ fontWeight:600, color: analysis.tradeSetup.bias==='long'?'#10b981':'#ef4444', marginBottom:4 }}>{analysis.tradeSetup.bias?.toUpperCase()} R/R {analysis.tradeSetup.riskReward}</div>
+            <div style={{ fontSize:11, display:'grid', gridTemplateColumns:'1fr 1fr', gap:3 }}>
+              <span>Entry: ${analysis.tradeSetup.entry}</span><span>Stop: ${analysis.tradeSetup.stopLoss}</span>
+              <span>T1: ${analysis.tradeSetup.target1}</span><span>T2: ${analysis.tradeSetup.target2}</span>
+            </div>
+            <div style={{ fontSize:11, marginTop:6, lineHeight:1.5, color:'var(--text-secondary)' }}>{analysis.tradeSetup.rationale}</div>
+          </div>}
+
+          {analysis.candlePatterns?.length > 0 && <div style={box}>
+            <div style={lbl}>Candle Patterns</div>
+            {analysis.candlePatterns.map((p,i) => <div key={i} style={{ fontSize:11, padding:'2px 0' }}><span style={{ fontWeight:600 }}>{p.name}</span> <span style={{ color: p.significance==='bullish'?'#10b981':p.significance==='bearish'?'#ef4444':'var(--text-muted)' }}>{p.significance}</span></div>)}
+          </div>}
+
+          {analysis.drawingRecommendations?.length > 0 && <div style={box}>
+            <div style={lbl}>Drawing Recommendations</div>
+            {analysis.drawingRecommendations.map((d,i) => <div key={i} style={{ fontSize:11, padding:'2px 0' }}><span style={{ color: d.color || 'var(--accent)' }}>\u25CF</span> {d.type}: {d.description}</div>)}
+            <div style={{ fontSize:9, color:'var(--text-muted)', marginTop:4, fontStyle:'italic' }}>Auto-drawing coming in Phase 2</div>
+          </div>}
+
+          <button onClick={()=>{setImage(null);setPreview(null);setAnalysis(null)}} style={{ width:'100%', padding:8, background:'none', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text-muted)' }}>Analyze New Chart</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Charts() {
   const [params] = useSearchParams()
   const [sym, setSym] = useState(params.get('symbol') || 'SPY')
@@ -368,6 +498,12 @@ export default function Charts() {
                            color: mode==='overlay' ? '#a78bfa' : 'var(--text-muted)' }}>
             AI Levels
           </button>
+          <button onClick={()=>setMode(m => m==='vision' ? 'none' : 'vision')}
+                  style={{ padding:'5px 12px', borderRadius:5, border:'1px solid rgba(16,185,129,0.4)', cursor:'pointer', fontSize:11, fontWeight:600,
+                           background: mode==='vision' ? 'rgba(16,185,129,0.15)' : 'var(--bg-elevated)',
+                           color: mode==='vision' ? '#10b981' : 'var(--text-muted)' }}>
+            AI Vision
+          </button>
         </div>
       </div>
       {/* Body */}
@@ -386,6 +522,9 @@ export default function Charts() {
           <div style={{ width:320, flexShrink:0, height:'100%', overflow:'hidden' }}>
             <AIOverlayPanel symbol={sym} onClose={()=>setMode('none')} />
           </div>
+        )}
+        {mode==='vision' && (
+          <ChartVision symbol={sym} timeframe={tf} />
         )}
       </div>
     </div>
