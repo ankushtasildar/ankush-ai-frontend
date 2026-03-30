@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const COACH_SYSTEM = `You are AnkushAI's Trading Journal Coach — a professional trading psychologist and performance analyst. Review the trader's entries, identify emotional patterns, cognitive biases, and behavioral tendencies. Give specific actionable feedback. Track: revenge trading, FOMO, overconfidence, hesitation, discipline. Be honest and direct. Keep responses to 3-4 paragraphs max.`
+// System prompt is server-side only in /api/journal-ai.js (security)
 
 export default function Journal() {
   const [entries, setEntries] = useState([])
@@ -31,25 +31,19 @@ export default function Journal() {
     setMessages(msgs)
     setChatLoading(true)
     try {
-      const context = entries.slice(0,8).map(e=>`[${new Date(e.created_at).toLocaleDateString()}] ${e.symbol||''} ${e.side||''} P&L:${e.pnl||0} Mindset:${e.emotion_score||'?'} Notes:${e.notes||''}`).join('\n')
-      const system = COACH_SYSTEM+(entries.length?`\n\nJOURNAL (recent ${Math.min(8,entries.length)} entries):\n`+context:'\n\nNo entries yet.')
-      (async () => {
-        const { data: { session } } = await supabase.auth.getSession()
-        const r_inner = await fetch('/api/ai', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + (session?.access_token || '')
-          },
-          body: JSON.stringify({
-            messages: msgs.map(m => ({ role: m.role, content: m.content })),
-            systemPrompt: system
-          })
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id || "anonymous"
+      const r = await fetch("/api/journal-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg,
+          history: msgs.slice(-10).map(m => ({ role: m.role, content: m.content })),
+          userId: userId
         })
-        return r_inner
-      })()
-      const d = await r_inner.json()
-      setMessages(p=>[...p,{role:'assistant',content:d.content?.[0]?.text||'Error'}])
+      })
+      const d = await r.json()
+      setMessages(p=>[...p,{role:'assistant',content:d.reply||d.content?.[0]?.text||'Error'}])
     } catch(e){setMessages(p=>[...p,{role:'assistant',content:'Error: '+e.message}])}
     setChatLoading(false)
   }
