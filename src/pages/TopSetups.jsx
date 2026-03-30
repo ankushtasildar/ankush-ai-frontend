@@ -264,14 +264,22 @@ export default function TopSetups() {
   const [isPro, setIsPro] = useState(true)
   const [tradeToast, setTradeToast] = useState({ visible: false, symbol: '' })
 
-  // Auto-fetch cached setups on mount
+  // Auto-fetch cached setups on mount (direct from Supabase scan_cache)
   useEffect(() => {
-    fetch('/api/analysis?cached=1&_t=' + Date.now())
+    const S = 'https://cyjotqirydjilovbslvw.supabase.co'
+    const K = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!K) return
+    fetch(S + '/rest/v1/scan_cache?select=result,created_at&order=created_at.desc&limit=1', {
+      headers: { apikey: K, Authorization: 'Bearer ' + K }
+    })
       .then(r => r.json())
-      .then(d => {
-        if (d.setups && d.setups.length > 0) {
-          setSetups(d.setups)
-          setLastScan(d.cachedAt || new Date().toISOString())
+      .then(rows => {
+        if (rows?.[0]?.result) {
+          const d = typeof rows[0].result === 'string' ? JSON.parse(rows[0].result) : rows[0].result
+          if (d.setups?.length > 0) {
+            setSetups(d.setups)
+            setLastScan(rows[0].created_at)
+          }
         }
       })
       .catch(() => {})
