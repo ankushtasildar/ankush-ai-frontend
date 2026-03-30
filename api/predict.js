@@ -38,6 +38,20 @@ async function supaInsert(table, row) {
 
 // ── Helper: Polygon fetch ──
 
+// Utility: fetch from Polygon API with key
+async function polyFetch(url) {
+  const POLY = process.env.POLYGON_API_KEY;
+  try {
+    const sep = url.includes("?") ? "&" : "?";
+    const res = await fetch(url + sep + "apiKey=" + POLY);
+    if (!res.ok) return null;
+    return res.json();
+  } catch (e) {
+    console.log("[polyFetch] failed:", e.message);
+    return null;
+  }
+}
+
 // FORTIFIED getPriceData v6 - NEVER FAILS
 // Uses /api/market 4-source waterfall + Polygon bars + Yahoo bars fallback
 
