@@ -97,7 +97,7 @@ export default function Predict(){
       .then(r=>r.json())
       .then(d=>{d.error?setError(d.error):setData(d)
       // Priya: persist to local history (last 5)
-      const entry={sym:s,thesis:d.leadingThesis?.substring(0,100),confidence:d.confidence,edgeScore:d.edgeScore,ts:Date.now()}
+      const entry={sym:s,thesis:d.leadingThesis?.substring(0,100),confidence:(d.sentiment?.confidence||d.confidence),edgeScore:d.edgeScore,ts:Date.now()}
       setHistory(prev=>{const next=[entry,...prev.filter(x=>x.sym!==s)].slice(0,5);localStorage.setItem('alpha_history',JSON.stringify(next));return next})})
       .catch(e=>setError(e.message))
       .finally(()=>setLoading(false))
@@ -189,7 +189,7 @@ export default function Predict(){
               <div>
                 <span style={{fontSize:28,fontWeight:700,cursor:'pointer',color:'var(--accent)'}} onClick={()=>nav('/app/charts?symbol='+data.symbol)}>{data.symbol}</span>
                 <button onClick={()=>{
-                  const txt=data.symbol+' $'+Number(data.currentPrice).toFixed(2)+' | '+(data.sentiment?.overall||'').toUpperCase()+' | Confidence: '+data.confidence+'% | Edge: '+data.edgeScore+'/100 | '+(data.leadingThesis||'').substring(0,100)+'... via AnkushAI ankushai.org'
+                  const txt=data.symbol+' $'+Number(data.currentPrice).toFixed(2)+' | '+(data.sentiment?.overall||'').toUpperCase()+' | Confidence: '+(data.sentiment?.confidence||data.confidence)+'% | Edge: '+data.edgeScore+'/100 | '+(data.leadingThesis||'').substring(0,100)+'... via AnkushAI ankushai.org'
                   navigator.clipboard?.writeText(txt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500)}).catch(()=>{})
                 }} style={{marginLeft:10,background:copied?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',border:'1px solid '+(copied?'rgba(16,185,129,0.4)':'rgba(255,255,255,0.1)'),borderRadius:7,padding:'5px 11px',color:copied?'#10b981':'#8899aa',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
                   {copied?'✓ Copied':'⎘ Share'}
@@ -198,7 +198,7 @@ export default function Predict(){
                 <span style={{fontSize:14,color:sc,marginLeft:12,textTransform:'capitalize',fontWeight:600}}>{sent&&sent.overall}</span>
               </div>
               <div style={{display:'flex',gap:20}}>
-                {[['Confidence',data.confidence+'%',sc],['Edge',(data.edgeScore||0)+'/100',data.edgeScore>=70?'#10b981':data.edgeScore>=50?'#f59e0b':'#ef4444']].map(([l,v,c])=>(
+                {[['Confidence',(data.sentiment?.confidence||data.confidence)+'%',sc],['Edge',(data.edgeScore||0)+'/100',data.edgeScore>=70?'#10b981':data.edgeScore>=50?'#f59e0b':'#ef4444']].map(([l,v,c])=>(
                   <div key={l} style={{textAlign:'center'}}>
                     <div style={{fontSize:10,color:'var(--text-muted)',textTransform:'uppercase'}}>{l}</div>
                     <div style={{fontSize:20,fontWeight:700,color:c}}>{v}</div>
