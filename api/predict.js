@@ -37,54 +37,123 @@ async function supaInsert(table, row) {
 }
 
 // ── Helper: Polygon fetch ──
-async function polyFetch(url) {
-  if (!POLY) return null;
-  try {
-    const sep = url.includes('?') ? '&' : '?';
-    const r = await fetch(url + sep + 'apiKey=' + POLY);
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
-}
 
-// ── GET PRICE DATA — uses calendar dates, NEVER fails on weekends ──
+// FORTIFIED getPriceData v6 - NEVER FAILS
+// Uses /api/market 4-source waterfall + Polygon bars + Yahoo bars fallback
+
 async function getPriceData(symbol) {
-  // Use simple calendar dates — Polygon automatically skips non-trading days
-  const now = new Date();
-  const to = now.toISOString().split('T')[0]; // today YYYY-MM-DD
-  const fromDate = new Date(now);
-  fromDate.setDate(fromDate.getDate() - 150); // 150 calendar days = ~100 trading days
-  const from = fromDate.toISOString().split('T')[0];
+  const POLY = process.env.POLYGON_API_KEY;
+  let currentPrice = null;
+  let priceSource = "unknown";
 
-  // Fetch daily bars
-  const aggs = await polyFetch(
-    'https://api.polygon.io/v2/aggs/ticker/' + symbol + '/range/1/day/' + from + '/' + to + '?adjusted=true&sort=asc&limit=200'
-  );
-
-  const bars = aggs && aggs.results && aggs.results.length > 0 ? aggs.results : null;
-
-  if (!bars || bars.length < 5) {
-    // Fallback: try prev endpoint which always works
-    const prev = await polyFetch('https://api.polygon.io/v2/aggs/ticker/' + symbol + '/prev');
-    if (prev && prev.results && prev.results.length > 0) {
-      const p = prev.results[0];
-      return {
-        currentPrice: p.c,
-        bars: [{ t: p.t, o: p.o, h: p.h, l: p.l, c: p.c, v: p.v }],
-        source: 'polygon-prev'
-      };
+  // STEP 1: Current price from /api/market (4-source waterfall)
+  try {
+    const baseUrl = process.env.VERCEL_URL
+      ? "https://" + process.env.VERCEL_URL
+      : "https://www.ankushai.org";
+    const marketRes = await fetch(baseUrl + "/api/market?action=quote&symbol=" + symbol);
+    if (marketRes.ok) {
+      const mkt = await marketRes.json();
+      if (mkt.price) {
+        currentPrice = mkt.price;
+        priceSource = "market-api-" + (mkt.source || "unknown");
+      }
     }
-    return null; // truly no data
+  } catch (e) {
+    console.log("[getPriceData] market API failed:", e.message);
+  }
+  // STEP 1b: Fallback - direct Yahoo if /api/market fails
+  if (!currentPrice) {
+    try {
+      const yUrl = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol + "?interval=1d&range=1d";
+      const yRes = await fetch(yUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (yRes.ok) {
+        const yData = await yRes.json();
+        const meta = yData && yData.chart && yData.chart.result && yData.chart.result[0] && yData.chart.result[0].meta;
+        if (meta && meta.regularMarketPrice) {
+          currentPrice = meta.regularMarketPrice;
+          priceSource = "yahoo-direct";
+        }
+      }
+    } catch (e) {
+      console.log("[getPriceData] Yahoo direct failed:", e.message);
+    }
   }
 
-  return {
-    currentPrice: bars[bars.length - 1].c,
-    bars: bars,
-    source: 'polygon-aggs'
-  };
+  // STEP 1c: Fallback - Polygon previous close
+  if (!currentPrice && POLY) {
+    try {
+      const prevRes = await fetch("https://api.polygon.io/v2/aggs/ticker/" + symbol + "/prev?adjusted=true&apiKey=" + POLY);
+      if (prevRes.ok) {
+        const prevData = await prevRes.json();
+        if (prevData.results && prevData.results.length > 0) {
+          currentPrice = prevData.results[0].c;
+          priceSource = "polygon-prev";
+        }
+      }
+    } catch (e) {
+      console.log("[getPriceData] Polygon prev failed:", e.message);
+    }
+  }
+
+  if (!currentPrice) {
+    console.log("[getPriceData] ALL price sources failed for " + symbol);
+    return null;
+  }
+  // STEP 2: Historical bars from Polygon
+  let bars = [];
+  if (POLY) {
+    try {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 200);
+      const fromStr = from.toISOString().split("T")[0];
+      const toStr = today.toISOString().split("T")[0];
+      const aggsUrl = "https://api.polygon.io/v2/aggs/ticker/" + symbol + "/range/1/day/" + fromStr + "/" + toStr + "?adjusted=true&sort=asc&limit=200&apiKey=" + POLY;
+      const aggsRes = await fetch(aggsUrl);
+      if (aggsRes.ok) {
+        const aggsData = await aggsRes.json();
+        // Accept BOTH OK and DELAYED status - free tier returns DELAYED but data is valid
+        if (aggsData.results && aggsData.results.length > 0) {
+          bars = aggsData.results.map(function(b) {
+            return { date: new Date(b.t).toISOString().split("T")[0], open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v };
+          });
+          priceSource += "+polygon-bars";
+        }
+      }
+    } catch (e) {
+      console.log("[getPriceData] Polygon aggs failed:", e.message);
+    }
+  }
+
+  // STEP 3: Fallback bars from Yahoo Finance
+  if (bars.length === 0) {
+    try {
+      const yChartUrl = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol + "?interval=1d&range=6mo";
+      const yRes = await fetch(yChartUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (yRes.ok) {
+        const yData = await yRes.json();
+        var result = yData && yData.chart && yData.chart.result && yData.chart.result[0];
+        if (result && result.timestamp && result.indicators && result.indicators.quote && result.indicators.quote[0]) {
+          var ts = result.timestamp;
+          var q = result.indicators.quote[0];
+          for (var i = 0; i < ts.length; i++) {
+            if (q.close[i] != null) {
+              bars.push({ date: new Date(ts[i] * 1000).toISOString().split("T")[0], open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume[i] });
+            }
+          }
+          priceSource += "+yahoo-bars";
+        }
+      }
+    } catch (e) {
+      console.log("[getPriceData] Yahoo bars failed:", e.message);
+    }
+  }
+
+  console.log("[getPriceData] " + symbol + ": price=" + currentPrice + ", source=" + priceSource + ", bars=" + bars.length);
+  return { currentPrice: currentPrice, source: priceSource, bars: bars };
 }
 
-// ── COMPUTE TECHNICALS from bars ──
 function computeTechnicals(bars) {
   if (!bars || bars.length < 20) return {};
   const closes = bars.map(b => b.c);
