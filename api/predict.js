@@ -249,6 +249,9 @@ function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, 
 
 // ── MAIN HANDLER ──
 module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+
   const symbol = (req.query.symbol || 'SPY').toUpperCase();
   const style = req.query.style || 'swing';
 
