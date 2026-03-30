@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /landing.html
+Disallow: /app/
+Disallow: /api/
+
+Sitemap: https://www.ankushai.org/sitemap.xml
