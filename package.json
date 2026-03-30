@@ -1,6 +1,6 @@
 {
   "name": "ankush-ai",
-  "version": "1.0.0",
+  "version": "1.0.422",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",
