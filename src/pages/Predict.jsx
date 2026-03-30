@@ -93,7 +93,7 @@ export default function Predict(){
     const s=sym.trim().toUpperCase()
     if(!s)return
     setLoading(true);setError(null);setData(null)
-    fetch('/api/predict?symbol='+s,{signal:AbortSignal.timeout(120000)})
+    fetch('/api/predict?symbol='+s+'&_t='+Date.now(),{signal:AbortSignal.timeout(120000)})
       .then(r=>r.json())
       .then(d=>{d.error?setError(d.error):setData(d)
       // Priya: persist to local history (last 5)
