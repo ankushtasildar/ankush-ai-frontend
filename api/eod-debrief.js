@@ -1,7 +1,16 @@
-const { createClient } = require('@supabase/supabase-js')
+// EOD Debrief v2 - plain fetch for Supabase (SDK is ESM-only)
 const Anthropic = require('@anthropic-ai/sdk')
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
+async function supaGet(table, query) {
+  if (!SUPA_URL || !SUPA_KEY) return []
+  try { const r = await fetch(SUPA_URL + '/rest/v1/' + table + '?' + query, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } }); return r.ok ? await r.json() : [] } catch { return [] }
+}
+async function supaInsert(table, row) {
+  if (!SUPA_URL || !SUPA_KEY) return
+  try { await fetch(SUPA_URL + '/rest/v1/' + table, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(row) }) } catch {}
+}
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const cors = { 'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization' }
 
@@ -58,6 +67,8 @@ async function getMacroEventsThisWeek() {
 }
 
 module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('CDN-Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') { Object.entries(cors).forEach(([k,v]) => res.setHeader(k,v)); return res.status(200).end() }
   Object.entries(cors).forEach(([k,v]) => res.setHeader(k,v))
 
