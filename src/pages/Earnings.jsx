@@ -33,7 +33,7 @@ function ivTier(rank) {
   return { label: 'LOW', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' }
 }
 
-// ── EARNINGS CARD (Bloomberg-style dense layout) ─────────────────────────────
+// ââ EARNINGS CARD (Bloomberg-style dense layout) âââââââââââââââââââââââââââââ
 function EarningsCard({ item, onAnalyze, analysisData, analyzing }) {
   const daysTo = Math.round((new Date(item.date + 'T00:00:00') - new Date(TODAY.toDateString())) / 86400000)
   const isToday = daysTo === 0
@@ -131,7 +131,7 @@ function EarningsCard({ item, onAnalyze, analysisData, analyzing }) {
   )
 }
 
-// ── MAIN EARNINGS PAGE ───────────────────────────────────────────────────────
+// ââ MAIN EARNINGS PAGE âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export default function Earnings() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -141,16 +141,16 @@ export default function Earnings() {
   const [viewMode, setViewMode] = useState('grid') // grid or list
 
   const SEEDED_EARNINGS = [
-    { symbol: 'NKE', name: 'Nike Inc', date: dateStr(addDays(TODAY, 1)), time: 'amc', epsEstimate: 0.29, beatsLast8: 75, expectedMove: 8.2, avgMove: 9.1, ivRank: 72, strategy: 'High IV \u2014 Sell iron condor, avoid buying premium' },
-    { symbol: 'MU', name: 'Micron Technology', date: dateStr(addDays(TODAY, 2)), time: 'amc', epsEstimate: 1.43, beatsLast8: 62, expectedMove: 9.8, avgMove: 11.2, ivRank: 81, strategy: 'IV rank 81 \u2014 sell credit spread, target IV crush' },
-    { symbol: 'ORCL', name: 'Oracle Corp', date: dateStr(addDays(TODAY, 3)), time: 'amc', epsEstimate: 1.47, beatsLast8: 87, expectedMove: 7.1, avgMove: 6.8, ivRank: 58, strategy: 'Strong beat history \u2014 buy calls 2 weeks before, close before earnings' },
-    { symbol: 'ACN', name: 'Accenture', date: dateStr(addDays(TODAY, 4)), time: 'bmo', epsEstimate: 2.82, beatsLast8: 100, expectedMove: 4.2, avgMove: 4.8, ivRank: 38, strategy: 'Consistent beater \u2014 consider buying calls if IV rank < 40' },
-    { symbol: 'FDX', name: 'FedEx Corp', date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 4.01, beatsLast8: 62, expectedMove: 6.3, avgMove: 7.9, ivRank: 44, strategy: 'Mixed history \u2014 wait for reaction, trade post-earnings' },
-    { symbol: 'LULU', name: 'lululemon', date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 5.92, beatsLast8: 87, expectedMove: 8.9, avgMove: 10.2, ivRank: 69, strategy: 'Consider debit spread to limit IV crush risk' },
-    { symbol: 'WBA', name: 'Walgreens', date: dateStr(addDays(TODAY, 8)), time: 'bmo', epsEstimate: -0.06, beatsLast8: 37, expectedMove: 5.1, avgMove: 6.8, ivRank: 45, strategy: 'Turnaround story \u2014 high uncertainty, avoid directional' },
-    { symbol: 'COST', name: 'Costco', date: dateStr(addDays(TODAY, 10)), time: 'amc', epsEstimate: 4.11, beatsLast8: 87, expectedMove: 3.8, avgMove: 4.1, ivRank: 31, strategy: 'Reliable compounder \u2014 low expected move, buy calls if IV cheap' },
-    { symbol: 'PAYX', name: 'Paychex', date: dateStr(addDays(TODAY, 11)), time: 'bmo', epsEstimate: 1.41, beatsLast8: 75, expectedMove: 3.1, avgMove: 3.8, ivRank: 22, strategy: 'IV rank 22 \u2014 buy options if needed, very cheap premium' },
-    { symbol: 'PVH', name: 'PVH Corp', date: dateStr(addDays(TODAY, 12)), time: 'amc', epsEstimate: 2.89, beatsLast8: 62, expectedMove: 7.2, avgMove: 9.4, ivRank: 53, strategy: 'Volatile name \u2014 iron condor at edges of expected move' },
+    { symbol: 'NKE', name: 'Nike Inc', entryLeadDays: 0, date: dateStr(addDays(TODAY, 1)), time: 'amc', epsEstimate: 0.29, beatsLast8: 75, expectedMove: 8.2, avgMove: 9.1, ivRank: 72, strategy: 'High IV \u2014 Sell iron condor, avoid buying premium' },
+    { symbol: 'MU', name: 'Micron Technology', entryLeadDays: 0, date: dateStr(addDays(TODAY, 2)), time: 'amc', epsEstimate: 1.43, beatsLast8: 62, expectedMove: 9.8, avgMove: 11.2, ivRank: 81, strategy: 'IV rank 81 \u2014 sell credit spread, target IV crush' },
+    { symbol: 'ORCL', name: 'Oracle Corp', entryLeadDays: 14, date: dateStr(addDays(TODAY, 3)), time: 'amc', epsEstimate: 1.47, beatsLast8: 87, expectedMove: 7.1, avgMove: 6.8, ivRank: 58, strategy: 'Strong beat history \u2014 buy calls 2 weeks before, close before earnings' },
+    { symbol: 'ACN', name: 'Accenture', entryLeadDays: 7, date: dateStr(addDays(TODAY, 4)), time: 'bmo', epsEstimate: 2.82, beatsLast8: 100, expectedMove: 4.2, avgMove: 4.8, ivRank: 38, strategy: 'Consistent beater \u2014 consider buying calls if IV rank < 40' },
+    { symbol: 'FDX', name: 'FedEx Corp', entryLeadDays: 0, date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 4.01, beatsLast8: 62, expectedMove: 6.3, avgMove: 7.9, ivRank: 44, strategy: 'Mixed history \u2014 wait for reaction, trade post-earnings' },
+    { symbol: 'LULU', name: 'lululemon', entryLeadDays: 7, date: dateStr(addDays(TODAY, 7)), time: 'amc', epsEstimate: 5.92, beatsLast8: 87, expectedMove: 8.9, avgMove: 10.2, ivRank: 69, strategy: 'Consider debit spread to limit IV crush risk' },
+    { symbol: 'WBA', name: 'Walgreens', entryLeadDays: 0, date: dateStr(addDays(TODAY, 8)), time: 'bmo', epsEstimate: -0.06, beatsLast8: 37, expectedMove: 5.1, avgMove: 6.8, ivRank: 45, strategy: 'Turnaround story \u2014 high uncertainty, avoid directional' },
+    { symbol: 'COST', name: 'Costco', entryLeadDays: 14, date: dateStr(addDays(TODAY, 10)), time: 'amc', epsEstimate: 4.11, beatsLast8: 87, expectedMove: 3.8, avgMove: 4.1, ivRank: 31, strategy: 'Reliable compounder \u2014 low expected move, buy calls if IV cheap' },
+    { symbol: 'PAYX', name: 'Paychex', entryLeadDays: 7, date: dateStr(addDays(TODAY, 11)), time: 'bmo', epsEstimate: 1.41, beatsLast8: 75, expectedMove: 3.1, avgMove: 3.8, ivRank: 22, strategy: 'IV rank 22 \u2014 buy options if needed, very cheap premium' },
+    { symbol: 'PVH', name: 'PVH Corp', entryLeadDays: 0, date: dateStr(addDays(TODAY, 12)), time: 'amc', epsEstimate: 2.89, beatsLast8: 62, expectedMove: 7.2, avgMove: 9.4, ivRank: 53, strategy: 'Volatile name \u2014 iron condor at edges of expected move' },
   ]
 
   useEffect(() => { loadEarnings() }, [])
@@ -230,7 +230,7 @@ export default function Earnings() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Earnings Calendar</h1>
-          <div style={{ fontSize: 11, color: '#4a5c7a', marginTop: 2 }}>IV analysis \u00B7 Expected moves \u00B7 AI strategy recommendations \u00B7 Historical patterns</div>
+          <div style={{ fontSize: 11, color: '#4a5c7a', marginTop: 2 }}>IV analysis · Expected moves · AI strategy recommendations · Historical patterns</div>
         </div>
       </div>
 
@@ -249,6 +249,10 @@ export default function Earnings() {
           </div>
         ))}
       </div>
+
+
+      {/* Pre-Earnings Plays: entry windows open NOW */}
+{(() => { const now = new Date(); const plays = events.filter(e => { if (!e.entryLeadDays || e.entryLeadDays <= 0) return false; const er = new Date(e.date + "T00:00:00"); const entry = new Date(er.getTime() - e.entryLeadDays * 86400000); const exit = new Date(er.getTime() - 86400000); return now >= entry && now <= exit }); if (plays.length === 0) return null; return (<div style={{ marginBottom: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }} /><span style={{ fontWeight: 700, fontSize: 12, color: "#10b981" }}>Pre-earnings plays — entry window open</span><span style={{ fontSize: 9, color: "#3d4e62", fontFamily: "var(--font-mono)" }}>{plays.length} active</span></div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 8 }}>{plays.map(item => { const erD = new Date(item.date + "T00:00:00"); const daysToER = Math.round((erD - now) / 86400000); return (<div key={item.symbol + "_pre"} style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 10, padding: "10px 14px" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 800, color: "#f0f6ff" }}>{item.symbol}</span><span style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 4, padding: "1px 6px", color: "#10b981", fontSize: 8, fontFamily: "var(--font-mono)", fontWeight: 700 }}>ENTER NOW</span></div><span style={{ fontSize: 9, color: "#4a5c7a", fontFamily: "var(--font-mono)" }}>ER in {daysToER}d</span></div><div style={{ fontSize: 10, color: "#10b981", marginBottom: 4, fontWeight: 500 }}>{item.strategy}</div><div style={{ fontSize: 9, color: "#4a5c7a", fontFamily: "var(--font-mono)" }}>IV Rank: {item.ivRank || "--"}</div></div>) })}</div></div>) })()}
 
       {/* Filter tabs + view toggle */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
