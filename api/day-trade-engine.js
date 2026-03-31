@@ -381,7 +381,7 @@ function gapAnalysis(dailyBars, intradayBars) {
     gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
 }
 
-// == ADX â TREND STRENGTH (Dr. Lisa Park) ====================================
+// == ADX Ã¢ÂÂ TREND STRENGTH (Dr. Lisa Park) ====================================
 function adxCalc(bars) {
   if(!bars||bars.length<28)return{adx:null,trending:false};
   var period=14,pDM=[],nDM=[],tr=[];
@@ -431,8 +431,136 @@ function computeAVWAPs(dailyBars) {
   return avwaps;
 }
 
+
+// == OPTIONS PRICING + GREEKS (Victoria Chang + Dr. Nikolai Petrov) ===========
+// Black-Scholes estimator + Polygon chain data + Yahoo fallback
+// Enables: "the 480C at $1.50 could reach $X if QQQ moves to $Y"
+
+// Standard normal CDF approximation (Abramowitz & Stegun)
+function normCDF(x) {
+  var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  var sign=x<0?-1:1; x=Math.abs(x)/Math.sqrt(2);
+  var t=1/(1+p*x);
+  var y=1-((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5*(1+sign*y);
+}
+
+// Black-Scholes pricing + Greeks
+function blackScholes(S, K, T, r, sigma, type) {
+  // S=spot, K=strike, T=years to expiry, r=risk-free rate, sigma=annual vol, type="call"|"put"
+  if (T <= 0 || sigma <= 0) return { price: Math.max(0, type==="call" ? S-K : K-S), delta: type==="call"?1:(-1), gamma: 0, theta: 0, vega: 0, iv: sigma };
+  var d1 = (Math.log(S/K) + (r + sigma*sigma/2)*T) / (sigma*Math.sqrt(T));
+  var d2 = d1 - sigma*Math.sqrt(T);
+  var price, delta;
+  if (type === "call") {
+    price = S*normCDF(d1) - K*Math.exp(-r*T)*normCDF(d2);
+    delta = normCDF(d1);
+  } else {
+    price = K*Math.exp(-r*T)*normCDF(-d2) - S*normCDF(-d1);
+    delta = normCDF(d1) - 1;
+  }
+  // Greeks
+  var nd1 = Math.exp(-d1*d1/2) / Math.sqrt(2*Math.PI); // PDF of d1
+  var gamma = nd1 / (S*sigma*Math.sqrt(T));
+  var theta = -(S*nd1*sigma)/(2*Math.sqrt(T)) - (type==="call"?1:-1)*r*K*Math.exp(-r*T)*normCDF((type==="call"?1:-1)*d2);
+  theta = theta / 365; // daily theta
+  var vega = S*nd1*Math.sqrt(T) / 100; // per 1% vol change
+  return { price: +price.toFixed(4), delta: +delta.toFixed(4), gamma: +gamma.toFixed(6), theta: +theta.toFixed(4), vega: +vega.toFixed(4), iv: sigma };
+}
+
+// Scenario calculator: if QQQ moves to targetPrice, what happens to the option?
+function optionScenario(currentQQQ, strike, dte, vol, type, targetQQQ, targetDte) {
+  var r = 0.053; // ~5.3% risk-free rate
+  var T_now = dte / 365;
+  var T_target = (targetDte !== undefined ? targetDte : Math.max(0, dte - 1)) / 365;
+  var now = blackScholes(currentQQQ, strike, T_now, r, vol, type);
+  var then = blackScholes(targetQQQ, strike, T_target, r, vol, type);
+  return {
+    current: { qqqPrice: currentQQQ, optionPrice: now.price, delta: now.delta, gamma: now.gamma, theta: now.theta },
+    projected: { qqqPrice: targetQQQ, optionPrice: then.price, delta: then.delta, gamma: then.gamma, theta: then.theta },
+    change: { qqqMove: +(targetQQQ - currentQQQ).toFixed(2), qqqMovePct: +((targetQQQ - currentQQQ) / currentQQQ * 100).toFixed(2),
+      optionMove: +(then.price - now.price).toFixed(4), optionMovePct: now.price > 0 ? +((then.price - now.price) / now.price * 100).toFixed(1) : 0 }
+  };
+}
+
+// Fetch QQQ options chain via Yahoo Finance (server-side, free)
+async function fetchOptionsChain(symbol) {
+  try {
+    var r = await fetchJ("https://query1.finance.yahoo.com/v7/finance/options/" + symbol);
+    var chain = r.optionChain && r.optionChain.result && r.optionChain.result[0];
+    if (!chain) return { available: false };
+    var calls = chain.options && chain.options[0] ? chain.options[0].calls || [] : [];
+    var puts = chain.options && chain.options[0] ? chain.options[0].puts || [] : [];
+    var expirations = (chain.expirationDates || []).map(function(ts) { return new Date(ts * 1000).toISOString().split("T")[0]; });
+    // Find ATM strike (closest to current price)
+    var quote = chain.quote || {};
+    var price = quote.regularMarketPrice || 0;
+    // Get calls near the money (5 strikes above and below)
+    var atmCalls = calls.filter(function(c) { return Math.abs(c.strike - price) <= 10; }).slice(0, 10);
+    var atmPuts = puts.filter(function(p) { return Math.abs(p.strike - price) <= 10; }).slice(0, 10);
+    return {
+      available: true,
+      price: price,
+      expirations: expirations.slice(0, 8),
+      nearestExpiry: expirations[0],
+      atmCalls: atmCalls.map(function(c) { return { strike: c.strike, last: c.lastPrice, bid: c.bid, ask: c.ask, iv: c.impliedVolatility ? +(c.impliedVolatility * 100).toFixed(1) : null, vol: c.volume, oi: c.openInterest }; }),
+      atmPuts: atmPuts.map(function(p) { return { strike: p.strike, last: p.lastPrice, bid: p.bid, ask: p.ask, iv: p.impliedVolatility ? +(p.impliedVolatility * 100).toFixed(1) : null, vol: p.volume, oi: p.openInterest }; }),
+      totalCalls: calls.length,
+      totalPuts: puts.length
+    };
+  } catch (e) { return { available: false, error: e.message }; }
+}
+
+// Compute historical volatility from daily bars (for Black-Scholes input)
+function historicalVol(dailyBars, lookback) {
+  if (!dailyBars || dailyBars.length < (lookback || 20) + 1) return 0.3; // default 30%
+  var n = lookback || 20;
+  var returns = [];
+  for (var i = dailyBars.length - n; i < dailyBars.length; i++) {
+    if (dailyBars[i - 1] && dailyBars[i - 1].c > 0) returns.push(Math.log(dailyBars[i].c / dailyBars[i - 1].c));
+  }
+  if (returns.length < 5) return 0.3;
+  var mean = returns.reduce(function(a, b) { return a + b; }, 0) / returns.length;
+  var variance = returns.reduce(function(a, b) { return a + Math.pow(b - mean, 2); }, 0) / (returns.length - 1);
+  return +((Math.sqrt(variance) * Math.sqrt(252))).toFixed(4); // annualized
+}
+
+// Full options analysis for a QQQ trade
+async function optionsAnalysis(dailyBars, trade) {
+  var qqqPrice = dailyBars && dailyBars.length > 0 ? dailyBars[dailyBars.length - 1].c : 0;
+  var hv = historicalVol(dailyBars, 20);
+  var result = { qqqPrice: qqqPrice, historicalVol: +(hv * 100).toFixed(1) + "%", chain: null, estimates: {} };
+  // Try to get real chain data
+  result.chain = await fetchOptionsChain("QQQ");
+  // If trade has strike info, compute estimates
+  if (trade && trade.strike) {
+    var dte = trade.expiry ? Math.max(0, Math.ceil((new Date(trade.expiry) - new Date()) / 86400000)) : 1;
+    if (trade.date && trade.expiry) dte = Math.max(0, Math.ceil((new Date(trade.expiry) - new Date(trade.date)) / 86400000));
+    var type = (trade.direction || "call").toLowerCase().includes("put") ? "put" : "call";
+    var iv = hv * 1.15; // IV typically 15% above HV
+    // Use chain IV if available
+    if (result.chain && result.chain.available && result.chain.atmCalls) {
+      var matching = (type === "call" ? result.chain.atmCalls : result.chain.atmPuts).find(function(c) { return c.strike === trade.strike; });
+      if (matching && matching.iv) iv = matching.iv / 100;
+    }
+    var atEntry = blackScholes(trade.qqqAtEntry || qqqPrice, trade.strike, dte / 365, 0.053, iv, type);
+    result.estimates.atEntry = atEntry;
+    result.estimates.iv = +(iv * 100).toFixed(1) + "%";
+    result.estimates.dte = dte;
+    // Scenario: if QQQ moves ±$2, ±$5
+    var base = trade.qqqAtEntry || qqqPrice;
+    result.estimates.scenarios = [
+      { label: "QQQ +$2", result: optionScenario(base, trade.strike, dte, iv, type, base + 2) },
+      { label: "QQQ +$5", result: optionScenario(base, trade.strike, dte, iv, type, base + 5) },
+      { label: "QQQ -$2", result: optionScenario(base, trade.strike, dte, iv, type, base - 2) },
+      { label: "QQQ -$5", result: optionScenario(base, trade.strike, dte, iv, type, base - 5) },
+    ];
+  }
+  return result;
+}
+
 // == FULL ANALYSIS PIPELINE ===================================================
-async function fullAnalysis(symbol, dateStr, entryTimePST) {
+async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
   var mtf = await fetchMultiTF(symbol, dateStr);
   var allTfData = {};
   Object.keys(mtf.tf).forEach(function(tf) {
@@ -462,7 +590,8 @@ async function fullAnalysis(symbol, dateStr, entryTimePST) {
     }));
     lr.forEach(function(r){if(r.status==='fulfilled')leaders[r.value.sym]=r.value.chg+'%'});
   }catch(e){}
-  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,todEdge:todEdge,leaders:leaders};
+  var options = await optionsAnalysis(mtf.tf['daily']||[], trade);
+  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,todEdge:todEdge,leaders:leaders,options:options};
 }
 
 // == LOG TRADE ================================================================
@@ -475,7 +604,7 @@ async function logTrade(body) {
 // == BACKTEST + AI (Claude strategy discovery) ================================
 async function backtest(body) {
   var td=typeof body==='string'?JSON.parse(body):body;
-  var analysis=await fullAnalysis('QQQ',td.date,td.entryTime);
+  var analysis=await fullAnalysis('QQQ',td.date,td.entryTime,td);
 
   if(!ANTHROPIC_KEY)return{analysis:analysis,trade:td,ai:{error:'No API key'}};
 
@@ -490,7 +619,9 @@ async function backtest(body) {
   'LEVELS: '+JSON.stringify(analysis.levels)+'\n'+
   'GAP: '+JSON.stringify(analysis.gap)+'\n'+
   'ANCHORED VWAPs: '+JSON.stringify(analysis.avwaps)+'\n'+
-  'LEADERS: '+JSON.stringify(analysis.leaders)+'\n\n'+
+  'LEADERS: '+JSON.stringify(analysis.leaders)+'\n'+
+  'OPTIONS: HV='+JSON.stringify(analysis.options?analysis.options.historicalVol:'N/A')+' | Chain available: '+(analysis.options&&analysis.options.chain?analysis.options.chain.available:'N/A')+'\n'+
+  (analysis.options&&analysis.options.estimates?'ESTIMATES: Entry Greeks='+JSON.stringify(analysis.options.estimates.atEntry)+' | IV='+analysis.options.estimates.iv+' | Scenarios='+JSON.stringify(analysis.options.estimates.scenarios)+'\n':'')+'\n'+
   'PER-TIMEFRAME DATA:\n';
 
   Object.keys(analysis.allTfData).forEach(function(tf){
@@ -529,7 +660,7 @@ async function liveScan() {
   var strats=await getStrategies();
   return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,todEdge:analysis.todEdge,levels:analysis.levels,leaders:analysis.leaders,
     perTimeframe:Object.keys(analysis.allTfData).reduce(function(a,k){var d=analysis.allTfData[k];a[k]={bars:d.bars,topCandle:d.candles.length>0?d.candles[d.candles.length-1]:null,topStrat:d.strat.length>0?d.strat[d.strat.length-1]:null,squeeze:d.squeeze,emaCloud:d.ema.cloud||'unknown',macd:d.macd?{cross:d.macd.cross,divergence:d.macd.divergence,histogram:d.macd.histogram}:null,adx:d.adx};return a},{}),
-    gap:analysis.gap,avwaps:analysis.avwaps,learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
+    gap:analysis.gap,avwaps:analysis.avwaps,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol,chainAvailable:analysis.options.chain?analysis.options.chain.available:false,atmCalls:analysis.options.chain&&analysis.options.chain.atmCalls?analysis.options.chain.atmCalls.slice(0,5):null,atmPuts:analysis.options.chain&&analysis.options.chain.atmPuts?analysis.options.chain.atmPuts.slice(0,5):null}:null,learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
 }
 
 // == MAIN HANDLER =============================================================
