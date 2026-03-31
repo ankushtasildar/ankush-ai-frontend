@@ -1,29 +1,8 @@
 {
-  "functions": {
-    "api/ml-trainer.js": {
-      "maxDuration": 60
-    },
-    "api/chart-analysis.js": {
-      "maxDuration": 30
-    },
-    "api/predict.js": {
-      "maxDuration": 60
-    },
-    "api/analysis.js": {
-      "maxDuration": 30
-    },
-    "api/eod-debrief.js": {
-      "maxDuration": 60
-    }
-  },
-  "rewrites": [
+  "crons": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/((?!api).*)",
-      "destination": "/index.html"
+      "path": "/api/cron/weekly-report?admin=true",
+      "schedule": "0 23 * * 0"
     }
   ]
 }
