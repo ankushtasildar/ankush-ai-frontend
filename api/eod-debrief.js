@@ -1,4 +1,5 @@
 // EOD Debrief v2 - plain fetch for Supabase (SDK is ESM-only)
+// Groq-first (Yusuf Okafor: CEO directive)
 const Anthropic = require('@anthropic-ai/sdk')
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
@@ -135,7 +136,18 @@ Generate a professional EOD debrief with these sections:
 
 Be specific, actionable, and institutional-quality. Use actual dollar levels. No generic advice.`
 
-    const result = await anthropic.messages.create({
+    // Groq primary, Anthropic fallback
+    const GROQ_KEY = process.env.GROQ_API_KEY || '';
+    let result;
+    if (GROQ_KEY) {
+      const gr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+        body: JSON.stringify({model:'llama-3.3-70b-versatile',max_tokens:1200,messages:[{role:'system',content:'You are a senior trading performance coach. Provide honest, actionable end-of-day debriefs. Return valid JSON only.'},{role:'user',content:prompt}]})
+      });
+      const gd = await gr.json();
+      result = {content:[{text: gd.choices&&gd.choices[0]&&gd.choices[0].message ? gd.choices[0].message.content : '{}'}]};
+    } else {
+      result = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }]
