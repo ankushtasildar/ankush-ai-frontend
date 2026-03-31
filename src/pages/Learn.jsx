@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Course catalog — AI will personalize order based on user data
+// Course catalog â AI will personalize order based on user data
 const COURSES = [
   { id: 'risk_101', title: 'Risk Management Fundamentals', category: 'Core', difficulty: 'Beginner', lessons: 8, icon: '\u{1F6E1}', color: '#10b981', description: 'Position sizing, stop losses, and the Kelly Criterion', prereq: null,
     cards: [
@@ -193,7 +193,7 @@ export default function Learn() {
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 2px' }}>Learning Center</h1>
-        <div style={{ color: '#3d4e62', fontSize: 11 }}>AI-curated courses \u00B7 Quizlet-style flashcards \u00B7 Personalized to your trading</div>
+        <div style={{ color: '#3d4e62', fontSize: 11 }}>AI-curated courses · Quizlet-style flashcards · Personalized to your trading</div>
       </div>
 
       {/* Stats */}
