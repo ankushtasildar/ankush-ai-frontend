@@ -85,9 +85,9 @@ export default function Overview() {
         const raw = mktR.value
         const ctx = raw.context || {}
         setMkt({
-          spy:  { price: raw.quote && raw.quote.price, change: raw.quote && raw.quote.change, changePct: ctx.spyChange || 0 },
-          qqq:  qqR.status==='fulfilled' && qqR.value && qqR.value.price ? { price: qqR.value.price, change: qqR.value.change, changePct: qqR.value.changePercent } : null,
-          iwm:  iwR.status==='fulfilled' && iwR.value && iwR.value.price ? { price: iwR.value.price, change: iwR.value.change, changePct: iwR.value.changePercent } : null,
+          spy:  { price: raw.quote && raw.quote.price, change: ctx.spyChange ? (raw.quote.price * ctx.spyChange / 100) : (raw.quote && raw.quote.change), changePct: ctx.spyChange || (raw.quote && raw.quote.changePercent) || 0 },
+          qqq:  qqR.status==='fulfilled' && qqR.value && qqR.value.price ? { price: qqR.value.price, change: qqR.value.change, changePct: qqR.value.changePercent || (qqR.value.change && qqR.value.price ? (qqR.value.change / qqR.value.price * 100) : 0) } : null,
+          iwm:  iwR.status==='fulfilled' && iwR.value && iwR.value.price ? { price: iwR.value.price, change: iwR.value.change, changePct: iwR.value.changePercent || (iwR.value.change && iwR.value.price ? (iwR.value.change / iwR.value.price * 100) : 0) } : null,
           vix:  ctx.vix || (raw.vix && raw.vix.vix),
           mood: ctx.mood,
           sectors: raw.sectors || [],
@@ -137,7 +137,7 @@ export default function Overview() {
           <div>
             <div style={{ fontSize:17, fontWeight:700, letterSpacing:-0.5 }}>Market Overview</div>
             <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
-              {isOpen ? <span style={{color:'var(--green)'}}>Market Open</span> : <span style={{color:'var(--text-muted)'}}>{mkt?.session?.label || 'Weekend — Last Session'}</span>}
+              {isOpen ? <span style={{color:'var(--green)'}}>Market Open</span> : <span style={{color:'var(--text-muted)'}}>{mkt?.session?.label || '' + (new Date().getDay()===0||new Date().getDay()===6 ? 'Weekend' : 'After Hours') + ' \u2014 Last Session'}</span>}
               {lastUpdate && ' -- ' + lastUpdate.toLocaleTimeString()}
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function Overview() {
               </div>
               <span style={{ fontSize:12, color:'var(--text-muted)' }}>{Math.max(0, 2-scanUsed)} free scan{2-scanUsed!==1?'s':''} remaining today</span>
             </div>
-            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited →</a>
+            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited â</a>
           </div>
         )}
         
@@ -188,6 +188,14 @@ export default function Overview() {
             </div>
           )}
         </div>
+
+        {/* Sentiment banner */}
+        {mkt && (
+          <div style={{ background:'rgba(124,58,237,0.06)', border:'1px solid rgba(124,58,237,0.12)', borderRadius:8, padding:'8px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)', textTransform:'uppercase', letterSpacing:1 }}>SENTIMENT</span>
+            <span style={{ fontSize:12, color:'var(--text-secondary)' }}>{mkt.regime ? (mkt.regime + (mkt.leader ? ' \u2014 ' + mkt.leader + ' leading' : '')) : (vix > 30 ? 'Elevated fear \u2014 caution warranted' : vix > 20 ? 'Market cautious' : 'Low fear environment')}{mkt.advancing && mkt.declining ? ' \u2014 ' + mkt.advancing + ' advancing, ' + mkt.declining + ' declining' : ''}</span>
+          </div>
+        )}
 
         {/* 3-col grid */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
@@ -238,7 +246,7 @@ export default function Overview() {
                 {(portfolio.trades === 0 || portfolio.trades == null) && (
                   <div style={{ marginTop:10, padding:'8px 10px', background:'rgba(37,99,235,0.06)', borderRadius:7, border:'1px solid rgba(37,99,235,0.12)', textAlign:'center' }}>
                     <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Track your edge over time</div>
-                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade →</a>
+                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade â</a>
                   </div>
                 )}
               </div>
