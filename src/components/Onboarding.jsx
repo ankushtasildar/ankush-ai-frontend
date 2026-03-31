@@ -4,45 +4,37 @@ import { supabase } from '../lib/supabase'
 const STEPS = [
   {
     id: 'welcome',
-    icon: '⚡',
+    icon: '\u26A1',
     title: "Welcome to AnkushAI",
-    sub: "You're now part of an elite group of traders with institutional-grade intelligence at their fingertips.",
+    sub: "Your AI-powered trading intelligence platform. Real-time market analysis, AI coaching, and performance tracking \u2014 all in one place.",
     cta: "Let's get started",
   },
   {
     id: 'explore',
-    icon: '🗺️',
+    icon: '\uD83D\uDDFA\uFE0F',
     title: "Your command center",
-    sub: "Four powerful modules built for serious traders.",
+    sub: "Five powerful modules built for serious traders.",
     features: [
-      { icon: '⚡', label: 'Overview', desc: 'Your real-time P&L dashboard with market pulse' },
-      { icon: '📡', label: 'Signals', desc: 'AI-scored live trading signals with entry levels' },
-      { icon: '📓', label: 'Journal', desc: 'Trade logging with equity curve analytics' },
-      { icon: '💼', label: 'Portfolio', desc: 'Live holdings tracker with allocation analysis' },
+      { icon: '\u26A1', label: 'Overview', desc: 'Live market dashboard with SPY/QQQ/VIX and sector heatmap' },
+      { icon: '\uD83E\uDDE0', label: 'Alpha Intelligence', desc: 'AI-powered predictions with confidence scores' },
+      { icon: '\uD83D\uDCD3', label: 'Journal', desc: 'AI coaching, trade logging, and pattern analysis' },
+      { icon: '\uD83D\uDCC8', label: 'Sectors', desc: 'Real-time sector heatmap with 138 stocks' },
     ],
     cta: 'Got it',
   },
   {
-    id: 'shortcuts',
-    icon: '⌨️',
-    title: "Work at the speed of thought",
-    sub: "Keyboard shortcuts let you navigate like a pro.",
-    shortcuts: [
-      { key: '1', desc: 'Go to Overview' },
-      { key: '2', desc: 'Go to Signals' },
-      { key: '3', desc: 'Go to Portfolio' },
-      { key: '4', desc: 'Go to Journal' },
-      { key: '[', desc: 'Toggle sidebar' },
-      { key: '?', desc: 'Show all shortcuts' },
-    ],
-    cta: "I'm ready",
+    id: 'journal',
+    icon: '\uD83D\uDCD3',
+    title: "Your AI trading coach",
+    sub: "The Journal is where the magic happens. Describe trades in plain English \u2014 the AI logs them, grades your execution, spots emotional patterns, and gives you a personalized morning briefing.",
+    cta: 'Show me',
   },
   {
-    id: 'coach',
-    icon: '🤖',
-    title: "Meet your AI trading coach",
-    sub: "The 🤖 button in the bottom-right gives you instant access to institutional-grade AI analysis — market reads, trade theses, portfolio reviews, risk alerts.",
-    cta: "Open the platform →",
+    id: 'start',
+    icon: '\uD83D\uDE80',
+    title: "You're all set",
+    sub: "Head to the Journal and say hello to your AI coach. Try: \"What should I watch today?\" or describe a trade like \"Bought 100 NVDA at 135, stop 128, target 150.\"",
+    cta: "Open Journal \u2192",
   },
 ]
 
@@ -149,7 +141,7 @@ export default function Onboarding({ userId, onComplete }) {
             style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: '#2d3d50', fontSize: 12, cursor: 'pointer', fontFamily: '"DM Mono",monospace', padding: '6px', transition: 'color 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#8b9fc0'}
             onMouseLeave={e => e.currentTarget.style.color = '#2d3d50'}>
-            ← Back
+            â Back
           </button>
         )}
       </div>
