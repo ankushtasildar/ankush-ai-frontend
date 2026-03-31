@@ -220,6 +220,27 @@ function parseTrade(message) {
   return result;
 }
 
+
+// ============================================================
+// ALPHA INTELLIGENCE CROSS-REFERENCE
+// ============================================================
+async function getAlphaPrediction(symbol) {
+  if (!symbol) return '';
+  try {
+    const baseUrl = process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'https://www.ankushai.org';
+    const res = await fetch(baseUrl + '/api/predict?symbol=' + symbol + '&_t=' + Date.now(), { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return '';
+    const data = await res.json();
+    if (!data || !data.sentiment) return '';
+    const s = data.sentiment;
+    return '\n\n[ALPHA INTELLIGENCE for ' + symbol + ': Direction=' + (s.direction || 'unknown') +
+      ', Confidence=' + (s.confidence || 'unknown') +
+      (s.targetPrice ? ', Target=$' + s.targetPrice : '') +
+      (s.stopLoss ? ', Stop=$' + s.stopLoss : '') +
+      '. Reference this naturally if relevant to the trade discussion — e.g. "Alpha Intelligence has ' + symbol + ' at ' + (s.direction || 'neutral') + '"]';
+  } catch (e) { return ''; }
+}
+
 // ============================================================
 // SYSTEM PROMPT
 // ============================================================
@@ -400,7 +421,18 @@ module.exports = async function handler(req, res) {
         if (open.length > 0) openPositions = '\nOpen positions: ' + open.join('; ');
       }
       const dayOfWeek = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+      // Fetch market sentiment for briefing
+      let sentimentCtx = '';
+      try {
+        const sentRes = await fetch((process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'https://www.ankushai.org') + '/api/sentiment');
+        if (sentRes.ok) {
+          const sent = await sentRes.json();
+          if (sent.summary) sentimentCtx = sent.summary + ' ';
+        }
+      } catch (e) { /* ok */ }
+
       let briefing = 'Good ' + (new Date().getHours() < 12 ? 'morning' : 'afternoon') + '. ';
+      if (sentimentCtx) briefing += sentimentCtx;
       if (traderCtx) briefing += 'I have your recent trading history loaded. ';
       if (openPositions) briefing += openPositions + ' ';
       if (dayOfWeek === 'Monday') briefing += 'New week \u2014 what\'s your game plan?';
@@ -453,9 +485,15 @@ module.exports = async function handler(req, res) {
     const moodCtx = mood ? '\n\n[Trader mood: ' + mood + '. Acknowledge naturally if relevant.]' : '';
     const tradeCtx = parsedTrade ? '\n\n[Auto-parsed trade from message: ' + JSON.stringify(parsedTrade) + '. Confirm you noted it and review the setup.]' : '';
 
+    // Alpha Intelligence cross-reference — fetch prediction for first mentioned symbol
+    let alphaCtx = '';
+    if (symbols.length > 0) {
+      alphaCtx = await getAlphaPrediction(symbols[0]);
+    }
+
     const recentHistory = Array.isArray(history) ? history.slice(-10) : [];
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + priceContext + traderCtx + moodCtx + tradeCtx },
+      { role: 'system', content: SYSTEM_PROMPT + priceContext + traderCtx + moodCtx + tradeCtx + alphaCtx },
       ...recentHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).substring(0, 2000) })),
       { role: 'user', content: message.substring(0, 3000) }
     ];
