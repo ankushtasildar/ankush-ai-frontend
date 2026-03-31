@@ -29,6 +29,13 @@ export default function Journal() {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Persist chat to sessionStorage on every message change (Diego Fernandez)
+  useEffect(() => {
+    if (messages.length > 0) {
+      try { sessionStorage.setItem('ankush_journal_chat', JSON.stringify(messages)) } catch(e) {}
+    }
+  }, [messages])
+
   // Init: get user, load entries, load morning briefing
   useEffect(() => {
     async function init() {
@@ -40,10 +47,22 @@ export default function Journal() {
       const { data } = await supabase.from('journal_entries').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
       if (data) setEntries(data)
 
-      // Load last conversation session (conversation persistence)
+      // Load last conversation session — sessionStorage first (instant), then Supabase (persistent)
       if (!briefingLoaded) {
         var restoredSession = false
+        // Try sessionStorage first (survives page navigation)
         try {
+          var cached = sessionStorage.getItem('ankush_journal_chat')
+          if (cached) {
+            var cachedMsgs = JSON.parse(cached)
+            if (cachedMsgs.length > 0) {
+              setMessages(cachedMsgs)
+              restoredSession = true
+            }
+          }
+        } catch(se) {}
+        // If no sessionStorage, fall back to Supabase (persistent across sessions)
+        if (!restoredSession) try {
           const convos = await supabase.from('journal_entries')
             .select('content,created_at')
             .eq('user_id', user.id)
@@ -53,11 +72,11 @@ export default function Journal() {
           if (convos.data && convos.data.length > 0) {
             // Check if the most recent conversation was within the last 2 hours
             var latest = new Date(convos.data[0].created_at)
-            var twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
-            if (latest > twoHoursAgo) {
+            var twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+            if (latest > twentyFourHoursAgo) {
               // Restore the session
               var restored = []
-              var recent = convos.data.slice(0, 5).reverse()
+              var recent = convos.data.slice(0, 20).reverse()
               for (var ci = 0; ci < recent.length; ci++) {
                 try {
                   var chatData = JSON.parse(recent[ci].content || '{}')
