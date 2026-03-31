@@ -268,6 +268,14 @@ function confluenceScore(allTfData) {
       if(s.dir==='d')bearScore+=w*1.5;
     })}
     // Squeeze fired
+    // MACD
+    if(d.macd&&d.macd.cross==='bullish_cross')bullScore+=w*2;
+    if(d.macd&&d.macd.cross==='bearish_cross')bearScore+=w*2;
+    if(d.macd&&d.macd.divergence==='bullish_divergence')bullScore+=w*2.5;
+    if(d.macd&&d.macd.divergence==='bearish_divergence')bearScore+=w*2.5;
+    // ADX-weighted signals (stronger trends = higher weight)
+    var adxMult=d.adx&&d.adx.strong?1.5:d.adx&&d.adx.trending?1.2:1;
+    bullScore*=adxMult;bearScore*=adxMult;
     if(d.squeeze&&d.squeeze.fired){
       if(d.squeeze.momDir==='bullish')bullScore+=w*2;else bearScore+=w*2;
     }
@@ -305,6 +313,124 @@ function timeOfDayEdge(entryTimePST) {
   return {current:current,info:edges[current]||{label:'Outside hours',edge:'none',note:'Market closed'},allEdges:edges};
 }
 
+
+// == MACD + DIVERGENCE (Marcus Webb + Carlos Vega) ============================
+function macdAnalysis(bars) {
+  if(!bars||bars.length<26)return{};
+  var closes=bars.map(function(b){return b.c});
+  function ema(arr,p){if(arr.length<p)return null;var k=2/(p+1),e=arr[0];for(var i=1;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e}
+  // MACD Line = EMA(12) - EMA(26)
+  var ema12=ema(closes,12),ema26=ema(closes,26);
+  if(!ema12||!ema26)return{};
+  var macdLine=ema12-ema26;
+  // Signal Line = EMA(9) of MACD line (approximate with recent)
+  var macdHist=[];
+  for(var i=26;i<=closes.length;i++){
+    var e12=ema(closes.slice(0,i),12),e26=ema(closes.slice(0,i),26);
+    if(e12&&e26)macdHist.push(e12-e26);
+  }
+  var signal=macdHist.length>=9?ema(macdHist,9):null;
+  var histogram=signal?+(macdLine-signal).toFixed(4):null;
+  // Crossover detection
+  var cross="none";
+  if(macdHist.length>=2&&signal){
+    var prevMacd=macdHist[macdHist.length-2],prevSig=macdHist.length>=10?ema(macdHist.slice(0,-1),9):null;
+    if(prevSig&&prevMacd<prevSig&&macdLine>signal)cross="bullish_cross";
+    if(prevSig&&prevMacd>prevSig&&macdLine<signal)cross="bearish_cross";
+  }
+  // RSI divergence (price vs RSI)
+  var divergence="none";
+  if(bars.length>=20){
+    var recent10=closes.slice(-10),prev10=closes.slice(-20,-10);
+    var recentHigh=Math.max.apply(null,recent10),prevHigh=Math.max.apply(null,prev10);
+    var recentLow=Math.min.apply(null,recent10),prevLow=Math.min.apply(null,prev10);
+    // Compute RSI for both periods
+    function quickRsi(arr){var g=0,l=0;for(var i=1;i<arr.length;i++){var d=arr[i]-arr[i-1];if(d>0)g+=d;else l-=d}var rs=l>0?g/l:100;return 100-100/(1+rs)}
+    var rsiRecent=quickRsi(recent10),rsiPrev=quickRsi(prev10);
+    if(recentHigh>prevHigh&&rsiRecent<rsiPrev)divergence="bearish_divergence";
+    if(recentLow<prevLow&&rsiRecent>rsiPrev)divergence="bullish_divergence";
+  }
+  return{macd:+macdLine.toFixed(4),signal:signal?+signal.toFixed(4):null,histogram:histogram,cross:cross,divergence:divergence};
+}
+
+// == PRE-MARKET + GAP ANALYSIS (Omar Hassan + Sophie Laurent) ================
+function gapAnalysis(dailyBars, intradayBars) {
+  if(!dailyBars||dailyBars.length<2)return{};
+  var prev=dailyBars[dailyBars.length-2],today=dailyBars[dailyBars.length-1];
+  var gapPct=prev.c>0?+((today.o-prev.c)/prev.c*100).toFixed(2):0;
+  var gapDir=gapPct>0.1?"gap_up":gapPct<-0.1?"gap_down":"flat_open";
+  // Gap fill check: did price retrace to prev close?
+  var gapFilled=false;
+  if(intradayBars&&intradayBars.length>0){
+    if(gapDir==="gap_up")gapFilled=intradayBars.some(function(b){return b.l<=prev.c});
+    if(gapDir==="gap_down")gapFilled=intradayBars.some(function(b){return b.h>=prev.c});
+  }
+  // Pre-market levels (from first bar if available)
+  var pmHigh=null,pmLow=null;
+  if(intradayBars&&intradayBars.length>0){
+    // Bars before 9:30 ET (6:30 PST) = pre-market
+    var pmBars=intradayBars.filter(function(b){
+      var d=new Date(b.t);var h=d.getUTCHours();return h<13||(h===13&&d.getUTCMinutes()<30);
+    });
+    if(pmBars.length>0){
+      pmHigh=Math.max.apply(null,pmBars.map(function(b){return b.h}));
+      pmLow=Math.min.apply(null,pmBars.map(function(b){return b.l}));
+    }
+  }
+  return{gapPct:gapPct,gapDir:gapDir,gapFilled:gapFilled,prevClose:prev.c,todayOpen:today.o,pmHigh:pmHigh,pmLow:pmLow,
+    gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
+}
+
+// == ADX — TREND STRENGTH (Dr. Lisa Park) ====================================
+function adxCalc(bars) {
+  if(!bars||bars.length<28)return{adx:null,trending:false};
+  var period=14,pDM=[],nDM=[],tr=[];
+  for(var i=1;i<bars.length;i++){
+    var upMove=bars[i].h-bars[i-1].h,downMove=bars[i-1].l-bars[i].l;
+    pDM.push(upMove>downMove&&upMove>0?upMove:0);
+    nDM.push(downMove>upMove&&downMove>0?downMove:0);
+    tr.push(Math.max(bars[i].h-bars[i].l,Math.abs(bars[i].h-bars[i-1].c),Math.abs(bars[i].l-bars[i-1].c)));
+  }
+  if(tr.length<period)return{adx:null,trending:false};
+  // Smoothed averages
+  var sPDM=pDM.slice(0,period).reduce(function(a,b){return a+b},0);
+  var sNDM=nDM.slice(0,period).reduce(function(a,b){return a+b},0);
+  var sTR=tr.slice(0,period).reduce(function(a,b){return a+b},0);
+  var dx=[];
+  for(var j=period;j<tr.length;j++){
+    sPDM=sPDM-sPDM/period+pDM[j];sNDM=sNDM-sNDM/period+nDM[j];sTR=sTR-sTR/period+tr[j];
+    var pDI=sTR>0?sPDM/sTR*100:0,nDI=sTR>0?sNDM/sTR*100:0;
+    dx.push(pDI+nDI>0?Math.abs(pDI-nDI)/(pDI+nDI)*100:0);
+  }
+  if(dx.length<period)return{adx:null,trending:false};
+  var adx=dx.slice(0,period).reduce(function(a,b){return a+b},0)/period;
+  for(var k=period;k<dx.length;k++)adx=(adx*(period-1)+dx[k])/period;
+  return{adx:+adx.toFixed(1),trending:adx>25,strong:adx>40,choppy:adx<20,signal:adx>40?"strong_trend":adx>25?"trending":adx>20?"weak_trend":"choppy_range"};
+}
+
+// == ANCHORED VWAP (Anika Rao) ===============================================
+function anchoredVWAP(bars, anchorIndex) {
+  if(!bars||anchorIndex<0||anchorIndex>=bars.length)return null;
+  var cumVol=0,cumTP=0;
+  for(var i=anchorIndex;i<bars.length;i++){var tp=(bars[i].h+bars[i].l+bars[i].c)/3;cumTP+=tp*(bars[i].v||1);cumVol+=(bars[i].v||1)}
+  return cumVol>0?+(cumTP/cumVol).toFixed(2):null;
+}
+function computeAVWAPs(dailyBars) {
+  if(!dailyBars||dailyBars.length<5)return{};
+  var avwaps={};
+  // Anchor from swing low (lowest low in last 10 bars)
+  var minIdx=0,minVal=Infinity;
+  for(var i=Math.max(0,dailyBars.length-10);i<dailyBars.length;i++){if(dailyBars[i].l<minVal){minVal=dailyBars[i].l;minIdx=i}}
+  avwaps.fromSwingLow=anchoredVWAP(dailyBars,minIdx);
+  // Anchor from swing high
+  var maxIdx=0,maxVal=0;
+  for(var j=Math.max(0,dailyBars.length-10);j<dailyBars.length;j++){if(dailyBars[j].h>maxVal){maxVal=dailyBars[j].h;maxIdx=j}}
+  avwaps.fromSwingHigh=anchoredVWAP(dailyBars,maxIdx);
+  // Anchor from 5 days ago (weekly AVWAP)
+  if(dailyBars.length>=5)avwaps.weekly=anchoredVWAP(dailyBars,dailyBars.length-5);
+  return avwaps;
+}
+
 // == FULL ANALYSIS PIPELINE ===================================================
 async function fullAnalysis(symbol, dateStr, entryTimePST) {
   var mtf = await fetchMultiTF(symbol, dateStr);
@@ -317,10 +443,14 @@ async function fullAnalysis(symbol, dateStr, entryTimePST) {
       squeeze: detectSqueeze(mtf.tf[tf]),
       fibs: detectFibs(mtf.tf[tf]),
       ema: emaAnalysis(mtf.tf[tf]),
-      indicators: indicators(mtf.tf[tf])
+      indicators: indicators(mtf.tf[tf]),
+      macd: macdAnalysis(mtf.tf[tf]),
+      adx: adxCalc(mtf.tf[tf])
     };
   });
   var levels = detectLevels(mtf.tf['daily']||[], mtf.tf['1m']||[]);
+  var gap = gapAnalysis(mtf.tf['daily']||[], mtf.tf['1m']||[]);
+  var avwaps = computeAVWAPs(mtf.tf['daily']||[]);
   var confluence = confluenceScore(allTfData);
   var todEdge = timeOfDayEdge(entryTimePST);
   // Sector leaders
@@ -332,7 +462,7 @@ async function fullAnalysis(symbol, dateStr, entryTimePST) {
     }));
     lr.forEach(function(r){if(r.status==='fulfilled')leaders[r.value.sym]=r.value.chg+'%'});
   }catch(e){}
-  return{allTfData:allTfData,levels:levels,confluence:confluence,todEdge:todEdge,leaders:leaders};
+  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,todEdge:todEdge,leaders:leaders};
 }
 
 // == LOG TRADE ================================================================
@@ -358,12 +488,14 @@ async function backtest(body) {
   'CONFLUENCE: '+JSON.stringify(analysis.confluence)+'\n'+
   'TIME-OF-DAY: '+JSON.stringify(analysis.todEdge.current)+' - '+(analysis.todEdge.info?analysis.todEdge.info.note:'')+'\n'+
   'LEVELS: '+JSON.stringify(analysis.levels)+'\n'+
+  'GAP: '+JSON.stringify(analysis.gap)+'\n'+
+  'ANCHORED VWAPs: '+JSON.stringify(analysis.avwaps)+'\n'+
   'LEADERS: '+JSON.stringify(analysis.leaders)+'\n\n'+
   'PER-TIMEFRAME DATA:\n';
 
   Object.keys(analysis.allTfData).forEach(function(tf){
     var d=analysis.allTfData[tf];
-    prompt+=tf.toUpperCase()+': bars='+d.bars+' candles='+JSON.stringify(d.candles.slice(-3))+' strat='+JSON.stringify(d.strat.slice(-2))+' squeeze='+JSON.stringify(d.squeeze)+' ema='+JSON.stringify(d.ema)+'\n';
+    prompt+=tf.toUpperCase()+': bars='+d.bars+' candles='+JSON.stringify(d.candles.slice(-3))+' strat='+JSON.stringify(d.strat.slice(-2))+' squeeze='+JSON.stringify(d.squeeze)+' ema='+JSON.stringify(d.ema)+' macd='+JSON.stringify(d.macd)+' adx='+JSON.stringify(d.adx)+'\n';
   });
 
   prompt+='\nDISCOVER the strategy. Return JSON:\n'+
@@ -396,8 +528,8 @@ async function liveScan() {
   // Load learned strategies for matching
   var strats=await getStrategies();
   return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,todEdge:analysis.todEdge,levels:analysis.levels,leaders:analysis.leaders,
-    perTimeframe:Object.keys(analysis.allTfData).reduce(function(a,k){var d=analysis.allTfData[k];a[k]={bars:d.bars,topCandle:d.candles.length>0?d.candles[d.candles.length-1]:null,topStrat:d.strat.length>0?d.strat[d.strat.length-1]:null,squeeze:d.squeeze,emaCloud:d.ema.cloud||'unknown'};return a},{}),
-    learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
+    perTimeframe:Object.keys(analysis.allTfData).reduce(function(a,k){var d=analysis.allTfData[k];a[k]={bars:d.bars,topCandle:d.candles.length>0?d.candles[d.candles.length-1]:null,topStrat:d.strat.length>0?d.strat[d.strat.length-1]:null,squeeze:d.squeeze,emaCloud:d.ema.cloud||'unknown',macd:d.macd?{cross:d.macd.cross,divergence:d.macd.divergence,histogram:d.macd.histogram}:null,adx:d.adx};return a},{}),
+    gap:analysis.gap,avwaps:analysis.avwaps,learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
 }
 
 // == MAIN HANDLER =============================================================
