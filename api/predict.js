@@ -1,5 +1,5 @@
-// predict.js â Alpha Intelligence Engine v5
-// CLEAN REWRITE â no patches, no accumulated fragments
+// predict.js Ã¢ÂÂ Alpha Intelligence Engine v5
+// CLEAN REWRITE Ã¢ÂÂ no patches, no accumulated fragments
 // Uses calendar dates (not tradingDate), proper error handling
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -9,7 +9,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
-// ââ Helper: Supabase REST ââ
+// Ã¢ÂÂÃ¢ÂÂ Helper: Supabase REST Ã¢ÂÂÃ¢ÂÂ
 async function supaGet(table, query) {
   if (!SUPA_URL || !SUPA_KEY) return [];
   try {
@@ -36,7 +36,7 @@ async function supaInsert(table, row) {
   } catch {}
 }
 
-// ââ Helper: Polygon fetch ââ
+// Ã¢ÂÂÃ¢ÂÂ Helper: Polygon fetch Ã¢ÂÂÃ¢ÂÂ
 
 // Utility: fetch from Polygon API with key
 async function polyFetch(url) {
@@ -238,7 +238,7 @@ function computeTechnicals(bars) {
   };
 }
 
-// ââ GET MACRO CONTEXT ââ
+// Ã¢ÂÂÃ¢ÂÂ GET MACRO CONTEXT Ã¢ÂÂÃ¢ÂÂ
 async function getMacroContext() {
   // SPY for market direction, VIX for fear
   const [spyData, vixPrev] = await Promise.all([
@@ -260,7 +260,7 @@ async function getMacroContext() {
   };
 }
 
-// ââ GET HISTORICAL EDGE (learned patterns) ââ
+// Ã¢ÂÂÃ¢ÂÂ GET HISTORICAL EDGE (learned patterns) Ã¢ÂÂÃ¢ÂÂ
 async function getHistoricalEdge(symbol) {
   const patterns = await supaGet('ai_learned_patterns', 'order=win_rate.desc&limit=5');
   const setupHistory = await supaGet('setup_records', 'symbol=eq.' + symbol + '&order=created_at.desc&limit=10');
@@ -274,7 +274,7 @@ async function getHistoricalEdge(symbol) {
   };
 }
 
-// ââ GET EARNINGS CONTEXT ââ
+// Ã¢ÂÂÃ¢ÂÂ GET EARNINGS CONTEXT Ã¢ÂÂÃ¢ÂÂ
 async function getEarningsContext(symbol) {
   const today = new Date().toISOString().split('T')[0];
   const future = new Date();
@@ -288,7 +288,7 @@ async function getEarningsContext(symbol) {
   return { earningsDate: null, earningsDaysOut: null };
 }
 
-// ââ BUILD THE ALPHA PROMPT ââ
+// Ã¢ÂÂÃ¢ÂÂ BUILD THE ALPHA PROMPT Ã¢ÂÂÃ¢ÂÂ
 function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style, newsCtx) {
   const styleContext = style === 'daytrade' ? 'Focus on INTRADAY setups (0-2 days). Gamma risk, IV crush, delta decay matter enormously.'
     : style === 'leap' ? 'Focus on LONG-TERM setups (3-12 months). Fundamental catalysts, macro regime shifts, LEAPS premium decay.'
@@ -330,7 +330,78 @@ function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, 
     + '"edgeScore":0-100}';
 }
 
-// ââ MAIN HANDLER ââ
+
+// ========================================================================
+// ADAPTIVE CATALYST DETECTION + MULTI-HORIZON NEWS
+// Dr. Sanjay Iyer (Catalyst Lifecycle) + Dr. Lena Kovac (Temporal Intel)
+// Dr. Elena Rossi (Sector Context) + Raj Mehta (NLP Classification)
+// ========================================================================
+
+var CATALYST_WINDOWS = {
+  momentum:{days:10,freshD:2,devD:5,label:"momentum/breakout"},
+  earnings:{days:45,freshD:3,devD:14,label:"earnings cycle"},
+  fda:{days:90,freshD:5,devD:21,label:"FDA/regulatory"},
+  ma:{days:60,freshD:3,devD:14,label:"M&A/activist"},
+  macro:{days:90,freshD:3,devD:14,label:"macro/rate sensitive"},
+  commodity:{days:90,freshD:5,devD:21,label:"commodity cycle"},
+  product:{days:60,freshD:3,devD:14,label:"product cycle"},
+  restructure:{days:120,freshD:5,devD:21,label:"restructuring"},
+  general:{days:21,freshD:2,devD:7,label:"general"}
+};
+
+var SECTOR_HINT = {LLY:"fda",JNJ:"fda",PFE:"fda",ABBV:"fda",MRK:"fda",AMGN:"fda",GILD:"fda",BMY:"fda",MRNA:"fda",BIIB:"fda",XBI:"fda",XOM:"commodity",CVX:"commodity",COP:"commodity",SLB:"commodity",OXY:"commodity",XLE:"commodity",TLT:"macro",HYG:"macro",XLF:"macro",JPM:"macro",BAC:"macro",GS:"macro",WFC:"macro"};
+
+var CAT_KW = {
+  fda:["fda","trial","phase","pdufa","approval","nda","clinical","drug","therapy","efficacy"],
+  earnings:["earnings","eps","revenue","guidance","quarter","beat","miss","outlook","forecast","estimate"],
+  ma:["acquisition","merger","takeover","activist","13d","proxy","bid","buyout","deal"],
+  commodity:["opec","inventory","barrel","crude","production","supply","drilling"],
+  product:["launch","product","release","unveil","iphone","chip","partnership","contract"],
+  restructure:["restructur","layoff","cost cut","ceo change","turnaround","spin off","divest"]
+};
+
+function detectCatalyst(sym, headlines) {
+  if (SECTOR_HINT[sym]) return SECTOR_HINT[sym];
+  var txt = headlines.map(function(h){return(h.title||"").toLowerCase()}).join(" ");
+  var best = "general", bestN = 0;
+  Object.keys(CAT_KW).forEach(function(t){
+    var n = 0; CAT_KW[t].forEach(function(k){if(txt.includes(k))n++});
+    if(n > bestN){best = t; bestN = n;}
+  });
+  return best;
+}
+
+async function fetchNewsContext(symbol) {
+  var POLY = process.env.POLYGON_API_KEY || "";
+  var empty = {fresh:[],developing:[],thesis:[],catalyst:"general",windowDays:21,label:"general",total:0};
+  if (!POLY) return empty;
+  try {
+    var now = new Date().toISOString().split("T")[0];
+    var from120 = new Date(Date.now() - 120*86400000).toISOString().split("T")[0];
+    var r = await fetch("https://api.polygon.io/v2/reference/news?ticker="+symbol+"&published_utc.gte="+from120+"&published_utc.lte="+now+"&limit=30&apiKey="+POLY);
+    if (!r.ok) return empty;
+    var d = await r.json();
+    var articles = d.results || [];
+    var cat = detectCatalyst(symbol, articles);
+    var w = CATALYST_WINDOWS[cat] || CATALYST_WINDOWS.general;
+    var pred = ["expected","forecast","plan","announce","launch","target","upgrade","downgrade","outlook","guidance","raise","expand","could","may","trial","phase","fda"];
+    var recap = ["rose","fell","drop","surge","tumble","after","posted","beat","miss","gained","lost","closed","reported"];
+    var fresh=[],developing=[],thesis=[];
+    articles.forEach(function(n){
+      var pub = n.published_utc ? n.published_utc.split("T")[0] : now;
+      var ago = Math.round((new Date(now)-new Date(pub))/86400000);
+      if (ago > w.days) return;
+      var t = (n.title||"").toLowerCase(), type = "NOISE";
+      for(var p=0;p<pred.length;p++){if(t.includes(pred[p])){type="PREDICTIVE";break}}
+      if(type==="NOISE"){for(var rc=0;rc<recap.length;rc++){if(t.includes(recap[rc])){type="RECAP";break}}}
+      var e = {title:n.title,date:pub,daysAgo:ago,type:type};
+      if(ago<=w.freshD) fresh.push(e); else if(ago<=w.devD) developing.push(e); else thesis.push(e);
+    });
+    return {fresh:fresh,developing:developing,thesis:thesis,catalyst:cat,windowDays:w.days,label:w.label,total:articles.length};
+  } catch(e) { return empty; }
+}
+
+// Ã¢ÂÂÃ¢ÂÂ MAIN HANDLER Ã¢ÂÂÃ¢ÂÂ
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('CDN-Cache-Control', 'no-store');
@@ -360,7 +431,7 @@ module.exports = async function handler(req, res) {
     }
 
     const technicals = priceData.bars ? computeTechnicals(priceData.bars) : {};
-    const prompt = buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style);
+    const prompt = buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style, newsCtx);
 
     // Call Claude
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
