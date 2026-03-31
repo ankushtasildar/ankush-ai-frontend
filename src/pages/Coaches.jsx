@@ -114,7 +114,7 @@ export default function Coaches() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 2px' }}>Coaching Marketplace</h1>
-          <div style={{ color: '#3d4e62', fontSize: 11 }}>Hire expert coaches \u00B7 Learn proven strategies \u00B7 Join private groups</div>
+          <div style={{ color: '#3d4e62', fontSize: 11 }}>Hire expert coaches · Learn proven strategies · Join private groups</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={findMatch} disabled={matchLoading} style={{ padding: '8px 16px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, color: '#a78bfa', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
