@@ -24,7 +24,7 @@ import AdminLogin from './pages/AdminLogin'
 import AuthCallback from './pages/AuthCallback'
 import LandingPage from './pages/LandingPage'
 
-// Priya Nair: Grouped nav — Intelligence first, then Research, then My Trading
+// Priya Nair: Grouped nav â Intelligence first, then Research, then My Trading
 const NAV_GROUPS = [
   {
     label: 'INTELLIGENCE',
@@ -134,7 +134,7 @@ function Sidebar({ user, isAdmin, session }) {
   const vixColor = mktData.vix > 30 ? '#ef4444' : mktData.vix > 20 ? '#f59e0b' : '#10b981'
 
   return (
-    <div style={sidebarStyle}>
+    <div className="app-sidebar" style={sidebarStyle}>
       <div style={logoStyle}>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: -0.5 }}>AnkushAI</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>Trading Intelligence</div>
@@ -239,6 +239,14 @@ function AppShell() {
           <Route path='*'               element={<Navigate to='/app/overview' replace />} />
         </Routes>
       </main>
+      {/* Mobile bottom navigation */}
+      <div className="mobile-bottom-nav">
+        <a href="/app/overview"><span className="nav-icon">\u26A1</span>Overview</a>
+        <a href="/app/predict"><span className="nav-icon">\uD83E\uDDE0</span>Alpha</a>
+        <a href="/app/journal"><span className="nav-icon">\uD83D\uDCD3</span>Journal</a>
+        <a href="/app/sectors"><span className="nav-icon">\uD83D\uDCC8</span>Sectors</a>
+        <a href="/app/portfolio"><span className="nav-icon">\uD83D\uDCBC</span>Portfolio</a>
+      </div>
     </div>
   )
 }
