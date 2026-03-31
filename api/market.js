@@ -1,4 +1,4 @@
-// market.js v6 — Unified market data API
+// market.js v6 â Unified market data API
 // Fixes: parameter routing (action= AND type= both work), VIX, sectors, context
 // Architecture: in-memory cache + 4-source waterfall + shared cache for scalability
 
@@ -21,7 +21,7 @@ async function fetchJson(url) {
   return r.json();
 }
 
-// ── Quote (4-source waterfall) ──────────────────────────────────────────────
+// ââ Quote (4-source waterfall) ââââââââââââââââââââââââââââââââââââââââââââââ
 async function getQuote(symbol) {
   return cached(`quote:${symbol}`, CACHE_TTL.quote, async () => {
     const s = symbol.toUpperCase();
@@ -44,7 +44,21 @@ async function getQuote(symbol) {
               volume: t.day.v || 0, source: 'polygon'
             };
           } catch(e) {}
-          return { symbol: s, price: r.c, high: r.h, low: r.l, close: r.c, change: 0, changePercent: 0, volume: r.v || 0, source: 'polygon-prev' };
+          // Polygon-prev has price but no change data — store as fallback, try Yahoo for change
+          var polyFallback = { symbol: s, price: r.c, high: r.h, low: r.l, close: r.c, change: 0, changePercent: 0, volume: r.v || 0, source: 'polygon-prev' };
+          // Try Yahoo for change data before returning zero-change result
+          try {
+            var yd = await fetchJson('https://query1.finance.yahoo.com/v8/finance/chart/' + s + '?interval=1d&range=1d');
+            var ym = yd.chart && yd.chart.result && yd.chart.result[0] && yd.chart.result[0].meta;
+            if (ym && ym.regularMarketPrice) {
+              var yPrice = ym.regularMarketPrice;
+              var yPrev = ym.chartPreviousClose || ym.previousClose;
+              if (yPrev) {
+                return { symbol: s, price: yPrice, high: ym.regularMarketDayHigh || yPrice, low: ym.regularMarketDayLow || yPrice, close: yPrice, change: yPrice - yPrev, changePercent: (yPrice - yPrev) / yPrev * 100, volume: ym.regularMarketVolume || polyFallback.volume, source: 'yahoo' };
+              }
+            }
+          } catch(yErr) {}
+          return polyFallback;
         }
       } catch(e) {}
     }
@@ -96,7 +110,7 @@ async function getQuote(symbol) {
   });
 }
 
-// ── VIX ──────────────────────────────────────────────────────────────────────
+// ââ VIX ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function getVIX() {
   return cached('vix', CACHE_TTL.vix, async () => {
     // Try $VIX.X or VIXY as proxy
@@ -118,7 +132,7 @@ async function getVIX() {
   });
 }
 
-// ── Sectors ──────────────────────────────────────────────────────────────────
+// ââ Sectors ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const SECTOR_ETFS = [
   { symbol: 'XLK', name: 'Technology' },
   { symbol: 'XLF', name: 'Financials' },
@@ -146,7 +160,7 @@ async function getSectors() {
   });
 }
 
-// ── Market Context ────────────────────────────────────────────────────────────
+// ââ Market Context ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function getContext() {
   return cached('context', CACHE_TTL.context, async () => {
     const [spy, vixData, sectors] = await Promise.allSettled([
@@ -178,7 +192,7 @@ async function getContext() {
   });
 }
 
-// ── History ──────────────────────────────────────────────────────────────────
+// ââ History ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function getHistory(symbol, timespan = 'day', multiplier = 1, days = 90, limit = 90) {
   const cacheKey = `history:${symbol}:${timespan}:${multiplier}:${days}`;
   return cached(cacheKey, CACHE_TTL.history, async () => {
@@ -223,7 +237,7 @@ async function getHistory(symbol, timespan = 'day', multiplier = 1, days = 90, l
 }
 
 
-// ── Session-aware price selection ────────────────────────────────────────────
+// ââ Session-aware price selection ââââââââââââââââââââââââââââââââââââââââââââ
 function getSessionPrice(snap, session) {
   // snap is the Polygon ticker snapshot result
   if (!snap) return null;
@@ -266,7 +280,7 @@ function getSessionStatus() {
 }
 function isMarketOpen() { const s = getSessionStatus(); return s.session === 'regular'; }
 
-// ── Handler ───────────────────────────────────────────────────────────────────
+// ââ Handler âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -304,7 +318,7 @@ export default async function handler(req, res) {
       }
 
       case 'options':
-        // Placeholder — return empty with structure
+        // Placeholder â return empty with structure
         return res.json({ symbol, options: [], note: 'Options data requires Polygon premium' });
 
       case 'earnings':
@@ -312,7 +326,7 @@ export default async function handler(req, res) {
         return res.json({ symbol, earnings: [] });
 
       default:
-        // No action provided — return all core data in one call (most efficient for Overview page)
+        // No action provided â return all core data in one call (most efficient for Overview page)
         const [q, v, s, ctx] = await Promise.allSettled([getQuote(symbol), getVIX(), getSectors(), getContext()]);
         return res.json({
           quote: q.status === 'fulfilled' ? q.value : null,
