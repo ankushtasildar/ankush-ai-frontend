@@ -1,11 +1,11 @@
-// api/ml-trainer.js — AnkushAI ML Training Engine v3
+// api/ml-trainer.js â AnkushAI ML Training Engine v3
 // Marcus Webb (Lead Quant) + Dr. Kenji Tanaka (Options) + Alex Torres (Infra)
 //
 // KEY INSIGHT: Since we drop into a historical date, ALL subsequent PA is already
 // in Polygon. One single API call fetches both the blind context AND the outcome.
 // No separate outcome fetch. No timeout. Instant scoring the moment thesis is generated.
 //
-// What we train on — same factors the Alpha engine uses for LIVE setups:
+// What we train on â same factors the Alpha engine uses for LIVE setups:
 //   TECHNICALS: EMA stack, RSI, MACD, ATR, Bollinger, ROC multi-timeframe
 //   MACRO: SPY trend at analysis date, VIX regime, TLT (bonds), sector context
 //   EARNINGS: Was earnings within 5 days? (biggest single invalidator)
@@ -13,7 +13,7 @@
 //   VOLUME: Up-volume %, volume trend vs avg
 //   RELATIVE STRENGTH: Symbol vs SPY over prior 20d
 //
-// SCORING: Instant — 1d/2d/5d/10d/20d outcomes all computed from the same bar array
+// SCORING: Instant â 1d/2d/5d/10d/20d outcomes all computed from the same bar array
 // ATTRIBUTION: Claude explains WHY the thesis validated or failed using actual PA
 // LEARNING: Every validated pattern AND every invalidation reason stored in ai_learned_patterns
 
@@ -33,7 +33,7 @@ const TRAINING_UNIVERSE = [
   'BA','CAT','MRNA','ABBV','NVO','TSM','ARM','BABA','SQ','COIN'
 ]
 
-// ── SINGLE FETCH: gets BOTH blind context AND outcome in one Polygon call ────
+// ââ SINGLE FETCH: gets BOTH blind context AND outcome in one Polygon call ââââ
 // fromDays: how many days of history before analysisDate (for technicals)
 // forwardDays: how many days after analysisDate (for outcome scoring)
 async function fetchFullWindow(symbol, analysisDate, fromDays=120, forwardDays=22) {
@@ -93,17 +93,32 @@ async function fetchRelativeStrength(symbol, analysisDate) {
   } catch(e) { return null }
 }
 
-// News at analysis date
+// Multi-Horizon News Context (Dr. Lena Kovac + Raj Mehta)
+// Fresh (0-2d), Developing (3-7d), Thesis (8-21d) with PREDICTIVE/RECAP classification
 async function fetchNews(symbol, analysisDate) {
   try {
-    const from = new Date(new Date(analysisDate).getTime() - 7*86400000).toISOString().split('T')[0]
-    const r = await fetch('https://api.polygon.io/v2/reference/news?ticker='+symbol+'&published_utc.gte='+from+'&published_utc.lte='+analysisDate+'&limit=8&apiKey='+POLY)
-    const d = await r.json()
-    return (d.results||[]).map(n=>({title:n.title, date:n.published_utc?.split('T')[0], sentiment: n.insights?.[0]?.sentiment || 'neutral'}))
-  } catch(e) { return [] }
+    var aDate = new Date(analysisDate)
+    var from21 = new Date(aDate.getTime() - 21*86400000).toISOString().split('T')[0]
+    var r = await fetch('https://api.polygon.io/v2/reference/news?ticker='+symbol+'&published_utc.gte='+from21+'&published_utc.lte='+analysisDate+'&limit=25&apiKey='+POLY)
+    var d = await r.json()
+    var fresh = [], developing = [], thesis = []
+    var predictiveWords = ['expected','forecast','plan','announce','launch','target','upgrade','downgrade','could','may','outlook','guidance','raise','expand']
+    var recapWords = ['rose','fell','drop','surge','tumble','after','posted','beat','miss','gained','lost','closed','reported']
+    ;(d.results||[]).forEach(function(n) {
+      var pubDate = n.published_utc ? n.published_utc.split('T')[0] : analysisDate
+      var daysAgo = Math.round((aDate - new Date(pubDate)) / 86400000)
+      var title = (n.title||'').toLowerCase()
+      var type = 'NOISE'
+      for (var p=0;p<predictiveWords.length;p++){if(title.includes(predictiveWords[p])){type='PREDICTIVE';break}}
+      if(type==='NOISE'){for(var rc=0;rc<recapWords.length;rc++){if(title.includes(recapWords[rc])){type='RECAP';break}}}
+      var entry = {title:n.title,date:pubDate,daysAgo:daysAgo,type:type,sentiment:(n.insights&&n.insights[0]&&n.insights[0].sentiment)||'neutral'}
+      if(daysAgo<=2) fresh.push(entry); else if(daysAgo<=7) developing.push(entry); else thesis.push(entry)
+    })
+    return {fresh:fresh,developing:developing,thesis:thesis,total:(d.results||[]).length}
+  } catch(e) { return {fresh:[],developing:[],thesis:[],total:0} }
 }
 
-// ── QUANT SIGNALS (same as chart-analysis v2) ─────────────────────────────────
+// ââ QUANT SIGNALS (same as chart-analysis v2) âââââââââââââââââââââââââââââââââ
 function ema(prices, period) {
   if (prices.length < period) return null
   const k = 2/(period+1); let e = prices[0]
@@ -144,8 +159,8 @@ function volumeAnalysis(bars) {
   return { ratio: +(avg5/avg20).toFixed(2), upVolPct: +((upVol/(upVol+dnVol)*100)||50).toFixed(1) }
 }
 
-// ── INSTANT MULTI-TIMEFRAME SCORING ──────────────────────────────────────────
-// futureBars are already in hand — zero extra API calls
+// ââ INSTANT MULTI-TIMEFRAME SCORING ââââââââââââââââââââââââââââââââââââââââââ
+// futureBars are already in hand â zero extra API calls
 function scoreOutcomes(futureBars, predictedDirection, expectedMoveByDays, expectedPriceTarget) {
   if (!futureBars.length) return {}
   const entry = futureBars[0].c  // first bar after analysis date = entry
@@ -175,8 +190,8 @@ function scoreOutcomes(futureBars, predictedDirection, expectedMoveByDays, expec
   }
 }
 
-// ── POST-OUTCOME ATTRIBUTION ──────────────────────────────────────────────────
-// After scoring, ask Claude WHY — using the actual PA that followed.
+// ââ POST-OUTCOME ATTRIBUTION ââââââââââââââââââââââââââââââââââââââââââââââââââ
+// After scoring, ask Claude WHY â using the actual PA that followed.
 // This is where the real learning happens.
 async function attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news) {
   const thesisDir = thesis.predictedDirection
@@ -208,9 +223,9 @@ async function attributeOutcome(symbol, analysisDate, thesis, scores, signals, m
     '- News at date: '+news.slice(0,3).map(n=>n.date+': '+n.title).join(' | ')+'\n\n'+
     'In 2-3 sentences: WHY did this thesis '+(validated?'work':'fail')+'? '+
     'What was the KEY factor that drove or killed the move? '+
-    'Be specific — cite the actual signals, macro context, or news that mattered. '+
+    'Be specific â cite the actual signals, macro context, or news that mattered. '+
     'Then in 1 sentence: what signal combination should be added to future training to catch this pattern?\n\n'+
-    'Return JSON only: {"attribution":"2-3 sentence why","keyFactor":"describe in your own words the single most important factor — be specific to THIS symbol and date, not generic categories","lessonLearned":"specific actionable lesson: what exact signal combination would have predicted this outcome and what should the model watch for next time on similar setups","patternTag":"brief_pattern_name_for_categorization"}'
+    'Return JSON only: {"attribution":"2-3 sentence why","keyFactor":"describe in your own words the single most important factor â be specific to THIS symbol and date, not generic categories","lessonLearned":"specific actionable lesson: what exact signal combination would have predicted this outcome and what should the model watch for next time on similar setups","patternTag":"brief_pattern_name_for_categorization"}'
 
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514', max_tokens: 400,
@@ -231,16 +246,16 @@ async function supaUpdate(table, runId, updates) {
   return fetch(SUPA_URL+'/rest/v1/'+table+'?run_id=eq.'+encodeURIComponent(runId),{method:'PATCH',headers:{apikey:SUPA_KEY,Authorization:'Bearer '+SUPA_KEY,'Content-Type':'application/json'},body:JSON.stringify(updates)})
 }
 
-// ── MASTER TRAINING SESSION ───────────────────────────────────────────────────
+// ââ MASTER TRAINING SESSION âââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function runTrainingSession(symbol, analysisDate, runId) {
   const startedAt = new Date().toISOString()
   console.log('[ml-trainer v3]', runId, symbol, analysisDate)
 
-  // ── STEP 1: Single call gets blind context + future PA ─────────────────────
+  // ââ STEP 1: Single call gets blind context + future PA âââââââââââââââââââââ
   const { blindBars, futureBars } = await fetchFullWindow(symbol, analysisDate, 120, 22)
   if (blindBars.length < 30) return { runId, status:'skipped', reason:'insufficient_data', symbol, analysisDate }
 
-  // ── STEP 2: Compute ALL signals (same factors as live Alpha engine) ─────────
+  // ââ STEP 2: Compute ALL signals (same factors as live Alpha engine) âââââââââ
   const closes  = blindBars.map(b=>b.c)
   const price   = closes[closes.length-1]
 
@@ -294,18 +309,18 @@ async function runTrainingSession(symbol, analysisDate, runId) {
 
   const signals = { ema21:ema21_val, ema50:ema50_val, ema200:ema200_val, emaStack, rsi14, rsi5, macdData, atr14, atrPct, roc1, roc5, roc10, roc20, roc60, vol, bbPos, biasScore, computedBias }
 
-  // ── STEP 3: Fetch macro, relative strength, news IN PARALLEL ──────────────
+  // ââ STEP 3: Fetch macro, relative strength, news IN PARALLEL ââââââââââââââ
   const [macro, relStrength, news] = await Promise.all([
     fetchMacroAtDate(analysisDate, 25),
     fetchRelativeStrength(symbol, analysisDate),
     fetchNews(symbol, analysisDate),
   ])
 
-  // ── STEP 4: Build prompt — FULL Alpha-grade context, same as live engine ──
+  // ââ STEP 4: Build prompt â FULL Alpha-grade context, same as live engine ââ
   const earningsNote = ''  // TODO: add earnings lookup in v4
   const brief =
     'Blind historical analysis for ML training. Symbol: '+symbol+' | Date: '+analysisDate+' | Price: $'+price.toFixed(2)+'\n\n'+
-    '=== TECHNICALS (at '+analysisDate+' only — do NOT use knowledge of what followed) ===\n'+
+    '=== TECHNICALS (at '+analysisDate+' only â do NOT use knowledge of what followed) ===\n'+
     'EMA Stack: '+emaStack+' | EMA21=$'+ema21_val+' ('+( priceVsE21>=0?'above':'below')+' by '+Math.abs(priceVsE21)+'%) | EMA50=$'+ema50_val+' | EMA200=$'+ema200_val+'\n'+
     'RSI(14): '+rsi14+' '+(rsi14>70?'[OVERBOUGHT]':rsi14<30?'[OVERSOLD]':rsi14>55?'[bullish]':'[bearish]')+' | RSI(5): '+rsi5+'\n'+
     'MACD histogram: '+(macdData?.histogram||'N/A')+' ('+(macdData?.histogram>0?'BULLISH momentum':'BEARISH momentum')+')\n'+
@@ -317,20 +332,22 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     '=== MACRO REGIME AT '+analysisDate+' ===\n'+
     'SPY 5d: '+(macro.spy5dChg>=0?'+':'')+macro.spy5dChg+'% | SPY 20d: '+(macro.spy20dChg>=0?'+':'')+macro.spy20dChg+'%\n'+
     'VIX: '+macro.vix+' ('+macro.vixRegime+')\n'+
-    'TLT bonds 5d: '+(macro.tlt5dChg>=0?'+':'')+macro.tlt5dChg+'% → '+macro.bondSignal+'\n\n'+
+    'TLT bonds 5d: '+(macro.tlt5dChg>=0?'+':'')+macro.tlt5dChg+'% â '+macro.bondSignal+'\n\n'+
     '=== RELATIVE STRENGTH vs SPY (20d prior) ===\n'+
-    (relStrength ? symbol+' 20d: '+(relStrength.sym20d>=0?'+':'')+relStrength.sym20d+'% vs SPY: '+(relStrength.spy20d>=0?'+':'')+relStrength.spy20d+'% | RS spread: '+(relStrength.rs>=0?'+':'')+relStrength.rs+'% → '+relStrength.signal : 'N/A')+'\n\n'+
-    '=== NEWS CONTEXT (7 days before '+analysisDate+') ===\n'+
-    (news.length ? news.slice(0,5).map(n=>n.date+' ['+n.sentiment+']: '+n.title).join('\n') : 'No significant news')+'\n\n'+
+    (relStrength ? symbol+' 20d: '+(relStrength.sym20d>=0?'+':'')+relStrength.sym20d+'% vs SPY: '+(relStrength.spy20d>=0?'+':'')+relStrength.spy20d+'% | RS spread: '+(relStrength.rs>=0?'+':'')+relStrength.rs+'% â '+relStrength.signal : 'N/A')+'\n\n'+
+    '=== NEWS CONTEXT (Multi-Horizon: 21 days before '+analysisDate+') ===\n'+
+    (news.fresh&&news.fresh.length ? 'FRESH (0-2d):\n'+news.fresh.slice(0,3).map(function(n){return n.date+' ['+n.type+']: '+n.title}).join('\n')+'\n' : '')+
+    (news.developing&&news.developing.length ? 'DEVELOPING (3-7d):\n'+news.developing.filter(function(n){return n.type!=='NOISE'}).slice(0,3).map(function(n){return n.date+' ['+n.type+']: '+n.title}).join('\n')+'\n' : '')+
+    (news.thesis&&news.thesis.length ? 'THESIS (8-21d, check if priced in):\n'+news.thesis.filter(function(n){return n.type!=='NOISE'}).slice(0,3).map(function(n){return n.date+' ['+n.type+', '+n.daysAgo+'d ago]: '+n.title}).join('\n') : 'No significant news')+'\n\n'+
     
-  // ── INJECT LEARNED PATTERNS: feed what the AI already knows back in ──
+  // ââ INJECT LEARNED PATTERNS: feed what the AI already knows back in ââ
   let learnedCtx = ''
   try {
     const lp = await supaFetch('ai_learned_patterns?order=prompt_weight.desc&limit=10&select=pattern_name,notes,prompt_weight,outcome_description')
     if (lp && lp.length > 0) {
       const topPatterns = lp.slice(0,5).map(p=>`  - ${p.pattern_name} (weight:${p.prompt_weight?.toFixed(2)}): ${p.notes?.substring(0,120)}`).join('\n')
       const antiPatterns = lp.filter(p=>p.prompt_weight<1).slice(0,3).map(p=>`  - AVOID: ${p.pattern_name}: ${p.notes?.substring(0,80)}`).join('\n')
-      learnedCtx = '\n\n=== AI LEARNED PATTERNS (from past training — apply these lessons) ===\n'+topPatterns+(antiPatterns?'\nINVALIDATION PATTERNS (high failure rate):\n'+antiPatterns:'')
+      learnedCtx = '\n\n=== AI LEARNED PATTERNS (from past training â apply these lessons) ===\n'+topPatterns+(antiPatterns?'\nINVALIDATION PATTERNS (high failure rate):\n'+antiPatterns:'')
     }
   } catch(e) {}
 
@@ -339,14 +356,14 @@ async function runTrainingSession(symbol, analysisDate, runId) {
 
   const msg = await anthropic.messages.create({
     model:'claude-sonnet-4-20250514', max_tokens:600,
-    system:'You are a senior quant analyst. Blind historical training — analyze only data provided. Return valid JSON only.',
+    system:'You are a senior quant analyst. Blind historical training â analyze only data provided. Return valid JSON only.',
     messages:[{role:'user',content:brief}]
   })
   let thesis = {}
   try { thesis = JSON.parse(msg.content[0].text.replace(/```json\n?/g,'').replace(/```/g,'').trim()) }
   catch(e) { const m=msg.content[0].text.match(/\{[\s\S]*\}/); if(m) try{thesis=JSON.parse(m[0])}catch(e2){} }
 
-  // ── STEP 5: INSTANT SCORING — future PA already in hand ───────────────────
+  // ââ STEP 5: INSTANT SCORING â future PA already in hand âââââââââââââââââââ
   // No API call. No timeout. Zero latency.
   const scores = futureBars.length > 0 ? scoreOutcomes(futureBars, thesis.predictedDirection, thesis.expectedMoveByDays, thesis.expectedPriceTarget) : {}
 
@@ -357,14 +374,14 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     ': predicted '+thesis.predictedDirection+', actual '+scores.dir5d+
     ' | 1d='+scores.o1d+'% 5d='+scores.o5d+'% 20d='+scores.o20d+'%'
 
-  // ── STEP 6: ATTRIBUTION — why did it work or fail? ─────────────────────────
+  // ââ STEP 6: ATTRIBUTION â why did it work or fail? âââââââââââââââââââââââââ
   // Only run if we have outcome data. This is where learning actually happens.
   let attribution = {}
   if (thesisValidated !== null && scores.o5d !== undefined) {
     attribution = await attributeOutcome(symbol, analysisDate, thesis, scores, signals, macro, relStrength, news).catch(()=>({}))
   }
 
-  // ── STEP 7: Store learned pattern ─────────────────────────────────────────
+  // ââ STEP 7: Store learned pattern âââââââââââââââââââââââââââââââââââââââââ
   if (thesisValidated !== null && attribution.patternTag) {
     await supaInsert('ai_learned_patterns', {
       pattern_name: attribution.patternTag+'_'+(thesisValidated?'WIN':'LOSS')+'_'+symbol,
@@ -377,7 +394,7 @@ async function runTrainingSession(symbol, analysisDate, runId) {
     }).catch(()=>{})
   }
 
-  // ── STEP 8: Write full run log ─────────────────────────────────────────────
+  // ââ STEP 8: Write full run log âââââââââââââââââââââââââââââââââââââââââââââ
   const runLog = {
     run_id: runId, symbol, analysis_date: analysisDate,
     price_at_analysis: +price.toFixed(2),
@@ -412,7 +429,7 @@ async function runTrainingSession(symbol, analysisDate, runId) {
   return { runId, status:'completed', symbol, analysisDate, thesis, scores, thesisValidated, scoringNote, attribution }
 }
 
-// ── HANDLER ───────────────────────────────────────────────────────────────────
+// ââ HANDLER âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin','*')
   if (req.method==='OPTIONS') return res.status(200).end()
