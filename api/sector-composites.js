@@ -1,22 +1,22 @@
-// api/sector-composites.js v2 — AnkushAI Sector Composite Engine
-// Marcus Webb — Equal-weight constituent basket per sector
+// api/sector-composites.js v2 â AnkushAI Sector Composite Engine
+// Marcus Webb â Equal-weight constituent basket per sector
 // Uses same per-ticker Polygon approach as market.js (proven working)
 
 const POLYGON = process.env.POLYGON_API_KEY || '';
 const TWELVE  = process.env.TWELVE_DATA_API_KEY || '';
 
 const SECTOR_MAP = [
-  { id:'technology',          name:'Technology',          emoji:'💻', constituents:['MSFT','NVDA','AAPL','AVGO','ORCL','PLTR','MU','AMD','INTC','TXN','ADI','NXPI','ANET','LRCX','KLAC','CRM','NOW','ADBE','IBM','ACN','ADP','CSCO','MSI','APH','GLW','STX'] },
-  { id:'consumer-defensive',  name:'Consumer Defensive',  emoji:'🛒', constituents:['WMT','COST','KO','PEP','PG','PM','MO','MDLZ','CL','KR','SYY'] },
-  { id:'consumer-cyclical',   name:'Consumer Cyclical',   emoji:'🛍️', constituents:['AMZN','TSLA','HD','MCD','LOW','TJX','NKE','MAR','HLT','RCL','CCL'] },
-  { id:'communication',       name:'Communication Services',emoji:'📡', constituents:['GOOG','META','NFLX','DIS','TMUS','VZ','T','APP','EA','WBD'] },
-  { id:'industrials',         name:'Industrials',         emoji:'⚙️', constituents:['GE','RTX','CAT','DE','UNP','CSX','NSC','LMT','NOC','GD','BA','ETN','PH','ITW','HON','MMM','URI','VRT','JCI'] },
-  { id:'financial',           name:'Financial',           emoji:'🏦', constituents:['BRK-B','JPM','BAC','WFC','C','GS','MS','BLK','BX','SCHW','AXP','V','MA','PNC','USB','COF','CB','AON'] },
-  { id:'healthcare',          name:'Healthcare',          emoji:'🏥', constituents:['LLY','JNJ','UNH','ABBV','MRK','PFE','ABT','AMGN','GILD','BMY','TMO','DHR','ISRG','SYK','BSX','MCK','HCA','CVS','ELV'] },
-  { id:'real-estate',         name:'Real Estate',         emoji:'🏢', constituents:['AMT','EQIX','PLD','PSA','WELL','SPG','O'] },
-  { id:'energy',              name:'Energy',              emoji:'⚡', constituents:['XOM','CVX','COP','EOG','SLB','OXY','PSX','VLO','OKE'] },
-  { id:'utilities',           name:'Utilities',           emoji:'🔌', constituents:['NEE','SO','DUK','CEG'] },
-  { id:'basic-materials',     name:'Basic Materials',     emoji:'⛏️', constituents:['LIN','SHW','NEM','CRH'] },
+  { id:'technology',          name:'Technology',          emoji:'ð»', constituents:['MSFT','NVDA','AAPL','AVGO','ORCL','PLTR','MU','AMD','INTC','TXN','ADI','NXPI','ANET','LRCX','KLAC','CRM','NOW','ADBE','IBM','ACN','ADP','CSCO','MSI','APH','GLW','STX'] },
+  { id:'consumer-defensive',  name:'Consumer Defensive',  emoji:'ð', constituents:['WMT','COST','KO','PEP','PG','PM','MO','MDLZ','CL','KR','SYY'] },
+  { id:'consumer-cyclical',   name:'Consumer Cyclical',   emoji:'ðï¸', constituents:['AMZN','TSLA','HD','MCD','LOW','TJX','NKE','MAR','HLT','RCL','CCL'] },
+  { id:'communication',       name:'Communication Services',emoji:'ð¡', constituents:['GOOG','META','NFLX','DIS','TMUS','VZ','T','APP','EA','WBD'] },
+  { id:'industrials',         name:'Industrials',         emoji:'âï¸', constituents:['GE','RTX','CAT','DE','UNP','CSX','NSC','LMT','NOC','GD','BA','ETN','PH','ITW','HON','MMM','URI','VRT','JCI'] },
+  { id:'financial',           name:'Financial',           emoji:'ð¦', constituents:['BRK-B','JPM','BAC','WFC','C','GS','MS','BLK','BX','SCHW','AXP','V','MA','PNC','USB','COF','CB','AON'] },
+  { id:'healthcare',          name:'Healthcare',          emoji:'ð¥', constituents:['LLY','JNJ','UNH','ABBV','MRK','PFE','ABT','AMGN','GILD','BMY','TMO','DHR','ISRG','SYK','BSX','MCK','HCA','CVS','ELV'] },
+  { id:'real-estate',         name:'Real Estate',         emoji:'ð¢', constituents:['AMT','EQIX','PLD','PSA','WELL','SPG','O'] },
+  { id:'energy',              name:'Energy',              emoji:'â¡', constituents:['XOM','CVX','COP','EOG','SLB','OXY','PSX','VLO','OKE'] },
+  { id:'utilities',           name:'Utilities',           emoji:'ð', constituents:['NEE','SO','DUK','CEG'] },
+  { id:'basic-materials',     name:'Basic Materials',     emoji:'âï¸', constituents:['LIN','SHW','NEM','CRH'] },
 ];
 
 async function fetchJson(url) {
@@ -26,36 +26,38 @@ async function fetchJson(url) {
 }
 
 async function getTickerQuote(symbol) {
-  const s = symbol.toUpperCase();
-  if (!POLYGON) return null;
+  var s = symbol.toUpperCase();
+  // Yahoo first — it correctly computes change from regularMarketPrice - chartPreviousClose
   try {
-    // Try live snapshot first
-    const snap = await fetchJson('https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/' + s + '?apiKey=' + POLYGON);
-    const t = snap.ticker;
-    if (t && (t.day || t.prevDay)) {
-      return {
-        symbol: s,
-        price: (t.day && t.day.c) || t.prevDay.c || 0,
-        changePercent: t.todaysChangePerc || 0,
-        change: t.todaysChange || 0,
-        volume: (t.day && t.day.v) || 0,
-      };
+    var yd = await fetchJson('https://query1.finance.yahoo.com/v8/finance/chart/' + s + '?interval=1d&range=1d');
+    var ym = yd.chart && yd.chart.result && yd.chart.result[0] && yd.chart.result[0].meta;
+    if (ym && ym.regularMarketPrice) {
+      var yp = ym.regularMarketPrice;
+      var ypc = ym.chartPreviousClose || ym.previousClose;
+      return { symbol: s, price: yp, changePercent: ypc ? (yp - ypc) / ypc * 100 : 0, change: ypc ? yp - ypc : 0, volume: ym.regularMarketVolume || 0 };
     }
   } catch(e) {}
-  try {
-    // Fallback: prev close aggs
-    const d = await fetchJson('https://api.polygon.io/v2/aggs/ticker/' + s + '/prev?adjusted=true&apiKey=' + POLYGON);
-    if (d.results && d.results[0]) {
-      const r = d.results[0];
-      return { symbol: s, price: r.c, changePercent: 0, change: 0, volume: r.v || 0 };
-    }
-  } catch(e) {}
+  // Polygon snapshot fallback
+  if (POLYGON) {
+    try {
+      var snap = await fetchJson('https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/' + s + '?apiKey=' + POLYGON);
+      var t = snap.ticker;
+      if (t && (t.day || t.prevDay)) {
+        return { symbol: s, price: (t.day && t.day.c) || t.prevDay.c || 0, changePercent: t.todaysChangePerc || 0, change: t.todaysChange || 0, volume: (t.day && t.day.v) || 0 };
+      }
+    } catch(e) {}
+    // Polygon prev — price only, no change
+    try {
+      var d = await fetchJson('https://api.polygon.io/v2/aggs/ticker/' + s + '/prev?adjusted=true&apiKey=' + POLYGON);
+      if (d.results && d.results[0]) return { symbol: s, price: d.results[0].c, changePercent: 0, change: 0, volume: d.results[0].v || 0 };
+    } catch(e) {}
+  }
   return null;
 }
 
 let cache = null;
 let cacheTs = 0;
-const CACHE_TTL = 120000; // 2 min cache — 130 individual calls, don't hammer the API
+const CACHE_TTL = 120000; // 2 min cache â 130 individual calls, don't hammer the API
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -70,7 +72,7 @@ module.exports = async function handler(req, res) {
     // Get all unique tickers
     const ALL = [...new Set(SECTOR_MAP.flatMap(s => s.constituents))];
 
-    // Fetch all in parallel — 130 concurrent requests, each uses individual Polygon endpoint
+    // Fetch all in parallel â 130 concurrent requests, each uses individual Polygon endpoint
     const quotes = {};
     const results = await Promise.allSettled(ALL.map(sym => getTickerQuote(sym)));
     results.forEach((r, i) => {
