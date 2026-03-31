@@ -421,15 +421,18 @@ module.exports = async function handler(req, res) {
         if (open.length > 0) openPositions = '\nOpen positions: ' + open.join('; ');
       }
       const dayOfWeek = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
-      // Fetch market sentiment for briefing
+      // Fetch market sentiment for briefing (with 4s timeout so briefing loads fast)
       let sentimentCtx = '';
       try {
-        const sentRes = await fetch((process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'https://www.ankushai.org') + '/api/sentiment');
+        const sentController = new AbortController();
+        const sentTimer = setTimeout(function() { sentController.abort(); }, 4000);
+        const sentRes = await fetch((process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'https://www.ankushai.org') + '/api/sentiment', { signal: sentController.signal });
+        clearTimeout(sentTimer);
         if (sentRes.ok) {
           const sent = await sentRes.json();
           if (sent.summary) sentimentCtx = sent.summary + ' ';
         }
-      } catch (e) { /* ok */ }
+      } catch (e) { /* timeout or error — briefing still loads */ }
 
       let briefing = 'Good ' + (new Date().getHours() < 12 ? 'morning' : 'afternoon') + '. ';
       if (sentimentCtx) briefing += sentimentCtx;
@@ -485,10 +488,14 @@ module.exports = async function handler(req, res) {
     const moodCtx = mood ? '\n\n[Trader mood: ' + mood + '. Acknowledge naturally if relevant.]' : '';
     const tradeCtx = parsedTrade ? '\n\n[Auto-parsed trade from message: ' + JSON.stringify(parsedTrade) + '. Confirm you noted it and review the setup.]' : '';
 
-    // Alpha Intelligence cross-reference — fetch prediction for first mentioned symbol
+    // Alpha Intelligence cross-reference — fetch prediction for first mentioned symbol (non-blocking)
     let alphaCtx = '';
     if (symbols.length > 0) {
-      alphaCtx = await getAlphaPrediction(symbols[0]);
+      try {
+        const alphaPromise = getAlphaPrediction(symbols[0]);
+        const alphaTimeout = new Promise(function(resolve) { setTimeout(function() { resolve(''); }, 5000); });
+        alphaCtx = await Promise.race([alphaPromise, alphaTimeout]);
+      } catch (e) { alphaCtx = ''; }
     }
 
     const recentHistory = Array.isArray(history) ? history.slice(-10) : [];
