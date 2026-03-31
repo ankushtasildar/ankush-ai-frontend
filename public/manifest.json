@@ -1,0 +1,19 @@
+{
+  "name": "AnkushAI — Trading Intelligence",
+  "short_name": "AnkushAI",
+  "description": "AI-powered trading intelligence, journaling, and coaching platform",
+  "start_url": "/app/overview",
+  "display": "standalone",
+  "background_color": "#0a0a14",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["finance", "productivity"],
+  "lang": "en-US"
+}
