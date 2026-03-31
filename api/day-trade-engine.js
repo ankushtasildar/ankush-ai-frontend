@@ -337,7 +337,7 @@ function macdAnalysis(bars) {
   return{macd:+macdLine.toFixed(4),signal:signal?+signal.toFixed(4):null,histogram:histogram,cross:cross,divergence:divergence};
 }
 
-// == ADX — TREND STRENGTH =====================================================
+// == ADX â TREND STRENGTH =====================================================
 function adxCalc(bars) {
   if(!bars||bars.length<28)return{adx:null,trending:false,signal:"insufficient_data"};
   var period=14,pDM=[],nDM=[],tr=[];
@@ -418,7 +418,7 @@ function detectHarmonics(bars) {
   return harmonics;
 }
 
-// == FTFC — Full Timeframe Continuity (Mia Thornton) ==========================
+// == FTFC â Full Timeframe Continuity (Mia Thornton) ==========================
 function computeFTFC(allTfData, rawTf) {
   var tfNames=["daily","1h","15m","5m","1m"];
   var ftfc={tfs:{},continuity:"none",direction:"neutral",strength:0,actionable:false,summary:""};
@@ -510,6 +510,17 @@ function rateLimitOk(action,maxPerMin){
 
 // == FULL ANALYSIS PIPELINE ===================================================
 async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
+  // Real-time price override (Dr. Marco Reyes): Polygon daily bars lag by ~30min after close
+  // Use Yahoo for most current price
+  var realTimePrice = null;
+  try {
+    var yq = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/" + symbol + "?range=1d&interval=5m", {signal: AbortSignal.timeout(4000)});
+    if (yq.ok) {
+      var yd = await yq.json();
+      var meta = yd.chart && yd.chart.result && yd.chart.result[0] && yd.chart.result[0].meta;
+      if (meta && meta.regularMarketPrice) realTimePrice = meta.regularMarketPrice;
+    }
+  } catch(e) { /* Yahoo timeout — fall back to Polygon */ }
   var mtf = await fetchMultiTF(symbol, dateStr);
   var allTfData = {};
   Object.keys(mtf.tf).forEach(function(tf) {
@@ -542,7 +553,7 @@ async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
     }));
     lr.forEach(function(r){if(r.status==='fulfilled')leaders[r.value.sym]=r.value.chg+'%'});
   }catch(e){}
-  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,ftfc:ftfc,todEdge:todEdge,leaders:leaders,options:options};
+  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,ftfc:ftfc,todEdge:todEdge,leaders:leaders,options:options,realTimePrice:realTimePrice};
 }
 
 // == LOG TRADE ================================================================
@@ -584,8 +595,13 @@ async function backtest(body) {
   '{"strategyName":"unique name for this pattern","whyItWorked":"specific multi-TF explanation referencing levels, candles, strat combos, squeeze, confluence","entrySignals":["signal1","signal2","signal3"],"exitSignals":["signal1","signal2"],"keyTimeframe":"which TF was primary","stratCombo":"if applicable, which Strat combo triggered","squeezeState":"was BB squeeze involved","fibLevel":"nearest fib at entry","confluenceAtEntry":"bull/bear % at entry time","todEdge":"time-of-day window and its typical behavior","strategyRules":{"entry":"SPECIFIC conditions to replicate","exit":"SPECIFIC exit rules","stopLoss":"where to place stop","profitTarget":"expected contract % gain","timeWindow":"PST time window","qqqMoveExpected":"expected QQQ % move","contractMoveExpected":"expected contract % move"},"confidence":0-100,"gradeThisTrade":"A+ to F","lessonsLearned":"what to do differently next time"}';
 
   try{
-    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,messages:[{role:'user',content:prompt}]})});
-    var d=await r.json();var txt=d.content&&d.content[0]?d.content[0].text:'';
+    // Groq primary (Yusuf Okafor: Groq-first per CEO directive)
+    var GROQ_KEY=process.env.GROQ_API_KEY||'';
+    var llmUrl=GROQ_KEY?'https://api.groq.com/openai/v1/chat/completions':'https://api.anthropic.com/v1/messages';
+    var llmHeaders=GROQ_KEY?{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY}:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'};
+    var llmBody=GROQ_KEY?JSON.stringify({model:'llama-3.3-70b-versatile',max_tokens:1200,messages:[{role:'system',content:'You are 19 elite QQQ day trade specialists. Return valid JSON only.'},{role:'user',content:prompt}]}):JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,messages:[{role:'user',content:prompt}]});
+    var r=await fetch(llmUrl,{method:'POST',headers:llmHeaders,body:llmBody});
+    var d=await r.json();var txt=GROQ_KEY?(d.choices&&d.choices[0]&&d.choices[0].message?d.choices[0].message.content:''):(d.content&&d.content[0]?d.content[0].text:'');
     try{var ai=JSON.parse(txt.replace(/```json\n?/g,'').replace(/```/g,'').trim());return{analysis:analysis,trade:td,ai:ai}}
     catch(e){var m=txt.match(/\{[\s\S]*\}/);return{analysis:analysis,trade:td,ai:m?JSON.parse(m[0]):{raw:txt.substring(0,500)}}}
   }catch(e){return{analysis:analysis,trade:td,ai:{error:e.message}}}
@@ -609,7 +625,7 @@ async function liveScan() {
   var analysis=await fullAnalysis('QQQ',today,entryTime,null);
   // Load learned strategies for matching
   var strats=await getStrategies();
-  return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,ftfc:analysis.ftfc,todEdge:analysis.todEdge,levels:analysis.levels,gap:analysis.gap,avwaps:analysis.avwaps,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol}:null,leaders:analysis.leaders,
+  return{symbol:'QQQ',timestamp:toPST(now),price:analysis.realTimePrice||'delayed',confluence:analysis.confluence,ftfc:analysis.ftfc,todEdge:analysis.todEdge,levels:analysis.levels,gap:analysis.gap,avwaps:analysis.avwaps,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol}:null,leaders:analysis.leaders,
     perTimeframe:Object.keys(analysis.allTfData).reduce(function(a,k){var d=analysis.allTfData[k];a[k]={bars:d.bars,topCandle:d.candles.length>0?d.candles[d.candles.length-1]:null,topStrat:d.strat.length>0?d.strat[d.strat.length-1]:null,squeeze:d.squeeze,emaCloud:d.ema.cloud||'unknown',macd:d.macd?{cross:d.macd.cross,divergence:d.macd.divergence,histogram:d.macd.histogram}:null,adx:d.adx};return a},{}),
     learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
 }
