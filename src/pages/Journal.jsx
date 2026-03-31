@@ -36,26 +36,61 @@ export default function Journal() {
       if (!user) return
       setUserId(user.id)
 
-      // Load journal entries
+      // Load journal entries (trades)
       const { data } = await supabase.from('journal_entries').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
       if (data) setEntries(data)
 
-      // Load morning briefing
+      // Load last conversation session (conversation persistence)
       if (!briefingLoaded) {
+        var restoredSession = false
         try {
-          const res = await fetch('/api/journal-ai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'briefing', userId: user.id })
-          })
-          const d = await res.json()
-          if (d.briefing) {
-            setMessages([{ role: 'assistant', content: d.briefing }])
-          } else {
+          const convos = await supabase.from('journal_entries')
+            .select('content,created_at')
+            .eq('user_id', user.id)
+            .eq('type', 'ai_chat')
+            .order('created_at', { ascending: false })
+            .limit(10)
+          if (convos.data && convos.data.length > 0) {
+            // Check if the most recent conversation was within the last 2 hours
+            var latest = new Date(convos.data[0].created_at)
+            var twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+            if (latest > twoHoursAgo) {
+              // Restore the session
+              var restored = []
+              var recent = convos.data.slice(0, 5).reverse()
+              for (var ci = 0; ci < recent.length; ci++) {
+                try {
+                  var chatData = JSON.parse(recent[ci].content || '{}')
+                  if (chatData.userMessage) restored.push({ role: 'user', content: chatData.userMessage })
+                  if (chatData.aiReply) restored.push({ role: 'assistant', content: chatData.aiReply })
+                } catch (pe) { /* skip */ }
+              }
+              if (restored.length >= 2) {
+                restored.unshift({ role: 'assistant', content: 'Welcome back. Here\'s where we left off.' })
+                setMessages(restored)
+                restoredSession = true
+              }
+            }
+          }
+        } catch (e) { /* ok, fall through to briefing */ }
+
+        // If no recent session to restore, load morning briefing
+        if (!restoredSession) {
+          try {
+            const res = await fetch('/api/journal-ai', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'briefing', userId: user.id })
+            })
+            const d = await res.json()
+            if (d.briefing) {
+              setMessages([{ role: 'assistant', content: d.briefing }])
+            } else {
+              setMessages([{ role: 'assistant', content: 'Welcome back. What would you like to work on today?' }])
+            }
+          } catch (e) {
             setMessages([{ role: 'assistant', content: 'Welcome back. What would you like to work on today?' }])
           }
-        } catch (e) {
-          setMessages([{ role: 'assistant', content: 'Welcome back. What would you like to work on today?' }])
         }
         setBriefingLoaded(true)
       }
@@ -388,7 +423,7 @@ export default function Journal() {
       {tab === 'history' && (
         <div>
           {entries.filter(function(e) { return e.type === 'trade' }).length === 0 ? (
-            <p style={{ color: '#555', textAlign: 'center', padding: 40 }}>No trades logged yet. Start by logging your first trade or describe one in the chat.</p>
+            <p style={{ color: '#555', textAlign: 'center', padding: 40, lineHeight: 1.6 }}>No trades logged yet. Describe a trade in the chat like "Bought 100 NVDA at 165, stop 155, target 185" and it will be auto-logged.</p>
           ) : (
             entries.filter(function(e) { return e.type === 'trade' }).map(function(entry, i) {
               var data = {}
