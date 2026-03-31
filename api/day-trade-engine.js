@@ -115,7 +115,7 @@ function detectStrat(bars) {
 }
 
 
-// == FTFC â Full Timeframe Continuity (Mia Thornton + Rob Smith Advisory) ====
+// == FTFC Ã¢ÂÂ Full Timeframe Continuity (Mia Thornton + Rob Smith Advisory) ====
 // The Strat core: when ALL timeframes point same direction = highest probability
 function computeFTFC(allTfStrat) {
   var tfs = ["daily","1h","15m","5m","1m"];
@@ -228,7 +228,7 @@ function detectFibs(bars) {
 
 
 // == HARMONIC PATTERNS (Dr. Amir Patel) ======================================
-// Gartley, Butterfly, Bat — XABCD point identification
+// Gartley, Butterfly, Bat â XABCD point identification
 function detectHarmonics(bars) {
   if (!bars || bars.length < 20) return [];
   var harmonics = [];
@@ -478,7 +478,7 @@ function gapAnalysis(dailyBars, intradayBars) {
     gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
 }
 
-// == ADX ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ TREND STRENGTH (Dr. Lisa Park) ====================================
+// == ADX ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ TREND STRENGTH (Dr. Lisa Park) ====================================
 function adxCalc(bars) {
   if(!bars||bars.length<28)return{adx:null,trending:false};
   var period=14,pDM=[],nDM=[],tr=[];
@@ -583,7 +583,7 @@ function optionScenario(currentQQQ, strike, dte, vol, type, targetQQQ, targetDte
 // Fetch QQQ options chain via Yahoo Finance (server-side, free)
 async function fetchOptionsChain(symbol) {
   try {
-    var r = await fetchJ("https://query1.finance.yahoo.com/v7/finance/options/" + symbol);
+    var r = await fetch("https://query1.finance.yahoo.com/v7/finance/options/" + symbol, {signal: AbortSignal.timeout(5000)}).then(function(res){if(!res.ok)throw new Error("HTTP "+res.status);return res.json()});
     var chain = r.optionChain && r.optionChain.result && r.optionChain.result[0];
     if (!chain) return { available: false };
     var calls = chain.options && chain.options[0] ? chain.options[0].calls || [] : [];
@@ -624,6 +624,7 @@ function historicalVol(dailyBars, lookback) {
 
 // Full options analysis for a QQQ trade
 async function optionsAnalysis(dailyBars, trade) {
+  trade = trade || {};
   var qqqPrice = dailyBars && dailyBars.length > 0 ? dailyBars[dailyBars.length - 1].c : 0;
   var hv = historicalVol(dailyBars, 20);
   var result = { qqqPrice: qqqPrice, historicalVol: +(hv * 100).toFixed(1) + "%", chain: null, estimates: {} };
@@ -644,7 +645,7 @@ async function optionsAnalysis(dailyBars, trade) {
     result.estimates.atEntry = atEntry;
     result.estimates.iv = +(iv * 100).toFixed(1) + "%";
     result.estimates.dte = dte;
-    // Scenario: if QQQ moves ÃÂ±$2, ÃÂ±$5
+    // Scenario: if QQQ moves ÃÂÃÂ±$2, ÃÂÃÂ±$5
     var base = trade.qqqAtEntry || qqqPrice;
     result.estimates.scenarios = [
       { label: "QQQ +$2", result: optionScenario(base, trade.strike, dte, iv, type, base + 2) },
@@ -758,7 +759,7 @@ async function liveScan() {
   var pstH=parseInt(now.toLocaleString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',hour12:false}));
   var pstM=parseInt(now.toLocaleString('en-US',{timeZone:'America/Los_Angeles',minute:'numeric'}));
   var entryTime=pstH+':'+String(pstM).padStart(2,'0');
-  var analysis=await fullAnalysis('QQQ',today,entryTime);
+  var analysis=await fullAnalysis('QQQ',today,entryTime,null);
   // Load learned strategies for matching
   var strats=await getStrategies();
   return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,todEdge:analysis.todEdge,levels:analysis.levels,leaders:analysis.leaders,
