@@ -1,7 +1,4 @@
-// Stateful squeeze fire detection (Dr. Wei Chen fix)
-  var wasSqueeze=false,justFired=false;
-  if(bars.length>=22){var pc2=bars.slice(0,-1).map(function(b){return b.c}),ps2=pc2.slice(-20),pm2=ps2.reduce(function(a,b){return a+b},0)/20,psd2=Math.sqrt(ps2.reduce(function(a,b){return a+Math.pow(b-pm2,2)},0)/20),pbbw2=psd2>0?(4*psd2/pm2*100):0,pa2=0;for(var pi=bars.length-21;pi<bars.length-1;pi++){if(pi>0)pa2+=Math.max(bars[pi].h-bars[pi].l,Math.abs(bars[pi].h-bars[pi-1].c),Math.abs(bars[pi].l-bars[pi-1].c))}pa2/=20;wasSqueeze=pbbw2<(pa2>0?(3*pa2/pm2*100):0);justFired=wasSqueeze&&!squeeze}
-  // ============================================================================
+// ============================================================================
 // ANKUSHAI DAY TRADE ENGINE v2
 // ============================================================================
 // 19 specialists + 2 advisors. The revenue engine of AnkushAI.
@@ -28,19 +25,6 @@ async function fetchJ(url) { var r = await fetch(url, { signal: AbortSignal.time
 async function supaInsert(t, row) { try { var r = await fetch(SUPABASE_URL+'/rest/v1/'+t, { method:'POST', headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'}, body:JSON.stringify(row) }); return r.ok ? r.json() : null; } catch(e) { return null; } }
 async function supaGet(t, q) { try { var r = await fetch(SUPABASE_URL+'/rest/v1/'+t+'?'+q, { headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY} }); return r.ok ? r.json() : []; } catch(e) { return []; } }
 function toPST(d) { return new Date(d).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }); }
-
-
-// == RATE LIMITER (Ryan Kim + Kai Chen) =======================================
-var _rateCache = {};
-function rateLimitCheck(action, maxPerMin) {
-  var now = Date.now();
-  if (!_rateCache[action]) _rateCache[action] = [];
-  // Clean old entries (older than 60s)
-  _rateCache[action] = _rateCache[action].filter(function(t) { return now - t < 60000; });
-  if (_rateCache[action].length >= maxPerMin) return false;
-  _rateCache[action].push(now);
-  return true;
-}
 
 // == MULTI-TIMEFRAME DATA (Ryan Kim) =========================================
 async function fetchMultiTF(symbol, dateStr) {
@@ -114,50 +98,6 @@ function detectStrat(bars) {
   return combos.slice(-8);
 }
 
-
-// == FTFC Ã¢ÂÂ Full Timeframe Continuity (Mia Thornton + Rob Smith Advisory) ====
-// The Strat core: when ALL timeframes point same direction = highest probability
-function computeFTFC(allTfStrat) {
-  var tfs = ["daily","1h","15m","5m","1m"];
-  var directions = {};
-  var ftfc = {tfs:{},continuity:"none",direction:"neutral",strength:0,actionable:false,summary:""};
-  tfs.forEach(function(tf) {
-    var strats = allTfStrat[tf] || [];
-    var bars = allTfStrat[tf + "_bars"] || [];
-    // Get the LAST bar classification for this timeframe
-    if (bars.length >= 2) {
-      var curr = bars[bars.length-1], prev = bars[bars.length-2];
-      var inside = curr.h<=prev.h && curr.l>=prev.l;
-      var outside = curr.h>prev.h && curr.l<prev.l;
-      var type, dir;
-      if (inside) { type="1"; dir="n"; }
-      else if (outside) { type="3"; dir=curr.c>curr.o?"u":"d"; }
-      else { type="2"; dir=curr.h>prev.h?"u":"d"; }
-      ftfc.tfs[tf] = {type:type,dir:dir,label:type+(dir!=="n"?dir:"")};
-      directions[tf] = dir;
-    }
-  });
-  // Count alignment
-  var ups=0,downs=0,total=0;
-  Object.keys(directions).forEach(function(tf) {
-    if (directions[tf]==="u") ups++;
-    if (directions[tf]==="d") downs++;
-    if (directions[tf]!=="n") total++;
-  });
-  ftfc.strength = total > 0 ? Math.max(ups, downs) : 0;
-  if (ups >= 4) { ftfc.continuity="full_bull"; ftfc.direction="bullish"; ftfc.actionable=true; }
-  else if (downs >= 4) { ftfc.continuity="full_bear"; ftfc.direction="bearish"; ftfc.actionable=true; }
-  else if (ups >= 3) { ftfc.continuity="partial_bull"; ftfc.direction="bullish"; ftfc.actionable=true; }
-  else if (downs >= 3) { ftfc.continuity="partial_bear"; ftfc.direction="bearish"; ftfc.actionable=true; }
-  else { ftfc.continuity="mixed"; ftfc.direction="neutral"; }
-  // Build summary string: "D-2u H-2u 15m-1 5m-2u 1m-2d"
-  var labels = {daily:"D","1h":"H","15m":"15m","5m":"5m","1m":"1m"};
-  ftfc.summary = tfs.map(function(tf) {
-    return (labels[tf]||tf) + "-" + (ftfc.tfs[tf] ? ftfc.tfs[tf].label : "?");
-  }).join(" ");
-  return ftfc;
-}
-
 // == BOLLINGER SQUEEZE (Dr. Wei Chen) ========================================
 function detectSqueeze(bars) {
   if(!bars||bars.length<20) return {squeeze:false};
@@ -186,7 +126,7 @@ function detectSqueeze(bars) {
   // Direction hint: momentum from last 3 bars
   var last3=closes.slice(-3);
   var momDir=last3[2]>last3[0]?'bullish':'bearish';
-  return {squeeze:squeeze,bbw:+bbw.toFixed(3),kcw:+kcWidth.toFixed(3),pctile:pctile,momDir:momDir,fired:justFired,wasSqueeze:wasSqueeze};
+  return {squeeze:squeeze,bbw:+bbw.toFixed(3),kcw:+kcWidth.toFixed(3),pctile:pctile,momDir:momDir,fired:!squeeze&&pctile<25};
 }
 
 // == FIBONACCI (Dr. Amir Patel) ==============================================
@@ -224,39 +164,6 @@ function detectFibs(bars) {
   var nearest=null,nearDist=Infinity;
   Object.keys(fibs).forEach(function(k){var d=Math.abs(last-fibs[k]);if(d<nearDist){nearDist=d;nearest=k}});
   return {trend:trending,swingHigh:+swingHigh.toFixed(2),swingLow:+swingLow.toFixed(2),levels:fibs,nearestFib:nearest,nearestPrice:fibs[nearest],distToNearest:+nearDist.toFixed(2)};
-}
-
-
-// == HARMONIC PATTERNS (Dr. Amir Patel) ======================================
-// Gartley, Butterfly, Bat â XABCD point identification
-function detectHarmonics(bars) {
-  if (!bars || bars.length < 20) return [];
-  var harmonics = [];
-  // Find swing points (local highs and lows)
-  var swings = [];
-  for (var i = 2; i < bars.length - 2; i++) {
-    if (bars[i].h > bars[i-1].h && bars[i].h > bars[i-2].h && bars[i].h > bars[i+1].h && bars[i].h > bars[i+2].h)
-      swings.push({idx:i, type:"high", price:bars[i].h});
-    if (bars[i].l < bars[i-1].l && bars[i].l < bars[i-2].l && bars[i].l < bars[i+1].l && bars[i].l < bars[i+2].l)
-      swings.push({idx:i, type:"low", price:bars[i].l});
-  }
-  if (swings.length < 5) return [];
-  // Check last 5 swing points for XABCD pattern
-  var recent = swings.slice(-5);
-  var X=recent[0].price,A=recent[1].price,B=recent[2].price,C=recent[3].price,D=recent[4].price;
-  var XA=Math.abs(A-X),AB=Math.abs(B-A),BC=Math.abs(C-B),CD=Math.abs(D-C);
-  if (XA===0) return [];
-  var abRatio=AB/XA,bcRatio=BC/AB,cdRatio=CD/BC;
-  // Gartley: AB=0.618 of XA, BC=0.382-0.886 of AB, CD=1.27-1.618 of BC
-  if (abRatio>0.55&&abRatio<0.72&&bcRatio>0.3&&bcRatio<0.95&&cdRatio>1.1&&cdRatio<1.8)
-    harmonics.push({pattern:"gartley",direction:D>C?"bullish":"bearish",completion:+D.toFixed(2),confidence:70});
-  // Butterfly: AB=0.786 of XA, CD=1.618-2.618 of BC
-  if (abRatio>0.7&&abRatio<0.88&&cdRatio>1.5&&cdRatio<2.8)
-    harmonics.push({pattern:"butterfly",direction:D>C?"bullish":"bearish",completion:+D.toFixed(2),confidence:60});
-  // Bat: AB=0.382-0.50 of XA, CD=1.618-2.618 of BC
-  if (abRatio>0.33&&abRatio<0.55&&cdRatio>1.5&&cdRatio<2.8)
-    harmonics.push({pattern:"bat",direction:D>C?"bullish":"bearish",completion:+D.toFixed(2),confidence:65});
-  return harmonics;
 }
 
 // == EMA CROSSOVER + DYNAMIC S/R (Nina Kowalski) =============================
@@ -339,7 +246,6 @@ function indicators(bars) {
 // == MULTI-TIMEFRAME CONFLUENCE (Dr. Lisa Park) ===============================
 function confluenceScore(allTfData) {
   // Day-trade optimized weights: 5m/15m are primary signal TFs
-  // Daily provides context, but intraday TFs drive entries
   var tfWeights={'1m':1.5,'5m':3,'15m':4,'1h':3,'daily':2};
   var bullScore=0,bearScore=0,totalWeight=0;
   Object.keys(allTfData).forEach(function(tf){
@@ -363,22 +269,12 @@ function confluenceScore(allTfData) {
       if(s.dir==='d')bearScore+=w*1.5;
     })}
     // Squeeze fired
-    // MACD
-    if(d.macd&&d.macd.cross==='bullish_cross')bullScore+=w*2;
-    if(d.macd&&d.macd.cross==='bearish_cross')bearScore+=w*2;
-    if(d.macd&&d.macd.divergence==='bullish_divergence')bullScore+=w*2.5;
-    if(d.macd&&d.macd.divergence==='bearish_divergence')bearScore+=w*2.5;
-    // ADX-weighted signals (stronger trends = higher weight)
-    var adxMult=d.adx&&d.adx.strong?1.5:d.adx&&d.adx.trending?1.2:1;
-    bullScore*=adxMult;bearScore*=adxMult;
     if(d.squeeze&&d.squeeze.fired){
       if(d.squeeze.momDir==='bullish')bullScore+=w*2;else bearScore+=w*2;
     }
     totalWeight+=w;
   });
   var total=bullScore+bearScore;
-  // FTFC bonus: full continuity adds significant weight
-  // (computed separately but reported alongside confluence)
   return{bullPct:total>0?Math.round(bullScore/total*100):50,bearPct:total>0?Math.round(bearScore/total*100):50,raw:{bull:+bullScore.toFixed(1),bear:+bearScore.toFixed(1)},bias:bullScore>bearScore*1.3?'BULLISH':bearScore>bullScore*1.3?'BEARISH':'NEUTRAL',strength:total>20?'strong':total>10?'moderate':'weak'};
 }
 
@@ -410,77 +306,40 @@ function timeOfDayEdge(entryTimePST) {
   return {current:current,info:edges[current]||{label:'Outside hours',edge:'none',note:'Market closed'},allEdges:edges};
 }
 
-
 // == MACD + DIVERGENCE (Marcus Webb + Carlos Vega) ============================
 function macdAnalysis(bars) {
   if(!bars||bars.length<26)return{};
   var closes=bars.map(function(b){return b.c});
   function ema(arr,p){if(arr.length<p)return null;var k=2/(p+1),e=arr[0];for(var i=1;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e}
-  // MACD Line = EMA(12) - EMA(26)
   var ema12=ema(closes,12),ema26=ema(closes,26);
   if(!ema12||!ema26)return{};
   var macdLine=ema12-ema26;
-  // Signal Line = EMA(9) of MACD line (approximate with recent)
   var macdHist=[];
-  for(var i=26;i<=closes.length;i++){
-    var e12=ema(closes.slice(0,i),12),e26=ema(closes.slice(0,i),26);
-    if(e12&&e26)macdHist.push(e12-e26);
-  }
+  for(var i=26;i<=closes.length;i++){var e12=ema(closes.slice(0,i),12),e26=ema(closes.slice(0,i),26);if(e12&&e26)macdHist.push(e12-e26)}
   var signal=macdHist.length>=9?ema(macdHist,9):null;
   var histogram=signal?+(macdLine-signal).toFixed(4):null;
-  // Crossover detection
   var cross="none";
   if(macdHist.length>=2&&signal){
     var prevMacd=macdHist[macdHist.length-2],prevSig=macdHist.length>=10?ema(macdHist.slice(0,-1),9):null;
     if(prevSig&&prevMacd<prevSig&&macdLine>signal)cross="bullish_cross";
     if(prevSig&&prevMacd>prevSig&&macdLine<signal)cross="bearish_cross";
   }
-  // RSI divergence (price vs RSI)
   var divergence="none";
   if(bars.length>=20){
     var recent10=closes.slice(-10),prev10=closes.slice(-20,-10);
     var recentHigh=Math.max.apply(null,recent10),prevHigh=Math.max.apply(null,prev10);
     var recentLow=Math.min.apply(null,recent10),prevLow=Math.min.apply(null,prev10);
-    // Compute RSI for both periods
-    function quickRsi(arr){var g=0,l=0;for(var i=1;i<arr.length;i++){var d=arr[i]-arr[i-1];if(d>0)g+=d;else l-=d}var rs=l>0?g/l:100;return 100-100/(1+rs)}
-    var rsiRecent=quickRsi(recent10),rsiPrev=quickRsi(prev10);
-    if(recentHigh>prevHigh&&rsiRecent<rsiPrev)divergence="bearish_divergence";
-    if(recentLow<prevLow&&rsiRecent>rsiPrev)divergence="bullish_divergence";
+    function qRsi(arr){var g=0,l=0;for(var i=1;i<arr.length;i++){var d=arr[i]-arr[i-1];if(d>0)g+=d;else l-=d}var rs=l>0?g/l:100;return 100-100/(1+rs)}
+    var rR=qRsi(recent10),rP=qRsi(prev10);
+    if(recentHigh>prevHigh&&rR<rP)divergence="bearish_divergence";
+    if(recentLow<prevLow&&rR>rP)divergence="bullish_divergence";
   }
   return{macd:+macdLine.toFixed(4),signal:signal?+signal.toFixed(4):null,histogram:histogram,cross:cross,divergence:divergence};
 }
 
-// == PRE-MARKET + GAP ANALYSIS (Omar Hassan + Sophie Laurent) ================
-function gapAnalysis(dailyBars, intradayBars) {
-  if(!dailyBars||dailyBars.length<2)return{};
-  var prev=dailyBars[dailyBars.length-2],today=dailyBars[dailyBars.length-1];
-  var gapPct=prev.c>0?+((today.o-prev.c)/prev.c*100).toFixed(2):0;
-  var gapDir=gapPct>0.1?"gap_up":gapPct<-0.1?"gap_down":"flat_open";
-  // Gap fill check: did price retrace to prev close?
-  var gapFilled=false;
-  if(intradayBars&&intradayBars.length>0){
-    if(gapDir==="gap_up")gapFilled=intradayBars.some(function(b){return b.l<=prev.c});
-    if(gapDir==="gap_down")gapFilled=intradayBars.some(function(b){return b.h>=prev.c});
-  }
-  // Pre-market levels (from first bar if available)
-  var pmHigh=null,pmLow=null;
-  if(intradayBars&&intradayBars.length>0){
-    // Bars before 9:30 ET (6:30 PST) = pre-market
-    var pmBars=intradayBars.filter(function(b){
-      var d=new Date(b.t);var h=d.getUTCHours();return h<13||(h===13&&d.getUTCMinutes()<30);
-    });
-    if(pmBars.length>0){
-      pmHigh=Math.max.apply(null,pmBars.map(function(b){return b.h}));
-      pmLow=Math.min.apply(null,pmBars.map(function(b){return b.l}));
-    }
-  }
-  return{gapPct:gapPct,gapDir:gapDir,gapFilled:gapFilled,prevClose:prev.c,todayOpen:today.o,pmHigh:pmHigh,pmLow:pmLow,
-    gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
-}
-
-// == ADX ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ TREND STRENGTH (Dr. Lisa Park) ====================================
+// == ADX — TREND STRENGTH =====================================================
 function adxCalc(bars) {
-  if(!bars||bars.length<28)return{adx:null,trending:false};
+  if(!bars||bars.length<28)return{adx:null,trending:false,signal:"insufficient_data"};
   var period=14,pDM=[],nDM=[],tr=[];
   for(var i=1;i<bars.length;i++){
     var upMove=bars[i].h-bars[i-1].h,downMove=bars[i-1].l-bars[i].l;
@@ -488,8 +347,7 @@ function adxCalc(bars) {
     nDM.push(downMove>upMove&&downMove>0?downMove:0);
     tr.push(Math.max(bars[i].h-bars[i].l,Math.abs(bars[i].h-bars[i-1].c),Math.abs(bars[i].l-bars[i-1].c)));
   }
-  if(tr.length<period)return{adx:null,trending:false};
-  // Smoothed averages
+  if(tr.length<period)return{adx:null,trending:false,signal:"insufficient_data"};
   var sPDM=pDM.slice(0,period).reduce(function(a,b){return a+b},0);
   var sNDM=nDM.slice(0,period).reduce(function(a,b){return a+b},0);
   var sTR=tr.slice(0,period).reduce(function(a,b){return a+b},0);
@@ -499,162 +357,155 @@ function adxCalc(bars) {
     var pDI=sTR>0?sPDM/sTR*100:0,nDI=sTR>0?sNDM/sTR*100:0;
     dx.push(pDI+nDI>0?Math.abs(pDI-nDI)/(pDI+nDI)*100:0);
   }
-  if(dx.length<period)return{adx:null,trending:false};
+  if(dx.length<period)return{adx:null,trending:false,signal:"insufficient_data"};
   var adx=dx.slice(0,period).reduce(function(a,b){return a+b},0)/period;
   for(var k=period;k<dx.length;k++)adx=(adx*(period-1)+dx[k])/period;
-  return{adx:+adx.toFixed(1),trending:adx>25,strong:adx>40,choppy:adx<20,signal:adx>40?"strong_trend":adx>25?"trending":adx>20?"weak_trend":"choppy_range"};
+  return{adx:+adx.toFixed(1),trending:adx>25,strong:adx>40,signal:adx>40?"strong_trend":adx>25?"trending":adx>20?"weak_trend":"choppy_range"};
 }
 
-// == ANCHORED VWAP (Anika Rao) ===============================================
-function anchoredVWAP(bars, anchorIndex) {
-  if(!bars||anchorIndex<0||anchorIndex>=bars.length)return null;
-  var cumVol=0,cumTP=0;
-  for(var i=anchorIndex;i<bars.length;i++){var tp=(bars[i].h+bars[i].l+bars[i].c)/3;cumTP+=tp*(bars[i].v||1);cumVol+=(bars[i].v||1)}
-  return cumVol>0?+(cumTP/cumVol).toFixed(2):null;
+// == GAP ANALYSIS (Omar Hassan + Sophie Laurent) ==============================
+function gapAnalysis(dailyBars, intradayBars) {
+  if(!dailyBars||dailyBars.length<2)return{};
+  var prev=dailyBars[dailyBars.length-2],today=dailyBars[dailyBars.length-1];
+  var gapPct=prev.c>0?+((today.o-prev.c)/prev.c*100).toFixed(2):0;
+  var gapDir=gapPct>0.1?"gap_up":gapPct<-0.1?"gap_down":"flat_open";
+  var gapFilled=false;
+  if(intradayBars&&intradayBars.length>0){
+    if(gapDir==="gap_up")gapFilled=intradayBars.some(function(b){return b.l<=prev.c});
+    if(gapDir==="gap_down")gapFilled=intradayBars.some(function(b){return b.h>=prev.c});
+  }
+  return{gapPct:gapPct,gapDir:gapDir,gapFilled:gapFilled,prevClose:prev.c,todayOpen:today.o,gapFillProb:Math.abs(gapPct)<0.5?"high":Math.abs(gapPct)<1?"moderate":"low"};
+}
+
+// == ANCHORED VWAP (Anika Rao) ================================================
+function anchoredVWAP(bars, anchorIdx) {
+  if(!bars||anchorIdx<0||anchorIdx>=bars.length)return null;
+  var cumV=0,cumTP=0;
+  for(var i=anchorIdx;i<bars.length;i++){var tp=(bars[i].h+bars[i].l+bars[i].c)/3;cumTP+=tp*(bars[i].v||1);cumV+=(bars[i].v||1)}
+  return cumV>0?+(cumTP/cumV).toFixed(2):null;
 }
 function computeAVWAPs(dailyBars) {
   if(!dailyBars||dailyBars.length<5)return{};
   var avwaps={};
-  // Anchor from swing low (lowest low in last 10 bars)
   var minIdx=0,minVal=Infinity;
   for(var i=Math.max(0,dailyBars.length-10);i<dailyBars.length;i++){if(dailyBars[i].l<minVal){minVal=dailyBars[i].l;minIdx=i}}
   avwaps.fromSwingLow=anchoredVWAP(dailyBars,minIdx);
-  // Anchor from swing high
   var maxIdx=0,maxVal=0;
   for(var j=Math.max(0,dailyBars.length-10);j<dailyBars.length;j++){if(dailyBars[j].h>maxVal){maxVal=dailyBars[j].h;maxIdx=j}}
   avwaps.fromSwingHigh=anchoredVWAP(dailyBars,maxIdx);
-  // Anchor from 5 days ago (weekly AVWAP)
   if(dailyBars.length>=5)avwaps.weekly=anchoredVWAP(dailyBars,dailyBars.length-5);
   return avwaps;
 }
 
-
-// == OPTIONS PRICING + GREEKS (Victoria Chang + Dr. Nikolai Petrov) ===========
-// Black-Scholes estimator + Polygon chain data + Yahoo fallback
-// Enables: "the 480C at $1.50 could reach $X if QQQ moves to $Y"
-
-// Standard normal CDF approximation (Abramowitz & Stegun)
-function normCDF(x) {
-  var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
-  var sign=x<0?-1:1; x=Math.abs(x)/Math.sqrt(2);
-  var t=1/(1+p*x);
-  var y=1-((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
-  return 0.5*(1+sign*y);
-}
-
-// Black-Scholes pricing + Greeks
-function blackScholes(S, K, T, r, sigma, type) {
-  // S=spot, K=strike, T=years to expiry, r=risk-free rate, sigma=annual vol, type="call"|"put"
-  if (T <= 0 || sigma <= 0) return { price: Math.max(0, type==="call" ? S-K : K-S), delta: type==="call"?1:(-1), gamma: 0, theta: 0, vega: 0, iv: sigma };
-  var d1 = (Math.log(S/K) + (r + sigma*sigma/2)*T) / (sigma*Math.sqrt(T));
-  var d2 = d1 - sigma*Math.sqrt(T);
-  var price, delta;
-  if (type === "call") {
-    price = S*normCDF(d1) - K*Math.exp(-r*T)*normCDF(d2);
-    delta = normCDF(d1);
-  } else {
-    price = K*Math.exp(-r*T)*normCDF(-d2) - S*normCDF(-d1);
-    delta = normCDF(d1) - 1;
+// == HARMONIC PATTERNS (Dr. Amir Patel) =======================================
+function detectHarmonics(bars) {
+  if(!bars||bars.length<20)return[];
+  var swings=[];
+  for(var i=2;i<bars.length-2;i++){
+    if(bars[i].h>bars[i-1].h&&bars[i].h>bars[i-2].h&&bars[i].h>bars[i+1].h&&bars[i].h>bars[i+2].h)swings.push({type:"high",price:bars[i].h});
+    if(bars[i].l<bars[i-1].l&&bars[i].l<bars[i-2].l&&bars[i].l<bars[i+1].l&&bars[i].l<bars[i+2].l)swings.push({type:"low",price:bars[i].l});
   }
-  // Greeks
-  var nd1 = Math.exp(-d1*d1/2) / Math.sqrt(2*Math.PI); // PDF of d1
-  var gamma = nd1 / (S*sigma*Math.sqrt(T));
-  var theta = -(S*nd1*sigma)/(2*Math.sqrt(T)) - (type==="call"?1:-1)*r*K*Math.exp(-r*T)*normCDF((type==="call"?1:-1)*d2);
-  theta = theta / 365; // daily theta
-  var vega = S*nd1*Math.sqrt(T) / 100; // per 1% vol change
-  return { price: +price.toFixed(4), delta: +delta.toFixed(4), gamma: +gamma.toFixed(6), theta: +theta.toFixed(4), vega: +vega.toFixed(4), iv: sigma };
+  if(swings.length<5)return[];
+  var r=swings.slice(-5);
+  var XA=Math.abs(r[1].price-r[0].price),AB=Math.abs(r[2].price-r[1].price);
+  var BC=Math.abs(r[3].price-r[2].price),CD=Math.abs(r[4].price-r[3].price);
+  if(XA===0)return[];
+  var abR=AB/XA,cdR=BC>0?CD/BC:0;
+  var harmonics=[];
+  if(abR>0.55&&abR<0.72&&cdR>1.1&&cdR<1.8)harmonics.push({pattern:"gartley",direction:r[4].price>r[3].price?"bullish":"bearish",confidence:70});
+  if(abR>0.7&&abR<0.88&&cdR>1.5&&cdR<2.8)harmonics.push({pattern:"butterfly",direction:r[4].price>r[3].price?"bullish":"bearish",confidence:60});
+  if(abR>0.33&&abR<0.55&&cdR>1.5&&cdR<2.8)harmonics.push({pattern:"bat",direction:r[4].price>r[3].price?"bullish":"bearish",confidence:65});
+  return harmonics;
 }
 
-// Scenario calculator: if QQQ moves to targetPrice, what happens to the option?
-function optionScenario(currentQQQ, strike, dte, vol, type, targetQQQ, targetDte) {
-  var r = 0.053; // ~5.3% risk-free rate
-  var T_now = dte / 365;
-  var T_target = (targetDte !== undefined ? targetDte : Math.max(0, dte - 1)) / 365;
-  var now = blackScholes(currentQQQ, strike, T_now, r, vol, type);
-  var then = blackScholes(targetQQQ, strike, T_target, r, vol, type);
-  return {
-    current: { qqqPrice: currentQQQ, optionPrice: now.price, delta: now.delta, gamma: now.gamma, theta: now.theta },
-    projected: { qqqPrice: targetQQQ, optionPrice: then.price, delta: then.delta, gamma: then.gamma, theta: then.theta },
-    change: { qqqMove: +(targetQQQ - currentQQQ).toFixed(2), qqqMovePct: +((targetQQQ - currentQQQ) / currentQQQ * 100).toFixed(2),
-      optionMove: +(then.price - now.price).toFixed(4), optionMovePct: now.price > 0 ? +((then.price - now.price) / now.price * 100).toFixed(1) : 0 }
-  };
+// == FTFC — Full Timeframe Continuity (Mia Thornton) ==========================
+function computeFTFC(allTfData, rawTf) {
+  var tfNames=["daily","1h","15m","5m","1m"];
+  var ftfc={tfs:{},continuity:"none",direction:"neutral",strength:0,actionable:false,summary:""};
+  var ups=0,downs=0,total=0;
+  tfNames.forEach(function(tf){
+    var bars=rawTf[tf]||[];
+    if(bars.length<2)return;
+    var curr=bars[bars.length-1],prev=bars[bars.length-2];
+    var inside=curr.h<=prev.h&&curr.l>=prev.l;
+    var outside=curr.h>prev.h&&curr.l<prev.l;
+    var type,dir;
+    if(inside){type="1";dir="n";}
+    else if(outside){type="3";dir=curr.c>curr.o?"u":"d";}
+    else{type="2";dir=curr.h>prev.h?"u":"d";}
+    ftfc.tfs[tf]={type:type,dir:dir,label:type+(dir!=="n"?dir:"")};
+    if(dir==="u"){ups++;total++}
+    if(dir==="d"){downs++;total++}
+  });
+  ftfc.strength=Math.max(ups,downs);
+  if(ups>=4){ftfc.continuity="full_bull";ftfc.direction="bullish";ftfc.actionable=true}
+  else if(downs>=4){ftfc.continuity="full_bear";ftfc.direction="bearish";ftfc.actionable=true}
+  else if(ups>=3){ftfc.continuity="partial_bull";ftfc.direction="bullish";ftfc.actionable=true}
+  else if(downs>=3){ftfc.continuity="partial_bear";ftfc.direction="bearish";ftfc.actionable=true}
+  var labels={daily:"D","1h":"H","15m":"15m","5m":"5m","1m":"1m"};
+  ftfc.summary=tfNames.map(function(tf){return(labels[tf]||tf)+"-"+(ftfc.tfs[tf]?ftfc.tfs[tf].label:"?")}).join(" ");
+  return ftfc;
 }
 
-// Fetch QQQ options chain via Yahoo Finance (server-side, free)
-async function fetchOptionsChain(symbol) {
-  try {
-    var r = await fetch("https://query1.finance.yahoo.com/v7/finance/options/" + symbol, {signal: AbortSignal.timeout(5000)}).then(function(res){if(!res.ok)throw new Error("HTTP "+res.status);return res.json()});
-    var chain = r.optionChain && r.optionChain.result && r.optionChain.result[0];
-    if (!chain) return { available: false };
-    var calls = chain.options && chain.options[0] ? chain.options[0].calls || [] : [];
-    var puts = chain.options && chain.options[0] ? chain.options[0].puts || [] : [];
-    var expirations = (chain.expirationDates || []).map(function(ts) { return new Date(ts * 1000).toISOString().split("T")[0]; });
-    // Find ATM strike (closest to current price)
-    var quote = chain.quote || {};
-    var price = quote.regularMarketPrice || 0;
-    // Get calls near the money (5 strikes above and below)
-    var atmCalls = calls.filter(function(c) { return Math.abs(c.strike - price) <= 10; }).slice(0, 10);
-    var atmPuts = puts.filter(function(p) { return Math.abs(p.strike - price) <= 10; }).slice(0, 10);
-    return {
-      available: true,
-      price: price,
-      expirations: expirations.slice(0, 8),
-      nearestExpiry: expirations[0],
-      atmCalls: atmCalls.map(function(c) { return { strike: c.strike, last: c.lastPrice, bid: c.bid, ask: c.ask, iv: c.impliedVolatility ? +(c.impliedVolatility * 100).toFixed(1) : null, vol: c.volume, oi: c.openInterest }; }),
-      atmPuts: atmPuts.map(function(p) { return { strike: p.strike, last: p.lastPrice, bid: p.bid, ask: p.ask, iv: p.impliedVolatility ? +(p.impliedVolatility * 100).toFixed(1) : null, vol: p.volume, oi: p.openInterest }; }),
-      totalCalls: calls.length,
-      totalPuts: puts.length
-    };
-  } catch (e) { return { available: false, error: e.message }; }
+// == BLACK-SCHOLES OPTIONS PRICING (Dr. Nikolai Petrov) =======================
+function normCDF(x){var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;var sign=x<0?-1:1;x=Math.abs(x)/Math.sqrt(2);var t=1/(1+p*x);var y=1-((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);return 0.5*(1+sign*y)}
+function blackScholes(S,K,T,r,sigma,type){
+  if(T<=0||sigma<=0)return{price:Math.max(0,type==="call"?S-K:K-S),delta:type==="call"?1:-1,gamma:0,theta:0,vega:0};
+  var d1=(Math.log(S/K)+(r+sigma*sigma/2)*T)/(sigma*Math.sqrt(T));
+  var d2=d1-sigma*Math.sqrt(T);
+  var price,delta;
+  if(type==="call"){price=S*normCDF(d1)-K*Math.exp(-r*T)*normCDF(d2);delta=normCDF(d1)}
+  else{price=K*Math.exp(-r*T)*normCDF(-d2)-S*normCDF(-d1);delta=normCDF(d1)-1}
+  var nd1=Math.exp(-d1*d1/2)/Math.sqrt(2*Math.PI);
+  var gamma=nd1/(S*sigma*Math.sqrt(T));
+  var theta=(-(S*nd1*sigma)/(2*Math.sqrt(T))-(type==="call"?1:-1)*r*K*Math.exp(-r*T)*normCDF((type==="call"?1:-1)*d2))/365;
+  var vega=S*nd1*Math.sqrt(T)/100;
+  return{price:+price.toFixed(4),delta:+delta.toFixed(4),gamma:+gamma.toFixed(6),theta:+theta.toFixed(4),vega:+vega.toFixed(4)};
 }
-
-// Compute historical volatility from daily bars (for Black-Scholes input)
-function historicalVol(dailyBars, lookback) {
-  if (!dailyBars || dailyBars.length < (lookback || 20) + 1) return 0.3; // default 30%
-  var n = lookback || 20;
-  var returns = [];
-  for (var i = dailyBars.length - n; i < dailyBars.length; i++) {
-    if (dailyBars[i - 1] && dailyBars[i - 1].c > 0) returns.push(Math.log(dailyBars[i].c / dailyBars[i - 1].c));
-  }
-  if (returns.length < 5) return 0.3;
-  var mean = returns.reduce(function(a, b) { return a + b; }, 0) / returns.length;
-  var variance = returns.reduce(function(a, b) { return a + Math.pow(b - mean, 2); }, 0) / (returns.length - 1);
-  return +((Math.sqrt(variance) * Math.sqrt(252))).toFixed(4); // annualized
+function historicalVol(dailyBars,lookback){
+  if(!dailyBars||dailyBars.length<(lookback||20)+1)return 0.3;
+  var n=lookback||20,returns=[];
+  for(var i=dailyBars.length-n;i<dailyBars.length;i++){if(dailyBars[i-1]&&dailyBars[i-1].c>0)returns.push(Math.log(dailyBars[i].c/dailyBars[i-1].c))}
+  if(returns.length<5)return 0.3;
+  var mean=returns.reduce(function(a,b){return a+b},0)/returns.length;
+  var variance=returns.reduce(function(a,b){return a+Math.pow(b-mean,2)},0)/(returns.length-1);
+  return+(Math.sqrt(variance)*Math.sqrt(252)).toFixed(4);
 }
-
-// Full options analysis for a QQQ trade
+function optionScenario(S,K,dte,vol,type,targetS){
+  var r=0.053,T=dte/365,T2=Math.max(0,(dte-1))/365;
+  var now=blackScholes(S,K,T,r,vol,type),then=blackScholes(targetS,K,T2,r,vol,type);
+  return{current:now.price,projected:then.price,changePct:now.price>0?+((then.price-now.price)/now.price*100).toFixed(1):0};
+}
 async function optionsAnalysis(dailyBars, trade) {
-  trade = trade || {};
-  var qqqPrice = dailyBars && dailyBars.length > 0 ? dailyBars[dailyBars.length - 1].c : 0;
-  var hv = historicalVol(dailyBars, 20);
-  var result = { qqqPrice: qqqPrice, historicalVol: +(hv * 100).toFixed(1) + "%", chain: null, estimates: {} };
-  // Try to get real chain data
-  result.chain = await fetchOptionsChain("QQQ");
-  // If trade has strike info, compute estimates
-  if (trade && trade.strike) {
-    var dte = trade.expiry ? Math.max(0, Math.ceil((new Date(trade.expiry) - new Date()) / 86400000)) : 1;
-    if (trade.date && trade.expiry) dte = Math.max(0, Math.ceil((new Date(trade.expiry) - new Date(trade.date)) / 86400000));
-    var type = (trade.direction || "call").toLowerCase().includes("put") ? "put" : "call";
-    var iv = hv * 1.15; // IV typically 15% above HV
-    // Use chain IV if available
-    if (result.chain && result.chain.available && result.chain.atmCalls) {
-      var matching = (type === "call" ? result.chain.atmCalls : result.chain.atmPuts).find(function(c) { return c.strike === trade.strike; });
-      if (matching && matching.iv) iv = matching.iv / 100;
-    }
-    var atEntry = blackScholes(trade.qqqAtEntry || qqqPrice, trade.strike, dte / 365, 0.053, iv, type);
-    result.estimates.atEntry = atEntry;
-    result.estimates.iv = +(iv * 100).toFixed(1) + "%";
-    result.estimates.dte = dte;
-    // Scenario: if QQQ moves ÃÂÃÂ±$2, ÃÂÃÂ±$5
-    var base = trade.qqqAtEntry || qqqPrice;
-    result.estimates.scenarios = [
-      { label: "QQQ +$2", result: optionScenario(base, trade.strike, dte, iv, type, base + 2) },
-      { label: "QQQ +$5", result: optionScenario(base, trade.strike, dte, iv, type, base + 5) },
-      { label: "QQQ -$2", result: optionScenario(base, trade.strike, dte, iv, type, base - 2) },
-      { label: "QQQ -$5", result: optionScenario(base, trade.strike, dte, iv, type, base - 5) },
-    ];
+  trade=trade||{};
+  var qqqPrice=dailyBars&&dailyBars.length>0?dailyBars[dailyBars.length-1].c:0;
+  var hv=historicalVol(dailyBars,20);
+  var result={qqqPrice:qqqPrice,historicalVol:+(hv*100).toFixed(1)+"%",estimates:null};
+  if(trade.strike){
+    var dte=1;
+    if(trade.date&&trade.expiry)dte=Math.max(1,Math.ceil((new Date(trade.expiry)-new Date(trade.date))/86400000));
+    var type=(trade.direction||"call").toLowerCase().includes("put")?"put":"call";
+    var iv=hv*1.15;
+    var entry=blackScholes(trade.qqqAtEntry||qqqPrice,trade.strike,dte/365,0.053,iv,type);
+    result.estimates={iv:+(iv*100).toFixed(1)+"%",dte:dte,atEntry:entry,
+      scenarios:[
+        {label:"QQQ +$2",result:optionScenario(trade.qqqAtEntry||qqqPrice,trade.strike,dte,iv,type,(trade.qqqAtEntry||qqqPrice)+2)},
+        {label:"QQQ +$5",result:optionScenario(trade.qqqAtEntry||qqqPrice,trade.strike,dte,iv,type,(trade.qqqAtEntry||qqqPrice)+5)},
+        {label:"QQQ -$2",result:optionScenario(trade.qqqAtEntry||qqqPrice,trade.strike,dte,iv,type,(trade.qqqAtEntry||qqqPrice)-2)},
+        {label:"QQQ -$5",result:optionScenario(trade.qqqAtEntry||qqqPrice,trade.strike,dte,iv,type,(trade.qqqAtEntry||qqqPrice)-5)},
+      ]};
   }
   return result;
+}
+
+// == RATE LIMITER (Ryan Kim) ==================================================
+var _rateCache={};
+function rateLimitOk(action,maxPerMin){
+  var now=Date.now();
+  if(!_rateCache[action])_rateCache[action]=[];
+  _rateCache[action]=_rateCache[action].filter(function(t){return now-t<60000});
+  if(_rateCache[action].length>=maxPerMin)return false;
+  _rateCache[action].push(now);return true;
 }
 
 // == FULL ANALYSIS PIPELINE ===================================================
@@ -671,15 +522,17 @@ async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
       ema: emaAnalysis(mtf.tf[tf]),
       indicators: indicators(mtf.tf[tf]),
       macd: macdAnalysis(mtf.tf[tf]),
-      harmonics: detectHarmonics(mtf.tf[tf]),
-      adx: adxCalc(mtf.tf[tf])
+      adx: adxCalc(mtf.tf[tf]),
+      harmonics: detectHarmonics(mtf.tf[tf])
     };
   });
   var levels = detectLevels(mtf.tf['daily']||[], mtf.tf['1m']||[]);
   var gap = gapAnalysis(mtf.tf['daily']||[], mtf.tf['1m']||[]);
   var avwaps = computeAVWAPs(mtf.tf['daily']||[]);
   var confluence = confluenceScore(allTfData);
+  var ftfc = computeFTFC(allTfData, mtf.tf);
   var todEdge = timeOfDayEdge(entryTimePST);
+  var options = await optionsAnalysis(mtf.tf['daily']||[], trade);
   // Sector leaders
   var leaders={};
   try{
@@ -689,11 +542,6 @@ async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
     }));
     lr.forEach(function(r){if(r.status==='fulfilled')leaders[r.value.sym]=r.value.chg+'%'});
   }catch(e){}
-  var options = await optionsAnalysis(mtf.tf['daily']||[], trade);
-  // FTFC computation
-  var ftfcInput = {};
-  Object.keys(allTfData).forEach(function(tf) { ftfcInput[tf] = allTfData[tf].strat; ftfcInput[tf+'_bars'] = mtf.tf[tf] || []; });
-  var ftfc = computeFTFC(ftfcInput);
   return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,ftfc:ftfc,todEdge:todEdge,leaders:leaders,options:options};
 }
 
@@ -718,14 +566,13 @@ async function backtest(body) {
   'QQQ: $'+td.qqqAtEntry+' -> $'+td.qqqAtExit+' | Contract P&L: '+(td.pnlPct>=0?'+':'')+td.pnlPct+'%\n'+
   'Notes: '+td.notes+'\n\n'+
   'CONFLUENCE: '+JSON.stringify(analysis.confluence)+'\n'+
+  'FTFC: '+JSON.stringify(analysis.ftfc)+'\n'+
   'TIME-OF-DAY: '+JSON.stringify(analysis.todEdge.current)+' - '+(analysis.todEdge.info?analysis.todEdge.info.note:'')+'\n'+
   'LEVELS: '+JSON.stringify(analysis.levels)+'\n'+
   'GAP: '+JSON.stringify(analysis.gap)+'\n'+
   'ANCHORED VWAPs: '+JSON.stringify(analysis.avwaps)+'\n'+
-  'FTFC: '+JSON.stringify(analysis.ftfc)+'\n'+
-  'LEADERS: '+JSON.stringify(analysis.leaders)+'\n'+
-  'OPTIONS: HV='+JSON.stringify(analysis.options?analysis.options.historicalVol:'N/A')+' | Chain available: '+(analysis.options&&analysis.options.chain?analysis.options.chain.available:'N/A')+'\n'+
-  (analysis.options&&analysis.options.estimates?'ESTIMATES: Entry Greeks='+JSON.stringify(analysis.options.estimates.atEntry)+' | IV='+analysis.options.estimates.iv+' | Scenarios='+JSON.stringify(analysis.options.estimates.scenarios)+'\n':'')+'\n'+
+  'OPTIONS: '+JSON.stringify(analysis.options)+'\n'+
+  'LEADERS: '+JSON.stringify(analysis.leaders)+'\n\n'+
   'PER-TIMEFRAME DATA:\n';
 
   Object.keys(analysis.allTfData).forEach(function(tf){
@@ -762,9 +609,9 @@ async function liveScan() {
   var analysis=await fullAnalysis('QQQ',today,entryTime,null);
   // Load learned strategies for matching
   var strats=await getStrategies();
-  return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,todEdge:analysis.todEdge,levels:analysis.levels,leaders:analysis.leaders,
+  return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,ftfc:analysis.ftfc,todEdge:analysis.todEdge,levels:analysis.levels,gap:analysis.gap,avwaps:analysis.avwaps,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol}:null,leaders:analysis.leaders,
     perTimeframe:Object.keys(analysis.allTfData).reduce(function(a,k){var d=analysis.allTfData[k];a[k]={bars:d.bars,topCandle:d.candles.length>0?d.candles[d.candles.length-1]:null,topStrat:d.strat.length>0?d.strat[d.strat.length-1]:null,squeeze:d.squeeze,emaCloud:d.ema.cloud||'unknown',macd:d.macd?{cross:d.macd.cross,divergence:d.macd.divergence,histogram:d.macd.histogram}:null,adx:d.adx};return a},{}),
-    gap:analysis.gap,avwaps:analysis.avwaps,ftfc:analysis.ftfc,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol,chainAvailable:analysis.options.chain?analysis.options.chain.available:false,atmCalls:analysis.options.chain&&analysis.options.chain.atmCalls?analysis.options.chain.atmCalls.slice(0,5):null,atmPuts:analysis.options.chain&&analysis.options.chain.atmPuts?analysis.options.chain.atmPuts.slice(0,5):null}:null,learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
+    learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
 }
 
 // == MAIN HANDLER =============================================================
@@ -778,32 +625,22 @@ module.exports = async function handler(req, res) {
   try {
     if (action === 'log_trade' && req.method === 'POST') return res.json(await logTrade(req.body));
     if (action === 'backtest' && req.method === 'POST') {
-      if (!rateLimitCheck('backtest', 5)) return res.status(429).json({error:'Rate limit: max 5 backtests per minute. Please wait.'});
+      if (!rateLimitOk('backtest', 5)) return res.status(429).json({error:'Rate limit: max 5 backtests per minute'});
       return res.json(await backtest(req.body));
     }
     if (action === 'strategies') return res.json(await getStrategies());
     if (action === 'live_scan') {
-      if (!rateLimitCheck('live_scan', 10)) return res.status(429).json({error:'Rate limit: max 10 scans per minute.'});
+      if (!rateLimitOk('live_scan', 10)) return res.status(429).json({error:'Rate limit: max 10 scans per minute'});
       return res.json(await liveScan());
     }
     if (action === 'self_test') {
-      // Automated self-test: runs a sample backtest through the full pipeline
-      var testTrade = {date:'2026-03-28',entryTime:'7:15',exitTime:'9:45',direction:'call',strike:480,expiry:'2026-03-28',entryPrice:1.50,exitPrice:4.80,contracts:1,qqqAtEntry:478.50,qqqAtExit:482.30,notes:'self_test'};
-      var testResult = await backtest(testTrade);
-      var checks = {
-        hasAnalysis: !!testResult.analysis,
-        hasLevels: !!(testResult.analysis && testResult.analysis.levels),
-        hasFTFC: !!(testResult.analysis && testResult.analysis.ftfc),
-        hasConfluence: !!(testResult.analysis && testResult.analysis.confluence),
-        hasGap: !!(testResult.analysis && testResult.analysis.gap),
-        hasOptions: !!(testResult.analysis && testResult.analysis.options),
-        hasAI: !!(testResult.ai && (testResult.ai.strategyName || testResult.ai.whyItWorked || testResult.ai.raw)),
-        barCounts: testResult.analysis ? Object.keys(testResult.analysis.allTfData || {}).reduce(function(a,k){a[k]=(testResult.analysis.allTfData[k]||{}).bars||0;return a},{}) : {},
-      };
-      checks.allPassed = checks.hasAnalysis && checks.hasLevels && checks.hasConfluence;
-      return res.json({test:'self_test',trade:testTrade,checks:checks,fullResult:testResult});
+      var testTrade={date:'2026-03-28',entryTime:'7:15',exitTime:'9:45',direction:'call',strike:480,expiry:'2026-03-28',entryPrice:1.50,exitPrice:4.80,contracts:1,qqqAtEntry:478.50,qqqAtExit:482.30,notes:'self_test'};
+      var testResult=await backtest(testTrade);
+      var checks={hasAnalysis:!!testResult.analysis,hasLevels:!!(testResult.analysis&&testResult.analysis.levels),hasFTFC:!!(testResult.analysis&&testResult.analysis.ftfc),hasConfluence:!!(testResult.analysis&&testResult.analysis.confluence),hasGap:!!(testResult.analysis&&testResult.analysis.gap),hasOptions:!!(testResult.analysis&&testResult.analysis.options),hasAI:!!(testResult.ai&&(testResult.ai.strategyName||testResult.ai.raw))};
+      checks.allPassed=checks.hasAnalysis&&checks.hasLevels&&checks.hasConfluence;
+      return res.json({test:'self_test',checks:checks});
     }
-    return res.status(400).json({ error: 'action required: log_trade, backtest, strategies, live_scan, self_test', v: 2 });
+    return res.status(400).json({ error: 'action required: log_trade, backtest, strategies, live_scan, self_test', v: '2.1' });
   } catch(err) {
     console.error('[day-trade-engine-v2]', err.message);
     return res.status(500).json({ error: err.message });
