@@ -36,6 +36,22 @@ const STEPS = [
     sub: "Head to the Journal and say hello to your AI coach. Try: \"What should I watch today?\" or describe a trade like \"Bought 100 NVDA at 135, stop 128, target 150.\"",
     cta: "Open Journal \u2192",
   },
+  {
+    id: 'learning',
+    icon: '\u{1F4DA}',
+    title: "Learning Center",
+    sub: "Master trading with AI-curated courses and Quizlet-style flashcards. 6 courses from risk management to advanced options. Track your mastery.",
+    cta: "Start Learning \u2192",
+    action: "/app/learn"
+  },
+  {
+    id: 'coaches',
+    icon: '\u{1F393}',
+    title: "Coaching Marketplace",
+    sub: "Browse expert trading coaches by specialty. Get AI-matched to the perfect coach. Join private channels with lessons, alerts, and community.",
+    cta: "Find a Coach \u2192",
+    action: "/app/coaches"
+  },
 ]
 
 export default function Onboarding({ userId, onComplete }) {
@@ -141,7 +157,7 @@ export default function Onboarding({ userId, onComplete }) {
             style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', color: '#2d3d50', fontSize: 12, cursor: 'pointer', fontFamily: '"DM Mono",monospace', padding: '6px', transition: 'color 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#8b9fc0'}
             onMouseLeave={e => e.currentTarget.style.color = '#2d3d50'}>
-            â Back
+            Ã¢ÂÂ Back
           </button>
         )}
       </div>
