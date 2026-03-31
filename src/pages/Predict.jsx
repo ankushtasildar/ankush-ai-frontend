@@ -112,7 +112,7 @@ export default function Predict(){
     <div style={{background:'var(--bg-base)',minHeight:'100vh',padding:'14px 16px',fontFamily:'var(--font)',color:'var(--text-primary)'}}>
       <div style={{marginBottom:14}}>
         <div style={{fontSize:22,fontWeight:700,marginBottom:2}}>Alpha Intelligence</div>
-        <div style={{fontSize:13,color:'var(--text-muted)'}}>Institutional-grade AI analysis · Live market data · Options flow · Scenario modeling</div>
+        <div style={{fontSize:13,color:'var(--text-muted)'}}>Institutional-grade AI analysis Â· Live market data Â· Options flow Â· Scenario modeling</div>
       </div>
       <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
         <input value={sym} onChange={e=>setSym(e.target.value.toUpperCase())}
@@ -135,17 +135,17 @@ export default function Predict(){
           )}
           {/* preset chips */}
           <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-          {/* Marcus/Priya: Open ticker search — any NYSE/NASDAQ symbol */}
+          {/* Marcus/Priya: Open ticker search â any NYSE/NASDAQ symbol */}
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,padding:'6px 10px',background:'var(--bg-card)',borderRadius:10,border:'1px solid rgba(255,255,255,0.06)'}}>
-            <span style={{fontSize:14,color:'var(--text-muted)'}}>🔍</span>
+            <span style={{fontSize:14,color:'var(--text-muted)'}}>ð</span>
             <input
               value={searchQuery}
               onChange={e=>{setSearchQuery(e.target.value);searchTickers(e.target.value)}}
               onKeyDown={e=>{if(e.key==='Enter'&&searchQuery.trim()){setSym(searchQuery.toUpperCase().trim());setSearchQuery('');setSearchResults([])}}}
-              placeholder="Search any ticker — NVDA, AAPL, ARM, TSM..."
+              placeholder="Search any ticker â NVDA, AAPL, ARM, TSM..."
               style={{flex:1,background:'transparent',border:'none',outline:'none',color:'var(--text-primary)',fontSize:13,fontFamily:'var(--font-sans)'}}
             />
-            {searchLoading && <span style={{fontSize:11,color:'var(--text-muted)'}}>…</span>}
+            {searchLoading && <span style={{fontSize:11,color:'var(--text-muted)'}}>â¦</span>}
           </div>
           {searchResults.length > 0 && (
             <div style={{position:'absolute',zIndex:100,top:72,left:0,right:0,background:'var(--bg-elevated)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}}>
@@ -176,7 +176,7 @@ export default function Predict(){
               {i===0&&<><div style={{height:8,background:'#101d2c',borderRadius:4,width:'80%',marginBottom:5}}/><div style={{height:8,background:'#101d2c',borderRadius:4,width:'60%'}}/></>}
             </div>
           ))}
-          <div style={{textAlign:'center',color:'var(--text-muted)',fontSize:12,marginTop:10}}>⚡ Computing institutional analysis…</div>
+          <div style={{textAlign:'center',color:'var(--text-muted)',fontSize:12,marginTop:10}}>â¡ Computing institutional analysisâ¦</div>
         </div>
       )}
       {error&&(
@@ -192,7 +192,7 @@ export default function Predict(){
                   const txt=data.symbol+' $'+Number(data.currentPrice).toFixed(2)+' | '+(data.sentiment?.overall||'').toUpperCase()+' | Confidence: '+(data.sentiment?.confidence||data.confidence)+'% | Edge: '+data.edgeScore+'/100 | '+(data.leadingThesis||'').substring(0,100)+'... via AnkushAI ankushai.org'
                   navigator.clipboard?.writeText(txt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500)}).catch(()=>{})
                 }} style={{marginLeft:10,background:copied?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',border:'1px solid '+(copied?'rgba(16,185,129,0.4)':'rgba(255,255,255,0.1)'),borderRadius:7,padding:'5px 11px',color:copied?'#10b981':'#8899aa',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all .2s'}}>
-                  {copied?'✓ Copied':'⎘ Share'}
+                  {copied?'â Copied':'â Share'}
                 </button>
                 <span style={{fontSize:20,fontWeight:600,marginLeft:12}}>${Number(data.currentPrice).toFixed(2)}</span>
                 <span style={{fontSize:14,color:sc,marginLeft:12,textTransform:'capitalize',fontWeight:600}}>{sent&&sent.overall}</span>
@@ -215,7 +215,7 @@ export default function Predict(){
               </div>
             )}
           </div>
-          {/* Marcus: Track Record — historical accuracy from outcome resolution loop */}
+          {/* Marcus: Track Record â historical accuracy from outcome resolution loop */}
           {data.historicalEdge && data.historicalEdge.total > 0 && (
             <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center',padding:'10px 14px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8,marginBottom:12}}>
               <div style={{fontSize:10,fontWeight:700,color:'#10b981',textTransform:'uppercase',letterSpacing:'0.05em'}}>Track Record</div>
@@ -256,6 +256,14 @@ export default function Predict(){
           </div>
           <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:12}}>
             {(data.scenarios||[]).map((s,i)=><ScenCard key={i} s={s} idx={i}/>)}
+
+          {/* Cross-links to ecosystem */}
+          <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+            <button onClick={()=>navigate('/app/journal')} style={{padding:'8px 16px',background:'rgba(59,130,246,0.06)',border:'1px solid rgba(59,130,246,0.15)',borderRadius:8,color:'#60a5fa',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>Log Trade \u2192</button>
+            <button onClick={()=>navigate('/app/risk')} style={{padding:'8px 16px',background:'rgba(16,185,129,0.06)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8,color:'#10b981',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>Risk Calc \u2192</button>
+            <button onClick={()=>navigate('/app/strategies')} style={{padding:'8px 16px',background:'rgba(167,139,250,0.06)',border:'1px solid rgba(167,139,250,0.15)',borderRadius:8,color:'#a78bfa',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>Strategies \u2192</button>
+            <button onClick={()=>navigate('/app/earnings')} style={{padding:'8px 16px',background:'rgba(245,158,11,0.06)',border:'1px solid rgba(245,158,11,0.15)',borderRadius:8,color:'#f59e0b',fontSize:10,cursor:'pointer',fontFamily:'"DM Mono",monospace'}}>Earnings \u2192</button>
+          </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
             <div style={card}>
