@@ -1,4 +1,7 @@
-// ============================================================================
+// Stateful squeeze fire detection (Dr. Wei Chen fix)
+  var wasSqueeze=false,justFired=false;
+  if(bars.length>=22){var pc2=bars.slice(0,-1).map(function(b){return b.c}),ps2=pc2.slice(-20),pm2=ps2.reduce(function(a,b){return a+b},0)/20,psd2=Math.sqrt(ps2.reduce(function(a,b){return a+Math.pow(b-pm2,2)},0)/20),pbbw2=psd2>0?(4*psd2/pm2*100):0,pa2=0;for(var pi=bars.length-21;pi<bars.length-1;pi++){if(pi>0)pa2+=Math.max(bars[pi].h-bars[pi].l,Math.abs(bars[pi].h-bars[pi-1].c),Math.abs(bars[pi].l-bars[pi-1].c))}pa2/=20;wasSqueeze=pbbw2<(pa2>0?(3*pa2/pm2*100):0);justFired=wasSqueeze&&!squeeze}
+  // ============================================================================
 // ANKUSHAI DAY TRADE ENGINE v2
 // ============================================================================
 // 19 specialists + 2 advisors. The revenue engine of AnkushAI.
@@ -98,6 +101,50 @@ function detectStrat(bars) {
   return combos.slice(-8);
 }
 
+
+// == FTFC — Full Timeframe Continuity (Mia Thornton + Rob Smith Advisory) ====
+// The Strat core: when ALL timeframes point same direction = highest probability
+function computeFTFC(allTfStrat) {
+  var tfs = ["daily","1h","15m","5m","1m"];
+  var directions = {};
+  var ftfc = {tfs:{},continuity:"none",direction:"neutral",strength:0,actionable:false,summary:""};
+  tfs.forEach(function(tf) {
+    var strats = allTfStrat[tf] || [];
+    var bars = allTfStrat[tf + "_bars"] || [];
+    // Get the LAST bar classification for this timeframe
+    if (bars.length >= 2) {
+      var curr = bars[bars.length-1], prev = bars[bars.length-2];
+      var inside = curr.h<=prev.h && curr.l>=prev.l;
+      var outside = curr.h>prev.h && curr.l<prev.l;
+      var type, dir;
+      if (inside) { type="1"; dir="n"; }
+      else if (outside) { type="3"; dir=curr.c>curr.o?"u":"d"; }
+      else { type="2"; dir=curr.h>prev.h?"u":"d"; }
+      ftfc.tfs[tf] = {type:type,dir:dir,label:type+(dir!=="n"?dir:"")};
+      directions[tf] = dir;
+    }
+  });
+  // Count alignment
+  var ups=0,downs=0,total=0;
+  Object.keys(directions).forEach(function(tf) {
+    if (directions[tf]==="u") ups++;
+    if (directions[tf]==="d") downs++;
+    if (directions[tf]!=="n") total++;
+  });
+  ftfc.strength = total > 0 ? Math.max(ups, downs) : 0;
+  if (ups >= 4) { ftfc.continuity="full_bull"; ftfc.direction="bullish"; ftfc.actionable=true; }
+  else if (downs >= 4) { ftfc.continuity="full_bear"; ftfc.direction="bearish"; ftfc.actionable=true; }
+  else if (ups >= 3) { ftfc.continuity="partial_bull"; ftfc.direction="bullish"; ftfc.actionable=true; }
+  else if (downs >= 3) { ftfc.continuity="partial_bear"; ftfc.direction="bearish"; ftfc.actionable=true; }
+  else { ftfc.continuity="mixed"; ftfc.direction="neutral"; }
+  // Build summary string: "D-2u H-2u 15m-1 5m-2u 1m-2d"
+  var labels = {daily:"D","1h":"H","15m":"15m","5m":"5m","1m":"1m"};
+  ftfc.summary = tfs.map(function(tf) {
+    return (labels[tf]||tf) + "-" + (ftfc.tfs[tf] ? ftfc.tfs[tf].label : "?");
+  }).join(" ");
+  return ftfc;
+}
+
 // == BOLLINGER SQUEEZE (Dr. Wei Chen) ========================================
 function detectSqueeze(bars) {
   if(!bars||bars.length<20) return {squeeze:false};
@@ -126,7 +173,7 @@ function detectSqueeze(bars) {
   // Direction hint: momentum from last 3 bars
   var last3=closes.slice(-3);
   var momDir=last3[2]>last3[0]?'bullish':'bearish';
-  return {squeeze:squeeze,bbw:+bbw.toFixed(3),kcw:+kcWidth.toFixed(3),pctile:pctile,momDir:momDir,fired:!squeeze&&pctile<25};
+  return {squeeze:squeeze,bbw:+bbw.toFixed(3),kcw:+kcWidth.toFixed(3),pctile:pctile,momDir:momDir,fired:justFired,wasSqueeze:wasSqueeze};
 }
 
 // == FIBONACCI (Dr. Amir Patel) ==============================================
@@ -245,7 +292,9 @@ function indicators(bars) {
 
 // == MULTI-TIMEFRAME CONFLUENCE (Dr. Lisa Park) ===============================
 function confluenceScore(allTfData) {
-  var tfWeights={'1m':1,'5m':2,'15m':3,'1h':4,'daily':5};
+  // Day-trade optimized weights: 5m/15m are primary signal TFs
+  // Daily provides context, but intraday TFs drive entries
+  var tfWeights={'1m':1.5,'5m':3,'15m':4,'1h':3,'daily':2};
   var bullScore=0,bearScore=0,totalWeight=0;
   Object.keys(allTfData).forEach(function(tf){
     var d=allTfData[tf];
@@ -282,6 +331,8 @@ function confluenceScore(allTfData) {
     totalWeight+=w;
   });
   var total=bullScore+bearScore;
+  // FTFC bonus: full continuity adds significant weight
+  // (computed separately but reported alongside confluence)
   return{bullPct:total>0?Math.round(bullScore/total*100):50,bearPct:total>0?Math.round(bearScore/total*100):50,raw:{bull:+bullScore.toFixed(1),bear:+bearScore.toFixed(1)},bias:bullScore>bearScore*1.3?'BULLISH':bearScore>bullScore*1.3?'BEARISH':'NEUTRAL',strength:total>20?'strong':total>10?'moderate':'weak'};
 }
 
@@ -381,7 +432,7 @@ function gapAnalysis(dailyBars, intradayBars) {
     gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
 }
 
-// == ADX Ã¢ÂÂ TREND STRENGTH (Dr. Lisa Park) ====================================
+// == ADX ÃÂ¢ÃÂÃÂ TREND STRENGTH (Dr. Lisa Park) ====================================
 function adxCalc(bars) {
   if(!bars||bars.length<28)return{adx:null,trending:false};
   var period=14,pDM=[],nDM=[],tr=[];
@@ -547,7 +598,7 @@ async function optionsAnalysis(dailyBars, trade) {
     result.estimates.atEntry = atEntry;
     result.estimates.iv = +(iv * 100).toFixed(1) + "%";
     result.estimates.dte = dte;
-    // Scenario: if QQQ moves ±$2, ±$5
+    // Scenario: if QQQ moves Â±$2, Â±$5
     var base = trade.qqqAtEntry || qqqPrice;
     result.estimates.scenarios = [
       { label: "QQQ +$2", result: optionScenario(base, trade.strike, dte, iv, type, base + 2) },
@@ -591,7 +642,11 @@ async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
     lr.forEach(function(r){if(r.status==='fulfilled')leaders[r.value.sym]=r.value.chg+'%'});
   }catch(e){}
   var options = await optionsAnalysis(mtf.tf['daily']||[], trade);
-  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,todEdge:todEdge,leaders:leaders,options:options};
+  // FTFC computation
+  var ftfcInput = {};
+  Object.keys(allTfData).forEach(function(tf) { ftfcInput[tf] = allTfData[tf].strat; ftfcInput[tf+'_bars'] = mtf.tf[tf] || []; });
+  var ftfc = computeFTFC(ftfcInput);
+  return{allTfData:allTfData,levels:levels,gap:gap,avwaps:avwaps,confluence:confluence,ftfc:ftfc,todEdge:todEdge,leaders:leaders,options:options};
 }
 
 // == LOG TRADE ================================================================
@@ -619,6 +674,7 @@ async function backtest(body) {
   'LEVELS: '+JSON.stringify(analysis.levels)+'\n'+
   'GAP: '+JSON.stringify(analysis.gap)+'\n'+
   'ANCHORED VWAPs: '+JSON.stringify(analysis.avwaps)+'\n'+
+  'FTFC: '+JSON.stringify(analysis.ftfc)+'\n'+
   'LEADERS: '+JSON.stringify(analysis.leaders)+'\n'+
   'OPTIONS: HV='+JSON.stringify(analysis.options?analysis.options.historicalVol:'N/A')+' | Chain available: '+(analysis.options&&analysis.options.chain?analysis.options.chain.available:'N/A')+'\n'+
   (analysis.options&&analysis.options.estimates?'ESTIMATES: Entry Greeks='+JSON.stringify(analysis.options.estimates.atEntry)+' | IV='+analysis.options.estimates.iv+' | Scenarios='+JSON.stringify(analysis.options.estimates.scenarios)+'\n':'')+'\n'+
@@ -660,7 +716,7 @@ async function liveScan() {
   var strats=await getStrategies();
   return{symbol:'QQQ',timestamp:toPST(now),confluence:analysis.confluence,todEdge:analysis.todEdge,levels:analysis.levels,leaders:analysis.leaders,
     perTimeframe:Object.keys(analysis.allTfData).reduce(function(a,k){var d=analysis.allTfData[k];a[k]={bars:d.bars,topCandle:d.candles.length>0?d.candles[d.candles.length-1]:null,topStrat:d.strat.length>0?d.strat[d.strat.length-1]:null,squeeze:d.squeeze,emaCloud:d.ema.cloud||'unknown',macd:d.macd?{cross:d.macd.cross,divergence:d.macd.divergence,histogram:d.macd.histogram}:null,adx:d.adx};return a},{}),
-    gap:analysis.gap,avwaps:analysis.avwaps,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol,chainAvailable:analysis.options.chain?analysis.options.chain.available:false,atmCalls:analysis.options.chain&&analysis.options.chain.atmCalls?analysis.options.chain.atmCalls.slice(0,5):null,atmPuts:analysis.options.chain&&analysis.options.chain.atmPuts?analysis.options.chain.atmPuts.slice(0,5):null}:null,learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
+    gap:analysis.gap,avwaps:analysis.avwaps,ftfc:analysis.ftfc,options:analysis.options?{qqqPrice:analysis.options.qqqPrice,hv:analysis.options.historicalVol,chainAvailable:analysis.options.chain?analysis.options.chain.available:false,atmCalls:analysis.options.chain&&analysis.options.chain.atmCalls?analysis.options.chain.atmCalls.slice(0,5):null,atmPuts:analysis.options.chain&&analysis.options.chain.atmPuts?analysis.options.chain.atmPuts.slice(0,5):null}:null,learnedStrategies:strats.strategies.length,note:strats.strategies.length>0?'Strategy matching active with '+strats.strategies.length+' learned patterns':'Log trades via backtest to build strategy library'};
 }
 
 // == MAIN HANDLER =============================================================
