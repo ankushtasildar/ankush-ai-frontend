@@ -1,5 +1,5 @@
-// predict.js Ã¢ÂÂ Alpha Intelligence Engine v5
-// CLEAN REWRITE Ã¢ÂÂ no patches, no accumulated fragments
+// predict.js ÃÂ¢ÃÂÃÂ Alpha Intelligence Engine v5
+// CLEAN REWRITE ÃÂ¢ÃÂÃÂ no patches, no accumulated fragments
 // Uses calendar dates (not tradingDate), proper error handling
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -9,7 +9,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Ã¢ÂÂÃ¢ÂÂ Helper: Supabase REST Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Helper: Supabase REST ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function supaGet(table, query) {
   if (!SUPA_URL || !SUPA_KEY) return [];
   try {
@@ -36,7 +36,7 @@ async function supaInsert(table, row) {
   } catch {}
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Helper: Polygon fetch Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Helper: Polygon fetch ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 // Utility: fetch from Polygon API with key
 async function polyFetch(url) {
@@ -238,7 +238,7 @@ function computeTechnicals(bars) {
   };
 }
 
-// Ã¢ÂÂÃ¢ÂÂ GET MACRO CONTEXT Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ GET MACRO CONTEXT ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function getMacroContext() {
   // SPY for market direction, VIX for fear
   const [spyData, vixPrev] = await Promise.all([
@@ -260,7 +260,7 @@ async function getMacroContext() {
   };
 }
 
-// Ã¢ÂÂÃ¢ÂÂ GET HISTORICAL EDGE (learned patterns) Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ GET HISTORICAL EDGE (learned patterns) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function getHistoricalEdge(symbol) {
   const patterns = await supaGet('ai_learned_patterns', 'order=win_rate.desc&limit=5');
   const setupHistory = await supaGet('setup_records', 'symbol=eq.' + symbol + '&order=created_at.desc&limit=10');
@@ -274,7 +274,7 @@ async function getHistoricalEdge(symbol) {
   };
 }
 
-// Ã¢ÂÂÃ¢ÂÂ GET EARNINGS CONTEXT Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ GET EARNINGS CONTEXT ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 async function getEarningsContext(symbol) {
   const today = new Date().toISOString().split('T')[0];
   const future = new Date();
@@ -288,7 +288,7 @@ async function getEarningsContext(symbol) {
   return { earningsDate: null, earningsDaysOut: null };
 }
 
-// Ã¢ÂÂÃ¢ÂÂ BUILD THE ALPHA PROMPT Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ BUILD THE ALPHA PROMPT ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style, newsCtx) {
   const styleContext = style === 'daytrade' ? 'Focus on INTRADAY setups (0-2 days). Gamma risk, IV crush, delta decay matter enormously.'
     : style === 'leap' ? 'Focus on LONG-TERM setups (3-12 months). Fundamental catalysts, macro regime shifts, LEAPS premium decay.'
@@ -401,7 +401,7 @@ async function fetchNewsContext(symbol) {
   } catch(e) { return empty; }
 }
 
-// Ã¢ÂÂÃ¢ÂÂ MAIN HANDLER Ã¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ MAIN HANDLER ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('CDN-Cache-Control', 'no-store');
@@ -433,16 +433,24 @@ module.exports = async function handler(req, res) {
     const technicals = priceData.bars ? computeTechnicals(priceData.bars) : {};
     const prompt = buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style, newsCtx);
 
-    // Call Claude
-    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
-    const msg = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: 'You are Marcus Webb, ex-Goldman Sachs Strats and Two Sigma. 20 years institutional experience. Your analysis uses LEADING indicators, not lagging. All price levels MUST be derived from the real data provided. Never invent prices. Respond ONLY with valid JSON, no markdown, no preamble.',
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const raw = msg.content[0].text;
+    // Groq-first LLM call (Yusuf Okafor: per CEO directive, $0 cost)
+    const GROQ_KEY = process.env.GROQ_API_KEY || '';
+    const sysPrompt = 'You are Marcus Webb, ex-Goldman Sachs Strats and Two Sigma. 20 years institutional experience. Your analysis uses LEADING indicators, not lagging. All price levels MUST be derived from the real data provided. Never invent prices. Respond ONLY with valid JSON, no markdown, no preamble.';
+    let raw;
+    if (GROQ_KEY) {
+      const gr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_KEY },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 4096, messages: [{ role: 'system', content: sysPrompt }, { role: 'user', content: prompt }] })
+      });
+      const gd = await gr.json();
+      raw = gd.choices && gd.choices[0] && gd.choices[0].message ? gd.choices[0].message.content : '';
+    } else {
+      // Anthropic fallback
+      const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+      const msg = await client.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: sysPrompt, messages: [{ role: 'user', content: prompt }] });
+      raw = msg.content[0].text;
+    }
 
     // Parse JSON - handle potential wrapping
     let analysis;
