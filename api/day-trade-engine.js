@@ -29,6 +29,19 @@ async function supaInsert(t, row) { try { var r = await fetch(SUPABASE_URL+'/res
 async function supaGet(t, q) { try { var r = await fetch(SUPABASE_URL+'/rest/v1/'+t+'?'+q, { headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY} }); return r.ok ? r.json() : []; } catch(e) { return []; } }
 function toPST(d) { return new Date(d).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }); }
 
+
+// == RATE LIMITER (Ryan Kim + Kai Chen) =======================================
+var _rateCache = {};
+function rateLimitCheck(action, maxPerMin) {
+  var now = Date.now();
+  if (!_rateCache[action]) _rateCache[action] = [];
+  // Clean old entries (older than 60s)
+  _rateCache[action] = _rateCache[action].filter(function(t) { return now - t < 60000; });
+  if (_rateCache[action].length >= maxPerMin) return false;
+  _rateCache[action].push(now);
+  return true;
+}
+
 // == MULTI-TIMEFRAME DATA (Ryan Kim) =========================================
 async function fetchMultiTF(symbol, dateStr) {
   var res = { symbol:symbol, date:dateStr, tf:{} };
@@ -102,7 +115,7 @@ function detectStrat(bars) {
 }
 
 
-// == FTFC — Full Timeframe Continuity (Mia Thornton + Rob Smith Advisory) ====
+// == FTFC â Full Timeframe Continuity (Mia Thornton + Rob Smith Advisory) ====
 // The Strat core: when ALL timeframes point same direction = highest probability
 function computeFTFC(allTfStrat) {
   var tfs = ["daily","1h","15m","5m","1m"];
@@ -211,6 +224,39 @@ function detectFibs(bars) {
   var nearest=null,nearDist=Infinity;
   Object.keys(fibs).forEach(function(k){var d=Math.abs(last-fibs[k]);if(d<nearDist){nearDist=d;nearest=k}});
   return {trend:trending,swingHigh:+swingHigh.toFixed(2),swingLow:+swingLow.toFixed(2),levels:fibs,nearestFib:nearest,nearestPrice:fibs[nearest],distToNearest:+nearDist.toFixed(2)};
+}
+
+
+// == HARMONIC PATTERNS (Dr. Amir Patel) ======================================
+// Gartley, Butterfly, Bat — XABCD point identification
+function detectHarmonics(bars) {
+  if (!bars || bars.length < 20) return [];
+  var harmonics = [];
+  // Find swing points (local highs and lows)
+  var swings = [];
+  for (var i = 2; i < bars.length - 2; i++) {
+    if (bars[i].h > bars[i-1].h && bars[i].h > bars[i-2].h && bars[i].h > bars[i+1].h && bars[i].h > bars[i+2].h)
+      swings.push({idx:i, type:"high", price:bars[i].h});
+    if (bars[i].l < bars[i-1].l && bars[i].l < bars[i-2].l && bars[i].l < bars[i+1].l && bars[i].l < bars[i+2].l)
+      swings.push({idx:i, type:"low", price:bars[i].l});
+  }
+  if (swings.length < 5) return [];
+  // Check last 5 swing points for XABCD pattern
+  var recent = swings.slice(-5);
+  var X=recent[0].price,A=recent[1].price,B=recent[2].price,C=recent[3].price,D=recent[4].price;
+  var XA=Math.abs(A-X),AB=Math.abs(B-A),BC=Math.abs(C-B),CD=Math.abs(D-C);
+  if (XA===0) return [];
+  var abRatio=AB/XA,bcRatio=BC/AB,cdRatio=CD/BC;
+  // Gartley: AB=0.618 of XA, BC=0.382-0.886 of AB, CD=1.27-1.618 of BC
+  if (abRatio>0.55&&abRatio<0.72&&bcRatio>0.3&&bcRatio<0.95&&cdRatio>1.1&&cdRatio<1.8)
+    harmonics.push({pattern:"gartley",direction:D>C?"bullish":"bearish",completion:+D.toFixed(2),confidence:70});
+  // Butterfly: AB=0.786 of XA, CD=1.618-2.618 of BC
+  if (abRatio>0.7&&abRatio<0.88&&cdRatio>1.5&&cdRatio<2.8)
+    harmonics.push({pattern:"butterfly",direction:D>C?"bullish":"bearish",completion:+D.toFixed(2),confidence:60});
+  // Bat: AB=0.382-0.50 of XA, CD=1.618-2.618 of BC
+  if (abRatio>0.33&&abRatio<0.55&&cdRatio>1.5&&cdRatio<2.8)
+    harmonics.push({pattern:"bat",direction:D>C?"bullish":"bearish",completion:+D.toFixed(2),confidence:65});
+  return harmonics;
 }
 
 // == EMA CROSSOVER + DYNAMIC S/R (Nina Kowalski) =============================
@@ -432,7 +478,7 @@ function gapAnalysis(dailyBars, intradayBars) {
     gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
 }
 
-// == ADX ÃÂ¢ÃÂÃÂ TREND STRENGTH (Dr. Lisa Park) ====================================
+// == ADX ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ TREND STRENGTH (Dr. Lisa Park) ====================================
 function adxCalc(bars) {
   if(!bars||bars.length<28)return{adx:null,trending:false};
   var period=14,pDM=[],nDM=[],tr=[];
@@ -598,7 +644,7 @@ async function optionsAnalysis(dailyBars, trade) {
     result.estimates.atEntry = atEntry;
     result.estimates.iv = +(iv * 100).toFixed(1) + "%";
     result.estimates.dte = dte;
-    // Scenario: if QQQ moves Â±$2, Â±$5
+    // Scenario: if QQQ moves ÃÂ±$2, ÃÂ±$5
     var base = trade.qqqAtEntry || qqqPrice;
     result.estimates.scenarios = [
       { label: "QQQ +$2", result: optionScenario(base, trade.strike, dte, iv, type, base + 2) },
@@ -624,6 +670,7 @@ async function fullAnalysis(symbol, dateStr, entryTimePST, trade) {
       ema: emaAnalysis(mtf.tf[tf]),
       indicators: indicators(mtf.tf[tf]),
       macd: macdAnalysis(mtf.tf[tf]),
+      harmonics: detectHarmonics(mtf.tf[tf]),
       adx: adxCalc(mtf.tf[tf])
     };
   });
@@ -729,10 +776,33 @@ module.exports = async function handler(req, res) {
   var action = (req.query && req.query.action) || (req.body && req.body.action) || '';
   try {
     if (action === 'log_trade' && req.method === 'POST') return res.json(await logTrade(req.body));
-    if (action === 'backtest' && req.method === 'POST') return res.json(await backtest(req.body));
+    if (action === 'backtest' && req.method === 'POST') {
+      if (!rateLimitCheck('backtest', 5)) return res.status(429).json({error:'Rate limit: max 5 backtests per minute. Please wait.'});
+      return res.json(await backtest(req.body));
+    }
     if (action === 'strategies') return res.json(await getStrategies());
-    if (action === 'live_scan') return res.json(await liveScan());
-    return res.status(400).json({ error: 'action required: log_trade, backtest, strategies, live_scan', v: 2 });
+    if (action === 'live_scan') {
+      if (!rateLimitCheck('live_scan', 10)) return res.status(429).json({error:'Rate limit: max 10 scans per minute.'});
+      return res.json(await liveScan());
+    }
+    if (action === 'self_test') {
+      // Automated self-test: runs a sample backtest through the full pipeline
+      var testTrade = {date:'2026-03-28',entryTime:'7:15',exitTime:'9:45',direction:'call',strike:480,expiry:'2026-03-28',entryPrice:1.50,exitPrice:4.80,contracts:1,qqqAtEntry:478.50,qqqAtExit:482.30,notes:'self_test'};
+      var testResult = await backtest(testTrade);
+      var checks = {
+        hasAnalysis: !!testResult.analysis,
+        hasLevels: !!(testResult.analysis && testResult.analysis.levels),
+        hasFTFC: !!(testResult.analysis && testResult.analysis.ftfc),
+        hasConfluence: !!(testResult.analysis && testResult.analysis.confluence),
+        hasGap: !!(testResult.analysis && testResult.analysis.gap),
+        hasOptions: !!(testResult.analysis && testResult.analysis.options),
+        hasAI: !!(testResult.ai && (testResult.ai.strategyName || testResult.ai.whyItWorked || testResult.ai.raw)),
+        barCounts: testResult.analysis ? Object.keys(testResult.analysis.allTfData || {}).reduce(function(a,k){a[k]=(testResult.analysis.allTfData[k]||{}).bars||0;return a},{}) : {},
+      };
+      checks.allPassed = checks.hasAnalysis && checks.hasLevels && checks.hasConfluence;
+      return res.json({test:'self_test',trade:testTrade,checks:checks,fullResult:testResult});
+    }
+    return res.status(400).json({ error: 'action required: log_trade, backtest, strategies, live_scan, self_test', v: 2 });
   } catch(err) {
     console.error('[day-trade-engine-v2]', err.message);
     return res.status(500).json({ error: err.message });
