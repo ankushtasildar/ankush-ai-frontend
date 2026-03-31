@@ -1,5 +1,5 @@
-// predict.js — Alpha Intelligence Engine v5
-// CLEAN REWRITE — no patches, no accumulated fragments
+// predict.js â Alpha Intelligence Engine v5
+// CLEAN REWRITE â no patches, no accumulated fragments
 // Uses calendar dates (not tradingDate), proper error handling
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -9,7 +9,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
-// ── Helper: Supabase REST ──
+// ââ Helper: Supabase REST ââ
 async function supaGet(table, query) {
   if (!SUPA_URL || !SUPA_KEY) return [];
   try {
@@ -36,7 +36,7 @@ async function supaInsert(table, row) {
   } catch {}
 }
 
-// ── Helper: Polygon fetch ──
+// ââ Helper: Polygon fetch ââ
 
 // Utility: fetch from Polygon API with key
 async function polyFetch(url) {
@@ -238,7 +238,7 @@ function computeTechnicals(bars) {
   };
 }
 
-// ── GET MACRO CONTEXT ──
+// ââ GET MACRO CONTEXT ââ
 async function getMacroContext() {
   // SPY for market direction, VIX for fear
   const [spyData, vixPrev] = await Promise.all([
@@ -260,7 +260,7 @@ async function getMacroContext() {
   };
 }
 
-// ── GET HISTORICAL EDGE (learned patterns) ──
+// ââ GET HISTORICAL EDGE (learned patterns) ââ
 async function getHistoricalEdge(symbol) {
   const patterns = await supaGet('ai_learned_patterns', 'order=win_rate.desc&limit=5');
   const setupHistory = await supaGet('setup_records', 'symbol=eq.' + symbol + '&order=created_at.desc&limit=10');
@@ -274,7 +274,7 @@ async function getHistoricalEdge(symbol) {
   };
 }
 
-// ── GET EARNINGS CONTEXT ──
+// ââ GET EARNINGS CONTEXT ââ
 async function getEarningsContext(symbol) {
   const today = new Date().toISOString().split('T')[0];
   const future = new Date();
@@ -288,8 +288,8 @@ async function getEarningsContext(symbol) {
   return { earningsDate: null, earningsDaysOut: null };
 }
 
-// ── BUILD THE ALPHA PROMPT ──
-function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style) {
+// ââ BUILD THE ALPHA PROMPT ââ
+function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, style, newsCtx) {
   const styleContext = style === 'daytrade' ? 'Focus on INTRADAY setups (0-2 days). Gamma risk, IV crush, delta decay matter enormously.'
     : style === 'leap' ? 'Focus on LONG-TERM setups (3-12 months). Fundamental catalysts, macro regime shifts, LEAPS premium decay.'
     : 'Focus on SWING setups (3 days to 9 months). Earnings cycles, sector rotation, technical breakout/breakdown patterns.';
@@ -315,7 +315,7 @@ function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, 
     + 'HISTORICAL EDGE: ' + (edge.patterns || 'no patterns yet') + '\n'
     + 'Win rate on ' + symbol + ': ' + (edge.winRate !== null ? edge.winRate + '%' : 'N/A') + ' (' + edge.total + ' predictions)\n'
     + 'Recent: ' + (edge.recentOutcomes || 'none') + '\n\n'
-    + 'TRADE STYLE: ' + (style || 'swing') + '\n' + styleContext + '\n\n'
+    + ((newsCtx && newsCtx.total > 0) ? 'NEWS CONTEXT (21-day multi-horizon):\n' + (newsCtx.fresh && newsCtx.fresh.length ? 'Fresh (0-2d): ' + newsCtx.fresh.slice(0,3).map(function(n){return '['+n.type+'] '+n.title}).join(' | ') + '\n' : '') + (newsCtx.developing && newsCtx.developing.length ? 'Developing (3-7d): ' + newsCtx.developing.filter(function(n){return n.type!=='NOISE'}).slice(0,2).map(function(n){return '['+n.type+'] '+n.title}).join(' | ') + '\n' : '') + (newsCtx.thesis && newsCtx.thesis.length ? 'Thesis (8-21d catalysts): ' + newsCtx.thesis.filter(function(n){return n.type==='PREDICTIVE'}).slice(0,2).map(function(n){return '['+n.daysAgo+'d ago] '+n.title}).join(' | ') + '\n' : '') + 'NOTE: Older PREDICTIVE articles not yet reflected in price = potential undervalued catalyst.\n\n' : '') + 'TRADE STYLE: ' + (style || 'swing') + '\n' + styleContext + '\n\n'
     + 'Respond ONLY with valid JSON:\n'
     + '{"sentiment":{"overall":"bullish|bearish|neutral","confidence":0-100,"timeframe":"short|medium|long"},'
     + '"leadingThesis":"2-3 sentence FORWARD-LOOKING thesis",'
@@ -330,7 +330,7 @@ function buildAlphaPrompt(symbol, priceData, technicals, macro, edge, earnings, 
     + '"edgeScore":0-100}';
 }
 
-// ── MAIN HANDLER ──
+// ââ MAIN HANDLER ââ
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('CDN-Cache-Control', 'no-store');
@@ -344,11 +344,12 @@ module.exports = async function handler(req, res) {
 
   try {
     // Fetch all data in parallel
-    const [priceData, macro, edge, earnings] = await Promise.all([
+    const [priceData, macro, edge, earnings, newsCtx] = await Promise.all([
       getPriceData(symbol),
       getMacroContext(),
       getHistoricalEdge(symbol),
-      getEarningsContext(symbol)
+      getEarningsContext(symbol),
+      fetchNewsContext(symbol)
     ]);
 
     if (!priceData) {
