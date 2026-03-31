@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 
-const fmt = (n, dec=2) => n == null || isNaN(n) ? 'â' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
-const fmtDollar = n => isNaN(n) || n == null ? '$â' : '$' + fmt(Math.abs(n))
+const fmt = (n, dec=2) => n == null || isNaN(n) ? 'Ã¢ÂÂ' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
+const fmtDollar = n => isNaN(n) || n == null ? '$Ã¢ÂÂ' : '$' + fmt(Math.abs(n))
 
 export default function RiskCalc() {
   const [mode, setMode] = useState('stock') // stock | options | portfolio
@@ -75,8 +75,8 @@ export default function RiskCalc() {
   return (
     <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>â Risk Calculator</h1>
-        <div style={{ color: '#3d4e62', fontSize: 11 }}>Position sizing Â· R/R ratio Â· Kelly criterion Â· Expected value</div>
+        <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>Ã¢ÂÂ Risk Calculator</h1>
+        <div style={{ color: '#3d4e62', fontSize: 11 }}>Position sizing ÃÂ· R/R ratio ÃÂ· Kelly criterion ÃÂ· Expected value</div>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
@@ -117,7 +117,7 @@ export default function RiskCalc() {
               <input type="number" step="0.01" value={stopPrice} onChange={e => setStopPrice(e.target.value)} placeholder="e.g. 145.00" style={{ ...inputStyle, borderColor: stopPrice ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)' }} />
             </div>
             <div>
-              <label style={labelStyle}>Target Price ($ â optional)</label>
+              <label style={labelStyle}>Target Price ($ Ã¢ÂÂ optional)</label>
               <input type="number" step="0.01" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} placeholder="e.g. 165.00" style={{ ...inputStyle, borderColor: targetPrice ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)' }} />
             </div>
           </div>
@@ -131,7 +131,7 @@ export default function RiskCalc() {
                 <input type="number" step="0.01" value={contractCost} onChange={e => setContractCost(e.target.value)} placeholder="e.g. 320.00" style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>Delta (0.1 â 1.0)</label>
+                <label style={labelStyle}>Delta (0.1 Ã¢ÂÂ 1.0)</label>
                 <input type="number" step="0.01" min="0.1" max="1" value={delta} onChange={e => setDelta(e.target.value)} placeholder="e.g. 0.40" style={inputStyle} />
               </div>
             </div>
@@ -188,7 +188,6 @@ export default function RiskCalc() {
                     <div>
                       <div style={{ color: '#4a5c7a', fontSize: 10, marginBottom: 4 }}>Risk/Share</div>
                       <div style={resultStyle()}>{fmtDollar(calc.riskPerShare)}</div>
-        </div>
 
         {/* Risk Grade + Compliance Meter */}
         {calc.entry > 0 && calc.stop > 0 && (
@@ -272,13 +271,13 @@ export default function RiskCalc() {
               <div style={{ background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.12)', borderRadius: 12, padding: 14 }}>
                 <div style={{ color: '#60a5fa', fontSize: 9, fontFamily: '"DM Mono",monospace', letterSpacing: '.06em', marginBottom: 8 }}>AI RISK GUIDANCE</div>
                 <div style={{ color: '#8b9fc0', fontSize: 11, lineHeight: 1.7 }}>
-                  {calc.rrRatio < 1 && <div>â ï¸ R/R ratio below 1:1 â this trade is not worth taking. Adjust your target or stop.</div>}
-                  {calc.rrRatio >= 1 && calc.rrRatio < 1.5 && <div>ð¡ R/R of {calc.rrRatio?.toFixed(1)}:1 is borderline. Minimum for consistent profitability is 1.5:1.</div>}
-                  {calc.rrRatio >= 2 && <div>â R/R of {calc.rrRatio?.toFixed(1)}:1 is solid. You can be right less than 35% of the time and still be profitable.</div>}
-                  {parseFloat(calc.ev) < 0 && <div>â ï¸ Expected value is negative at this win rate â skip this trade or improve your entry.</div>}
-                  {parseFloat(calc.ev) > 0.2 && <div>â Strong positive expected value. This is worth trading if your edge is real.</div>}
-                  {calc.pctOfAccount > 20 && <div>â ï¸ Position size is {calc.pctOfAccount.toFixed(0)}% of account â concentration risk. Consider scaling down.</div>}
-                  {parseFloat(calc.halfKelly) > parseFloat(riskPct) && <div>ð¡ Kelly suggests you could risk up to {calc.halfKelly}% per trade with this win rate and R/R.</div>}
+                  {calc.rrRatio < 1 && <div>Ã¢ÂÂ Ã¯Â¸Â R/R ratio below 1:1 Ã¢ÂÂ this trade is not worth taking. Adjust your target or stop.</div>}
+                  {calc.rrRatio >= 1 && calc.rrRatio < 1.5 && <div>Ã°ÂÂÂ¡ R/R of {calc.rrRatio?.toFixed(1)}:1 is borderline. Minimum for consistent profitability is 1.5:1.</div>}
+                  {calc.rrRatio >= 2 && <div>Ã¢ÂÂ R/R of {calc.rrRatio?.toFixed(1)}:1 is solid. You can be right less than 35% of the time and still be profitable.</div>}
+                  {parseFloat(calc.ev) < 0 && <div>Ã¢ÂÂ Ã¯Â¸Â Expected value is negative at this win rate Ã¢ÂÂ skip this trade or improve your entry.</div>}
+                  {parseFloat(calc.ev) > 0.2 && <div>Ã¢ÂÂ Strong positive expected value. This is worth trading if your edge is real.</div>}
+                  {calc.pctOfAccount > 20 && <div>Ã¢ÂÂ Ã¯Â¸Â Position size is {calc.pctOfAccount.toFixed(0)}% of account Ã¢ÂÂ concentration risk. Consider scaling down.</div>}
+                  {parseFloat(calc.halfKelly) > parseFloat(riskPct) && <div>Ã°ÂÂÂ¡ Kelly suggests you could risk up to {calc.halfKelly}% per trade with this win rate and R/R.</div>}
                 </div>
               </div>
             </>
