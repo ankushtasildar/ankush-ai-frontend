@@ -169,7 +169,7 @@ export default function Overview() {
               </div>
               <span style={{ fontSize:12, color:'var(--text-muted)' }}>{Math.max(0, 2-scanUsed)} free scan{2-scanUsed!==1?'s':''} remaining today</span>
             </div>
-            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited â</a>
+            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited Ã¢ÂÂ</a>
           </div>
         )}
         
@@ -246,7 +246,7 @@ export default function Overview() {
                 {(portfolio.trades === 0 || portfolio.trades == null) && (
                   <div style={{ marginTop:10, padding:'8px 10px', background:'rgba(37,99,235,0.06)', borderRadius:7, border:'1px solid rgba(37,99,235,0.12)', textAlign:'center' }}>
                     <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Track your edge over time</div>
-                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade â</a>
+                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade Ã¢ÂÂ</a>
                   </div>
                 )}
               </div>
@@ -276,7 +276,7 @@ export default function Overview() {
 
         {/* Quick links */}
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {[['Charts','/app/charts'],['Earnings','/app/earnings'],['Sectors','/app/sectors'],['Journal','/app/journal'],['Risk Calc','/app/risk'],['EOD Debrief','/app/eod'],['Intelligence','/app/intelligence']].map(([label,path])=>(
+          {[['Charts','/app/charts'],['Earnings','/app/earnings'],['Sectors','/app/sectors'],['Journal','/app/journal'],['Risk Calc','/app/risk'],['EOD Debrief','/app/eod'],['Intelligence','/app/intelligence'],['Learning','/app/learn'],['Coaches','/app/coaches'],['Blog','/app/blog']].map(([label,path])=>(
             <button key={label} onClick={()=>nav(path)} style={{ background:'var(--bg-elevated)', color:'var(--text-secondary)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 14px', fontSize:12, fontWeight:500 }}>
               {label}
             </button>
