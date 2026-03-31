@@ -39,9 +39,11 @@
     "api/blog.js": {
       "maxDuration": 10
     },
-    "api/day-trade-engine.js",
-      "api/doc-intelligence.js": {
+    "api/day-trade-engine.js": {
       "maxDuration": 60
+    },
+    "api/doc-intelligence.js": {
+      "maxDuration": 45
     },
     "api/sector-composites.js": {
       "maxDuration": 30
