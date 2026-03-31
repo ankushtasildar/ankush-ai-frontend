@@ -1,44 +1,31 @@
 {
   "functions": {
-    "api/ml-trainer.js": {
-      "maxDuration": 60
-    },
-    "api/chart-analysis.js": {
-      "maxDuration": 30
-    },
-    "api/predict.js": {
-      "maxDuration": 60
-    },
-    "api/analysis.js": {
-      "maxDuration": 30
-    },
-    "api/eod-debrief.js": {
-      "maxDuration": 60
-    },
-    "api/journal-ai.js": {
-      "maxDuration": 30
-    },
-    "api/options-recommend.js": {
-      "maxDuration": 30
-    },
-    "api/cron/weekly-report.js": {
-      "maxDuration": 60
-    }
+    "api/ml-trainer.js": { "maxDuration": 60 },
+    "api/chart-analysis.js": { "maxDuration": 30 },
+    "api/predict.js": { "maxDuration": 60 },
+    "api/analysis.js": { "maxDuration": 30 },
+    "api/eod-debrief.js": { "maxDuration": 60 },
+    "api/journal-ai.js": { "maxDuration": 30 },
+    "api/options-recommend.js": { "maxDuration": 30 },
+    "api/cron/weekly-report.js": { "maxDuration": 60 },
+    "api/cron/ml-batch.js": { "maxDuration": 60 },
+    "api/earnings-analyzer.js": { "maxDuration": 30 },
+    "api/emotional-patterns.js": { "maxDuration": 30 },
+    "api/leaderboard.js": { "maxDuration": 15 },
+    "api/blog.js": { "maxDuration": 10 }
   },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/((?!api).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
   ],
   "crons": [
     {
       "path": "/api/cron/weekly-report?admin=true",
       "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/cron/ml-batch?admin=true",
+      "schedule": "30 3 * * *"
     }
   ]
 }
