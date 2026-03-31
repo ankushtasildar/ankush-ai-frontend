@@ -1,5 +1,5 @@
 // ============================================================
-// ANKUSHAI JOURNAL AI v3 â FULL FEATURE BUILD
+// ANKUSHAI JOURNAL AI v3 Ã¢ÂÂ FULL FEATURE BUILD
 // ============================================================
 // New in v3:
 //   - Historical trade context injection (AI knows your stats)
@@ -75,7 +75,7 @@ function extractSymbols(text) {
 }
 
 // ============================================================
-// HISTORICAL TRADE CONTEXT â Makes the AI know YOUR stats
+// HISTORICAL TRADE CONTEXT Ã¢ÂÂ Makes the AI know YOUR stats
 // ============================================================
 async function getTraderContext(userId) {
   try {
@@ -128,7 +128,7 @@ async function getTraderContext(userId) {
     const avgRR = counted > 0 ? (totalRR / counted).toFixed(2) : null;
     const topSymbols = Object.entries(symbols).sort((a, b) => b[1] - a[1]).slice(0, 5).map(s => s[0] + '(' + s[1] + ')').join(', ');
 
-    let ctx = '\n\n[TRADER HISTORY â use this data naturally, do NOT list it back verbatim:\n';
+    let ctx = '\n\n[TRADER HISTORY Ã¢ÂÂ use this data naturally, do NOT list it back verbatim:\n';
     ctx += 'Total logged trades: ' + entries.length + '\n';
     if (winRate) ctx += 'Win rate: ' + winRate + '% (' + wins + 'W/' + losses + 'L)\n';
     if (avgRR) ctx += 'Average R/R: ' + avgRR + 'R\n';
@@ -169,7 +169,7 @@ function parseTrade(message) {
     }
   }
 
-  // Prices â look for numbers near keywords
+  // Prices Ã¢ÂÂ look for numbers near keywords
   const pricePattern = /\$?([\d]+\.?\d*)/g;
   const prices = [];
   let match;
@@ -237,7 +237,7 @@ async function getAlphaPrediction(symbol) {
       ', Confidence=' + (s.confidence || 'unknown') +
       (s.targetPrice ? ', Target=$' + s.targetPrice : '') +
       (s.stopLoss ? ', Stop=$' + s.stopLoss : '') +
-      '. Reference this naturally if relevant to the trade discussion â e.g. "Alpha Intelligence has ' + symbol + ' at ' + (s.direction || 'neutral') + '"]';
+      '. Reference this naturally if relevant to the trade discussion Ã¢ÂÂ e.g. "Alpha Intelligence has ' + symbol + ' at ' + (s.direction || 'neutral') + '"]';
   } catch (e) { return ''; }
 }
 
@@ -271,12 +271,39 @@ function detectInjection(msg) {
 }
 
 function isTradingRelated(msg) {
-  // DENY LIST: explicitly off-topic (blocks guacamole exploit — Tomas Security)
+  // DENY LIST: explicitly off-topic (blocks guacamole exploit â Tomas Security)
   if (/recipe|cook|bak(e|ing)|ingredient|meal|food prep|dinner|lunch|breakfast|dessert|cocktail|workout|exercise|gym|weight\s*loss|diet plan|homework|essay\b|poem\b|story\b|song|lyric|movie review|video game|travel itin|vacation|hotel book|flight book|weather forecast|joke|riddle|trivia|translate|horoscope|astrology|relationship advice|dating/i.test(msg)) return false;
   // Short messages: only allow greetings + trading keywords
   if (msg.length < 20) return /hi|hey|hello|sup|yo|gm|good\s*morning|thanks|help|how|what|why|trade|stock|market|option|chart|QQQ|SPY/i.test(msg);
   // Standard trading keyword check (expanded)
   return /trade|trading|stock|option|market|portfolio|position|entry|exit|stop|target|profit|loss|P&?L|risk|reward|setup|chart|technical|earnings|volatility|IV|greek|ticker|symbol|candle|support|resistance|trend|momentum|swing|day\s*trad|scalp|hedge|long|short|bull|bear|drawdown|win\s*rate|expectancy|journal|review|reflect|emotion|fear|greed|FOMO|tilt|revenge|discipline|patience|psychology|mindset|plan|strategy|edge|backtest|risk.?reward|account|capital|sizing|bought|sold|buy|sell|call|put|spread|straddle|premium|strike|expir|SPY|QQQ|AAPL|NVDA|MSFT|AMZN|TSLA|META|GOOG|vwap|ema|rsi|macd|fibonacci|bollinger|strat\b|sector|index|fund/i.test(msg);
+}
+
+
+// Layer 2: LLM-based topic gate (Dr. Aaliyah Brooks — AI Safety)
+// Groq micro-call: 1 token classification, <100ms, catches creative rephrasing
+async function llmTopicGate(msg) {
+  var GROQ = process.env.GROQ_API_KEY || "";
+  if (!GROQ || msg.length < 15) return true; // Skip very short messages
+  try {
+    var r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "Authorization": "Bearer " + GROQ},
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        max_tokens: 3,
+        temperature: 0,
+        messages: [
+          {role: "system", content: "You classify messages. Reply ONLY \"YES\" if the message is about trading, stocks, markets, options, investing, trading psychology, or portfolio management. Reply ONLY \"NO\" for anything else (recipes, homework, creative writing, travel, fitness, etc). One word only."},
+          {role: "user", content: msg.substring(0, 200)}
+        ]
+      })
+    });
+    if (!r.ok) return true; // On error, allow through
+    var d = await r.json();
+    var answer = d.choices && d.choices[0] && d.choices[0].message ? d.choices[0].message.content.trim().toUpperCase() : "YES";
+    return answer.startsWith("YES");
+  } catch(e) { return true; } // On error, allow through
 }
 
 function scanOutput(response) {
@@ -289,7 +316,7 @@ function scanOutput(response) {
 // MODEL ROUTER
 // ============================================================
 
-// Groq â FREE, 750+ tokens/sec, 1000 RPD on Llama 3.3 70B
+// Groq Ã¢ÂÂ FREE, 750+ tokens/sec, 1000 RPD on Llama 3.3 70B
 async function callGroq(messages) {
   const KEY = process.env.GROQ_API_KEY;
   if (!KEY) return null;
@@ -436,7 +463,7 @@ module.exports = async function handler(req, res) {
           const sent = await sentRes.json();
           if (sent.summary) sentimentCtx = sent.summary + ' ';
         }
-      } catch (e) { /* timeout or error â briefing still loads */ }
+      } catch (e) { /* timeout or error Ã¢ÂÂ briefing still loads */ }
 
       let briefing = 'Good ' + (new Date().getHours() < 12 ? 'morning' : 'afternoon') + '. ';
       if (sentimentCtx) briefing += sentimentCtx;
@@ -455,7 +482,10 @@ module.exports = async function handler(req, res) {
     if (detectInjection(message)) {
       return res.status(200).json({ reply: "What would you like to work on today?", model: 'guard', provider: 'security' });
     }
-    if (!isTradingRelated(message)) {
+    // Two-layer topic gate: regex (fast) + LLM classifier (catches creative rephrasing)
+    var regexPass = isTradingRelated(message);
+    var llmPass = regexPass ? await llmTopicGate(message) : false; // Only LLM-check if regex passed
+    if (!regexPass || !llmPass) {
       return res.status(200).json({ reply: "Let's keep the focus on your trading. What's on your mind?", model: 'guard', provider: 'security' });
     }
 
@@ -492,7 +522,7 @@ module.exports = async function handler(req, res) {
     const moodCtx = mood ? '\n\n[Trader mood: ' + mood + '. Acknowledge naturally if relevant.]' : '';
     const tradeCtx = parsedTrade ? '\n\n[Auto-parsed trade from message: ' + JSON.stringify(parsedTrade) + '. Confirm you noted it and review the setup.]' : '';
 
-    // Alpha Intelligence cross-reference â fetch prediction for first mentioned symbol (non-blocking)
+    // Alpha Intelligence cross-reference Ã¢ÂÂ fetch prediction for first mentioned symbol (non-blocking)
     let alphaCtx = '';
     if (symbols.length > 0) {
       try {
