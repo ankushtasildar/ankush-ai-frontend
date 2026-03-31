@@ -36,8 +36,8 @@ async function fetchMultiTF(symbol, dateStr) {
     .then(function(d){return{l:tf.l,bars:(d.results||[]).map(function(b){return{t:b.t,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v}})}})
     .catch(function(){return{l:tf.l,bars:[]}});
   });
-  var from20=new Date(new Date(dateStr).getTime()-20*86400000).toISOString().split('T')[0];
-  fetches.push(fetchJ('https://api.polygon.io/v2/aggs/ticker/'+symbol+'/range/1/day/'+from20+'/'+dateStr+'?adjusted=true&sort=asc&limit=20&apiKey='+POLYGON).then(function(d){return{l:'daily',bars:(d.results||[]).map(function(b){return{t:b.t,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v}})}}).catch(function(){return{l:'daily',bars:[]}}));
+  var from60=new Date(new Date(dateStr).getTime()-60*86400000).toISOString().split('T')[0];
+  fetches.push(fetchJ('https://api.polygon.io/v2/aggs/ticker/'+symbol+'/range/1/day/'+from60+'/'+dateStr+'?adjusted=true&sort=asc&limit=60&apiKey='+POLYGON).then(function(d){return{l:'daily',bars:(d.results||[]).map(function(b){return{t:b.t,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v}})}}).catch(function(){return{l:'daily',bars:[]}}));
   var r=await Promise.allSettled(fetches);
   r.forEach(function(x){if(x.status==='fulfilled'&&x.value)res.tf[x.value.l]=x.value.bars});
   return res;
@@ -381,7 +381,7 @@ function gapAnalysis(dailyBars, intradayBars) {
     gapFillProb:Math.abs(gapPct)<0.5?"high (small gap)":Math.abs(gapPct)<1?"moderate":"low (large gap)"};
 }
 
-// == ADX — TREND STRENGTH (Dr. Lisa Park) ====================================
+// == ADX â TREND STRENGTH (Dr. Lisa Park) ====================================
 function adxCalc(bars) {
   if(!bars||bars.length<28)return{adx:null,trending:false};
   var period=14,pDM=[],nDM=[],tr=[];
