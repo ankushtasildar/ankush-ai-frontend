@@ -37,7 +37,7 @@ export default function DayTrade() {
 
   return (
     <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
-      {/* Header ÃÂ¢ÃÂÃÂ always visible */}
+      {/* Header Ã¢ÂÂ always visible */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 20, fontWeight: 800, margin: '0 0 2px' }}>Day Trade Engine</h1>
@@ -77,9 +77,9 @@ export default function DayTrade() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
             {[
               { label: 'QQQ Price', value: scan.price ? '$' + Number(scan.price).toFixed(2) : '--', color: '#f0f6ff' },
-              { label: 'Confluence', value: (scan.confluence ? scan.confluence.confluencePct + '% ' + scan.confluence.bias : '--'), color: scan.confluence && scan.confluence.bias === 'BULLISH' ? '#10b981' : '#ef4444' },
-              { label: 'FTFC', value: (scan.strat && scan.strat.ftfc ? scan.strat.ftfc.ftfc : null) ? (scan.ftfc.direction || 'N/A') : '--', color: '#60a5fa' },
-              { label: 'Gap', value: (scan.structure && scan.structure.gap ? scan.structure.gap : null) && (scan.structure && scan.structure.gap ? scan.structure.gap.pct : null) != null ? ((scan.gap.gapPct > 0 ? '+' : '') + Number(scan.gap.gapPct).toFixed(2) + '%') : '--', color: '#f59e0b' },
+              { label: 'Confluence', value: (scan.confluence ? scan.confluence.bullPct + '/' + scan.confluence.bearPct : '--'), color: scan.confluence && scan.confluence.bias === 'BULLISH' ? '#10b981' : '#ef4444' },
+              { label: 'FTFC', value: scan.ftfc ? (scan.ftfc.direction || 'N/A') : '--', color: '#60a5fa' },
+              { label: 'Gap', value: scan.gap && scan.gap.gapPct != null ? ((scan.gap.gapPct > 0 ? '+' : '') + Number(scan.gap.gapPct).toFixed(2) + '%') : '--', color: '#f59e0b' },
               { label: 'Strategies', value: String(scan.learnedStrategies || 0), color: '#a78bfa' },
             ].map((m, i) => (
               <div key={i} style={{ background: '#0a0e15', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
@@ -159,27 +159,6 @@ export default function DayTrade() {
                     <span style={{ color: String(entry[1]).charAt(0) === '-' ? '#ef4444' : '#10b981', marginLeft: 4 }}>{entry[1]}</span>
                   </span>
                 })}
-              </div>
-            </div>
-          )}
-
-
-          {/* Alert Card with I'M IN button */}
-          {scan && scan.alert && (
-            <div style={{marginTop:16,padding:'16px 20px',background:scan.alert.direction==='BULLISH'?'rgba(16,185,129,0.06)':'rgba(239,68,68,0.06)',border:'1px solid '+(scan.alert.direction==='BULLISH'?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'),borderRadius:12}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontFamily:'"DM Mono",monospace',fontSize:14,fontWeight:800,color:scan.alert.direction==='BULLISH'?'#10b981':'#ef4444'}}>{scan.alert.direction} ALERT</span>
-                  <span style={{fontSize:11,color:'#4a5c7a'}}>{scan.alert.confluencePct}%</span>
-                  <span style={{fontSize:10,padding:'2px 8px',background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.2)',borderRadius:4,color:'#a78bfa',fontWeight:700}}>Grade: {scan.alert.grade}</span>
-                </div>
-                <button onClick={function(){navigate('/app/command-center?entry='+scan.alert.entry+'&direction='+scan.alert.direction+'&stop='+scan.alert.stop+'&target1='+scan.alert.target1)}} style={{padding:'10px 24px',background:'linear-gradient(135deg,#ef4444,#a78bfa)',border:'none',borderRadius:8,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:800}}>I'M IN</button>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,fontSize:10,fontFamily:'"DM Mono",monospace'}}>
-                <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}><div style={{color:'#4a5c7a',fontSize:8}}>ENTRY</div><div style={{fontWeight:700}}>${scan.alert.entry}</div></div>
-                <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}><div style={{color:'#ef4444',fontSize:8}}>STOP</div><div style={{fontWeight:700,color:'#ef4444'}}>${scan.alert.stop}</div></div>
-                <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}><div style={{color:'#10b981',fontSize:8}}>TARGET</div><div style={{fontWeight:700,color:'#10b981'}}>${scan.alert.target1} ({scan.alert.target1_rr}:1)</div></div>
-                <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}><div style={{color:'#4a5c7a',fontSize:8}}>TIMEFRAME</div><div style={{fontWeight:700}}>{scan.alert.timeframe}</div></div>
               </div>
             </div>
           )}
