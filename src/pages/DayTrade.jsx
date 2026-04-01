@@ -8,10 +8,25 @@ export default function DayTrade() {
   const [scanCount, setScanCount] = useState(0)
   const [lastScanTime, setLastScanTime] = useState(null)
   const [scanLog, setScanLog] = useState([])
+  const [marketScan, setMarketScan] = useState(null)
   const intervalRef = useRef(null)
 
   function addLog(msg) {
     setScanLog(function(prev) { return [{ time: new Date().toLocaleTimeString(), msg: msg }].concat(prev).slice(0, 8) })
+  }
+
+  async function runMarketScan() {
+    try {
+      var r = await fetch('/api/market-scanner?action=scan')
+      if (!r.ok) return
+      var d = await r.json()
+      setMarketScan(d)
+      if (d.opportunities && d.opportunities.length > 0) {
+        addLog('MARKET: ' + d.scanned + ' tickers scanned, ' + d.qualified + ' qualified, top: ' + d.opportunities[0].symbol + ' (' + (d.opportunities[0].change > 0 ? '+' : '') + d.opportunities[0].change + '%)')
+      } else {
+        addLog('MARKET: ' + d.scanned + ' tickers scanned, ' + d.qualified + ' qualified')
+      }
+    } catch (e) { addLog('Market scan error: ' + e.message) }
   }
 
   async function runScan() {
@@ -30,20 +45,21 @@ export default function DayTrade() {
       if (d.alert) {
         addLog('ALERT FOUND: ' + d.alert.direction + ' ' + conf + '% confluence, Grade ' + d.alert.grade)
       } else if (conf >= 40) {
-        addLog('Analyzing: ' + conf + '% ' + bias + ' — approaching threshold')
+        addLog('Analyzing: ' + conf + '% ' + bias + ' â approaching threshold')
       } else if (conf >= 25) {
-        addLog('Monitoring: ' + conf + '% ' + bias + ' — weak signal, watching')
+        addLog('Monitoring: ' + conf + '% ' + bias + ' â weak signal, watching')
       } else {
-        addLog('Scanning: ' + conf + '% — no actionable setup, continuing search')
+        addLog('Scanning: ' + conf + '% â no actionable setup, continuing search')
       }
     } catch (e) { addLog('Error: ' + e.message) }
   }
 
   useEffect(function() {
-    addLog('Scanner initialized — active market surveillance')
+    addLog('Scanner initialized â active market surveillance')
     runScan()
     intervalRef.current = setInterval(runScan, 15000)
-    return function() { clearInterval(intervalRef.current) }
+    var mktInterval = setInterval(runMarketScan, 60000)
+    return function() { clearInterval(intervalRef.current); clearInterval(marketInterval) }
   }, [])
 
   var price = scan ? scan.price : null
@@ -71,7 +87,7 @@ export default function DayTrade() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, color: '#f0f6ff', margin: 0 }}>Day Trade Engine</h1>
-          <div style={{ fontSize: 11, color: '#4a5c7a' }}>V3 Prediction Engine — SSS50 + FTFC + VWAP + 5-layer confluence</div>
+          <div style={{ fontSize: 11, color: '#4a5c7a' }}>V3 Prediction Engine â SSS50 + FTFC + VWAP + 5-layer confluence</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -129,7 +145,7 @@ export default function DayTrade() {
         </div>
       </div>
 
-      {/* ALERT CARD — only appears when a real opportunity is found */}
+      {/* ALERT CARD â only appears when a real opportunity is found */}
       {alert && (
         <div style={{ marginBottom: 16, padding: '16px 20px', background: alert.direction === 'BULLISH' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: '2px solid ' + (alert.direction === 'BULLISH' ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'), borderRadius: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -243,6 +259,30 @@ export default function DayTrade() {
               <div style={{ fontSize: 9, color: '#3d4e62', marginTop: 2 }}>{scan.strat.combo.description || ''}</div>
             </div>
           )}
+        </div>
+      )}
+
+      
+      {/* Market-wide opportunities */}
+      {marketScan && marketScan.opportunities && marketScan.opportunities.length > 0 && (
+        <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontFamily: '"DM Mono",monospace', fontSize: 10, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Market Opportunities ({marketScan.qualified} of {marketScan.scanned} qualified)</div>
+            <span style={{ fontSize: 9, color: '#2a3441' }}>{marketScan.totalTimeMs}ms scan</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 6 }}>
+            {marketScan.opportunities.slice(0, 8).map(function(opp) { return (
+              <div key={opp.symbol} onClick={function() { window.location.href = '/app/daytrade?symbol=' + opp.symbol }} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid ' + (opp.direction === 'BULLISH' ? 'rgba(16,185,129,0.2)' : opp.direction === 'BEARISH' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'), borderRadius: 8, padding: '8px 10px', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontFamily: '"DM Mono",monospace', fontSize: 11, fontWeight: 800, color: '#f0f6ff' }}>{opp.symbol}</span>
+                  <span style={{ fontSize: 9, color: opp.change > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>{opp.change > 0 ? '+' : ''}{opp.change}%</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#4a5c7a', fontFamily: '"DM Mono",monospace' }}>${opp.price}</div>
+                <div style={{ fontSize: 8, color: '#f59e0b', marginTop: 2 }}>Score: {opp.score} {opp.direction}</div>
+                <div style={{ fontSize: 8, color: '#3d4e62', marginTop: 1 }}>{opp.signals && opp.signals[0] ? opp.signals[0].substring(0, 30) : ''}</div>
+              </div>
+            ) })}
+          </div>
         </div>
       )}
 
