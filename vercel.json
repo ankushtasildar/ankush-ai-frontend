@@ -47,6 +47,9 @@
     },
     "api/sector-composites.js": {
       "maxDuration": 30
+    },
+    "api/command-center.js": {
+      "maxDuration": 45
     }
   },
   "rewrites": [
