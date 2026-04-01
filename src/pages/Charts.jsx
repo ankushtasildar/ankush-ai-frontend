@@ -373,10 +373,14 @@ function ChartVision({ symbol, timeframe }) {
         <div onDrop={(e)=>{e.preventDefault();processFile(e.dataTransfer?.files?.[0])}} onDragOver={(e)=>e.preventDefault()}
              onClick={()=>{const i=document.createElement('input');i.type='file';i.accept='image/*';i.onchange=(e)=>processFile(e.target.files[0]);i.click()}}
              style={{ border:'2px dashed var(--border)', borderRadius:8, padding:24, textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.02)' }}>
-          <div style={{ fontSize:20, marginBottom:6 }}>\uD83D\uDCF7</div>
+          <div style={{ fontSize:20, marginBottom:6 }}>[Camera]</div>
           <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', marginBottom:4 }}>Drop chart screenshot here</div>
-          <div style={{ fontSize:10, color:'var(--text-muted)' }}>or click to upload \u00B7 or Cmd+V to paste</div>
-        </div>
+          <div style={{ fontSize:10, color:'var(--text-muted)' }}>or click to upload - or Cmd+V to paste</div>
+        
+          <div style={{ marginTop: 16, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#4a5c7a", marginBottom: 8 }}>Or analyze without a screenshot:</div>
+            <button onClick={function() { analyze(symbol || "SPY"); }} style={{ background: "linear-gradient(135deg, #a78bfa, #60a5fa)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>AI Analyze {symbol || "SPY"} Chart</button>
+          </div></div>
       )}
 
       {preview && !analysis && (
@@ -384,7 +388,7 @@ function ChartVision({ symbol, timeframe }) {
           <img src={preview} style={{ width:'100%', borderRadius:6, border:'1px solid var(--border)', marginBottom:8 }} />
           <button onClick={analyze} disabled={loading}
             style={{ width:'100%', padding:'10px', background: loading ? 'var(--bg-elevated)' : '#10b981', color:'#fff', border:'none', borderRadius:6, fontSize:12, fontWeight:600, cursor: loading ? 'wait' : 'pointer' }}>
-            {loading ? 'Analyzing chart...' : '\uD83E\uDDE0 Analyze Chart'}
+            {loading ? 'Analyzing chart...' : '[AI] Analyze Chart'}
           </button>
         </div>
       )}
@@ -398,7 +402,7 @@ function ChartVision({ symbol, timeframe }) {
           <div style={box}>
             <div style={lbl}>Trend</div>
             <div style={{ fontWeight:600, color: analysis.trend?.direction==='bullish'?'#10b981':analysis.trend?.direction==='bearish'?'#ef4444':'var(--text-primary)' }}>
-              {analysis.trend?.direction?.toUpperCase()} \u2014 {analysis.trend?.strength}
+              {analysis.trend?.direction?.toUpperCase()} -- {analysis.trend?.strength}
             </div>
             <div style={{ fontSize:11, marginTop:4, color:'var(--text-secondary)' }}>{analysis.trend?.description}</div>
           </div>
@@ -431,7 +435,7 @@ function ChartVision({ symbol, timeframe }) {
 
           {analysis.drawingRecommendations?.length > 0 && <div style={box}>
             <div style={lbl}>Drawing Recommendations</div>
-            {analysis.drawingRecommendations.map((d,i) => <div key={i} style={{ fontSize:11, padding:'2px 0' }}><span style={{ color: d.color || 'var(--accent)' }}>\u25CF</span> {d.type}: {d.description}</div>)}
+            {analysis.drawingRecommendations.map((d,i) => <div key={i} style={{ fontSize:11, padding:'2px 0' }}><span style={{ color: d.color || 'var(--accent)' }}>*</span> {d.type}: {d.description}</div>)}
             <div style={{ fontSize:9, color:'var(--text-muted)', marginTop:4, fontStyle:'italic' }}>Auto-drawing coming in Phase 2</div>
           </div>}
 
@@ -530,7 +534,7 @@ export default function Charts() {
         <div style={{ flex:1, minWidth:0, position:'relative', overflow:'hidden' }}>
           <TVChart symbol={sym} interval={tf} />
         </div>
-        {/* Right panel â 320px */}
+        {/* Right panel  320px */}
         {mode === 'analysis' && (
           <div style={{ width:320, flexShrink:0, height:'100%', overflow:'hidden', background:'var(--bg-card)', borderLeft:'1px solid var(--border)' }}>
             <AITextPanel symbol={sym} />
