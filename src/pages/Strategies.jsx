@@ -17,8 +17,8 @@ const STRATEGIES = [
    target:'Close at 50% profit. Never hold through earnings.',
    options:'Iron condor or short strangle. Sell 30 DTE, close 7 DTE or at 50% profit.',
    quiz:[{q:'What IV Rank threshold triggers this strategy?',a:'IV Rank > 50',wrong:['IV Rank > 20','IV Rank > 80']},{q:'When should you close the position?',a:'Before earnings announcement',wrong:['After earnings','At expiration']}]},
-  {id:'vix_regime',name:'VIX Regime Risk Management',category:'Macro',icon:'\u26A1',difficulty:'All Levels',winRate:'N/A \u2014 Framework',avgRR:'Varies',bestIn:'All market conditions',avoidIn:'Never avoid \u2014 always apply',color:'#a78bfa',
-   setup:['VIX < 15: Greed \u2014 go directional, reduce hedge','VIX 15-20: Neutral \u2014 balanced, full size','VIX 20-25: Caution \u2014 reduce size 25-50%, add hedges','VIX 25-35: Fear \u2014 spreads only, 25% size','VIX > 35: Panic \u2014 cash or short gamma only'],
+  {id:'vix_regime',name:'VIX Regime Risk Management',category:'Macro',icon:'\u26A1',difficulty:'All Levels',winRate:'N/A — Framework',avgRR:'Varies',bestIn:'All market conditions',avoidIn:'Never avoid — always apply',color:'#a78bfa',
+   setup:['VIX < 15: Greed — go directional, reduce hedge','VIX 15-20: Neutral — balanced, full size','VIX 20-25: Caution — reduce size 25-50%, add hedges','VIX 25-35: Fear — spreads only, 25% size','VIX > 35: Panic — cash or short gamma only'],
    entry:'Position size = Base Size \u00D7 VIX Multiplier.',
    stop:'Hard portfolio stop: -5% from peak triggers full risk-off for 48 hours.',
    target:'Stay in profitable positions but tighten stops in high VIX.',
@@ -34,7 +34,7 @@ const STRATEGIES = [
   {id:'sector_rotation',name:'Sector Rotation Momentum',category:'Macro',icon:'\u{1F5FA}',difficulty:'Intermediate',winRate:'59%',avgRR:'2.4:1',bestIn:'Trending macro environments',avoidIn:'High correlation, no sector divergence',color:'#f97316',
    setup:['Identify leading sector (top 3-month performer)','Confirm with relative strength vs SPY','Sector ETF at breakout','Macro catalyst supports sector thesis'],
    entry:'Buy leading sector ETF or top 2-3 stocks. Enter on pullback to 20MA.',
-   stop:'Sector underperforms SPY for 2 consecutive weeks \u2014 exit.',
+   stop:'Sector underperforms SPY for 2 consecutive weeks — exit.',
    target:'Hold 4-8 weeks. Exit when sector reverses below 50MA.',
    options:'Buy sector ETF calls 60-90 DTE.',
    quiz:[{q:'How long do you typically hold sector rotation trades?',a:'4-8 weeks',wrong:['1-2 days','6+ months']},{q:'What signals an exit?',a:'Sector underperforms SPY for 2 weeks',wrong:['One bad day','VIX spikes above 20']}]},
@@ -175,14 +175,14 @@ export default function Strategies() {
       <div style={{width:active?320:undefined,flex:active?'0 0 320px':1}}>
         <div style={{marginBottom:16}}>
           <h1 style={{fontFamily:'"Syne",sans-serif',fontSize:22,fontWeight:800,margin:'0 0 2px'}}>Strategies</h1>
-          <div style={{color:'#3d4e62',fontSize:11}}>6 proven frameworks \u00B7 click to expand \u00B7 quiz mode to learn</div>
+          <div style={{color:'#3d4e62',fontSize:11}}>6 proven frameworks · click to expand · quiz mode to learn</div>
         </div>
 
         {/* VIX Regime Banner */}
         {vixRegime && (
           <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:8,marginBottom:12}}>
             <span style={{fontSize:8,color:'#3d4e62',fontFamily:'"DM Mono",monospace',textTransform:'uppercase',letterSpacing:0.5}}>Current VIX regime</span>
-            <span style={{fontFamily:'"DM Mono",monospace',fontSize:12,fontWeight:700,color:vixRegime.color}}>{liveVIX && liveVIX.toFixed(1)} \u2014 {vixRegime.label}</span>
+            <span style={{fontFamily:'"DM Mono",monospace',fontSize:12,fontWeight:700,color:vixRegime.color}}>{liveVIX && liveVIX.toFixed(1)} — {vixRegime.label}</span>
           </div>
         )}
 
