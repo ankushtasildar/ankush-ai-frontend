@@ -1,8 +1,8 @@
 // ============================================================================
-// ANKUSHAI DAY TRADE ENGINE V3 ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ PREDICTION ENGINE
+// ANKUSHAI DAY TRADE ENGINE V3 ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ PREDICTION ENGINE
 // ============================================================================
 // Sources: wolffnbear (SSS 50%), rickyzcarroll (Strat/FTFC), liquid-trader (VWAP/Levels)
-// Data: Polygon.io real-time ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Yahoo Finance fallback
+// Data: Polygon.io real-time ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Yahoo Finance fallback
 // Output: Confluence-scored alerts with entry/stop/target/timeframe/risk grade
 //
 // ZERO mock data. Every number comes from real market data or real math.
@@ -70,7 +70,7 @@ async function yahooData(sym) {
 }
 
 // ============================================================================
-// MATH PRIMITIVES ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Real formulas, no approximations
+// MATH PRIMITIVES ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Real formulas, no approximations
 // ============================================================================
 function ema(data, p) {
   if (!data || data.length < p) return [];
@@ -223,7 +223,7 @@ function calcVWAP(bars) {
 
 // ============================================================================
 // INDICATOR: Key Daily Percentage Levels (liquid-trader inspired)
-// How algos see the market ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ percentage levels from session open
+// How algos see the market ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ percentage levels from session open
 // ============================================================================
 function calcKeyLevels(sessionOpen, currentPrice, prevHigh, prevLow, prevClose) {
   if (!sessionOpen || !currentPrice) return null;
@@ -279,7 +279,7 @@ function stratBarType(curr, prev) {
 }
 
 // SSS 50% Rule State Machine (wolffnbear)
-// INVALID ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ STANDBY ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ACTIVE ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ COMPLETE
+// INVALID ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ STANDBY ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ACTIVE ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ COMPLETE
 function sss50Rule(curr, prev) {
   if (!curr || !prev) return { state: 'INVALID', reason: 'no data' };
   var midpoint = (prev.h + prev.l) / 2;
@@ -353,7 +353,7 @@ function detectStratCombo(bars) {
   return signal ? { combo: signal.combo, direction: signal.dir, description: signal.desc, fullCombo: combo } : { combo: combo, direction: t3 ? t3.dir : 'unknown', description: 'Pattern: ' + combo, fullCombo: combo };
 }
 
-// Full Timeframe Continuity (rickyzcarroll ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ 10 timeframes)
+// Full Timeframe Continuity (rickyzcarroll ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ 10 timeframes)
 function checkFTFC(barsByTF) {
   var tfs = Object.keys(barsByTF);
   var directions = {};
@@ -408,7 +408,7 @@ function calcGap(todayOpen, prevClose, prevHigh, prevLow) {
 }
 
 // ============================================================================
-// CONFLUENCE ENGINE ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Weighted scoring across all layers
+// CONFLUENCE ENGINE ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Weighted scoring across all layers
 // ============================================================================
 function scoreConfluence(data) {
   var bull = 0, bear = 0, reasons = [], maxScore = 0;
@@ -425,7 +425,7 @@ function scoreConfluence(data) {
     if (data.gap && data.gap.dir !== 'flat' && data.gap.fillTarget) {
       var gapBias = data.gap.dir === 'gap_up' ? 'bear' : 'bull';
       if (gapBias === 'bull') bull += 5; else bear += 5;
-      reasons.push('Unfilled gap ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fill target $' + data.gap.fillTarget);
+      reasons.push('Unfilled gap ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fill target $' + data.gap.fillTarget);
     }
   }
 
@@ -453,7 +453,7 @@ function scoreConfluence(data) {
       if (data.squeeze.dir === 'bull') bull += 12; else bear += 12;
       reasons.push('SQUEEZE FIRED ' + data.squeeze.dir.toUpperCase());
     } else if (data.squeeze.on) {
-      reasons.push('Squeeze ON ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ expansion imminent');
+      reasons.push('Squeeze ON ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ expansion imminent');
       bull += 3; bear += 3;
     }
   }
@@ -498,8 +498,8 @@ function scoreConfluence(data) {
   }
   if (data.patterns && data.patterns.chart) {
     data.patterns.chart.forEach(function(p) {
-      if (p.direction === 'bullish') { bull += 5; reasons.push('Chart: ' + p.pattern + ' â ' + p.signal); }
-      if (p.direction === 'bearish') { bear += 5; reasons.push('Chart: ' + p.pattern + ' â ' + p.signal); }
+      if (p.direction === 'bullish') { bull += 5; reasons.push('Chart: ' + p.pattern + ' Ã¢ÂÂ ' + p.signal); }
+      if (p.direction === 'bearish') { bear += 5; reasons.push('Chart: ' + p.pattern + ' Ã¢ÂÂ ' + p.signal); }
     });
   }
 
@@ -524,10 +524,10 @@ function scoreConfluence(data) {
 }
 
 // ============================================================================
-// ALERT GENERATOR ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Specific entry/stop/target/timeframe
+// ALERT GENERATOR ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Specific entry/stop/target/timeframe
 // ============================================================================
 function generateAlert(confluence, price, levels, adx, vwap) {
-  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no alert
+  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no alert
   var dir = confluence.bias;
   var entry = +price.toFixed(2);
   var atr = adx && adx.atr ? adx.atr : 0.50;
@@ -628,7 +628,7 @@ function recommendContract(alert, price, sym) {
       maxRisk: '$' + (estPremiumOTM * 100 * suggestedContracts).toFixed(0),
       displayName: sym + ' ' + expStr + ' $' + otm1Strike + ' ' + type
     },
-    note: daysToExp === 0 ? '0DTE ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ theta decay accelerating' : 'Weekly ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ more room for thesis to play out',
+    note: daysToExp === 0 ? '0DTE ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ theta decay accelerating' : 'Weekly ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ more room for thesis to play out',
     strategy: dir === 'BULLISH' ? 'Long Call' : 'Long Put'
   };
 }
@@ -653,7 +653,7 @@ function aggregateBars(bars1m, minutesPerBar) {
 
 
 // ============================================================================
-// BAR AGGREGATION — Compute higher TFs from 1m bars
+// BAR AGGREGATION â Compute higher TFs from 1m bars
 function aggregateBars(bars, mult) {
   if (!bars || bars.length < mult) return [];
   var res = [];
@@ -670,7 +670,7 @@ function aggregateBars(bars, mult) {
   return res;
 }
 
-// PATTERN ENGINE â Candlestick + Chart Patterns (inline)
+// PATTERN ENGINE Ã¢ÂÂ Candlestick + Chart Patterns (inline)
 // ============================================================================
 function pBodySize(b) { return Math.abs(b.c - b.o); }
 function pRange(b) { return b.h - b.l; }
@@ -760,11 +760,11 @@ module.exports = async function handler(req, res) {
     if (action === 'predict' || action === 'live_scan') {
       // Fetch data from Polygon first, Yahoo fallback
       var bars1m = await polygonBars(sym, 1, 'minute', 390);
-      var bars5m = aggregateBars(bars1m, 5);
+      var bars5m = []; // will aggregate after Yahoo fallback
       if (!bars5m || bars5m.length === 0) bars5m = aggregateBars(bars1m, 5);
-      var bars15m = aggregateBars(bars1m, 15);
+      var bars15m = []; // will aggregate after Yahoo fallback
       if (!bars15m || bars15m.length === 0) bars15m = aggregateBars(bars1m, 15);
-      var bars1h = aggregateBars(bars1m, 60);
+      var bars1h = []; // will aggregate after Yahoo fallback
       if (!bars1h || bars1h.length === 0) bars1h = aggregateBars(bars1m, 60);
       var barsD = []; // Daily from Yahoo prev data, not Polygon (rate limit)
       var barsW = []; // Weekly needs paid tier
@@ -781,6 +781,11 @@ module.exports = async function handler(req, res) {
       // Current price
       // Always fetch Yahoo for real-time price during market hours
       var yahooRT = await yahooData(sym);
+      // Aggregate higher TFs from finalized bars1m (after Yahoo fallback)
+      bars5m = aggregateBars(bars1m || [], 5);
+      bars15m = aggregateBars(bars1m || [], 15);
+      bars1h = aggregateBars(bars1m || [], 60);
+
       var price = (snap && snap.lastPrice) ? snap.lastPrice : (yahooRT && yahooRT.price) ? yahooRT.price : (bars1m && bars1m.length > 0 ? bars1m[bars1m.length - 1].c : null);
       if (!price) return res.status(503).json({ error: 'No price data available', source: 'polygon+yahoo both failed' });
 
@@ -822,7 +827,7 @@ module.exports = async function handler(req, res) {
         if (todayBars1m.length > 0) {
           sessionOpen = todayBars1m[0].o;
         } else {
-          // No today bars yet ÃÂ¢ÃÂÃÂ use Yahoo open or last bar
+          // No today bars yet ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ use Yahoo open or last bar
           sessionOpen = (yahooRT && yahooRT.open) ? yahooRT.open : bars1m[bars1m.length - 1].o;
           todayBars1m = bars1m;
         }
