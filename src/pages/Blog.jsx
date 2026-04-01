@@ -15,7 +15,7 @@ function ArticleCard({ article, onRead }) {
       <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px', lineHeight: 1.4 }}>{article.title}</h2>
       <p style={{ fontSize: 12, color: '#6b7a90', lineHeight: 1.6, margin: '0 0 10px' }}>{article.description}</p>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 10, color: '#3d4e62', fontFamily: '"DM Mono",monospace' }}>{article.author} \u00B7 {article.date}</div>
+        <div style={{ fontSize: 10, color: '#3d4e62', fontFamily: '"DM Mono",monospace' }}>{article.author} · {article.date}</div>
         <div style={{ fontSize: 10, color: '#4a5c7a', fontFamily: '"DM Mono",monospace' }}>{article.readTime}</div>
       </div>
     </div>
