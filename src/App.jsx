@@ -15,6 +15,7 @@ import Learn from './pages/Learn'
 import Coaches from './pages/Coaches'
 import Blog from './pages/Blog'
 import DayTrade from './pages/DayTrade'
+import CommandCenter from './pages/CommandCenter'
 import Portfolio from './pages/Portfolio'
 import Journal from './pages/Journal'
 import RiskCalc from './pages/RiskCalc'
@@ -28,7 +29,7 @@ import AdminLogin from './pages/AdminLogin'
 import AuthCallback from './pages/AuthCallback'
 import LandingPage from './pages/LandingPage'
 
-// Priya Nair: Grouped nav ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Intelligence first, then Research, then My Trading
+// Priya Nair: Grouped nav ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Intelligence first, then Research, then My Trading
 const NAV_GROUPS = [
   {
     label: 'INTELLIGENCE',
@@ -238,6 +239,7 @@ function AppShell() {
               <Route path='app/coaches'    element={<Coaches />} />
               <Route path='app/blog'       element={<Blog />} />
               <Route path='app/daytrade'   element={<DayTrade />} />
+              <Route path='app/command-center' element={<CommandCenter />} />
           <Route path='app/watchlist'   element={<Watchlist />} />
           <Route path='app/journal'     element={<Journal />} />
           <Route path='app/portfolio'   element={<Portfolio />} />
