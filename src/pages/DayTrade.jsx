@@ -37,7 +37,7 @@ export default function DayTrade() {
 
   return (
     <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
-      {/* Header — always visible */}
+      {/* Header â always visible */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 20, fontWeight: 800, margin: '0 0 2px' }}>Day Trade Engine</h1>
@@ -79,7 +79,7 @@ export default function DayTrade() {
               { label: 'QQQ Price', value: scan.price ? '$' + Number(scan.price).toFixed(2) : '--', color: '#f0f6ff' },
               { label: 'Confluence', value: (scan.confluence ? scan.confluence.bullPct + '/' + scan.confluence.bearPct : '--'), color: scan.confluence && scan.confluence.bias === 'BULLISH' ? '#10b981' : '#ef4444' },
               { label: 'FTFC', value: scan.ftfc ? (scan.ftfc.direction || 'N/A') : '--', color: '#60a5fa' },
-              { label: 'Gap', value: scan.gap ? ((scan.gap.gapPct > 0 ? '+' : '') + String(scan.gap.gapPct) + '%') : '--', color: '#f59e0b' },
+              { label: 'Gap', value: scan.gap && scan.gap.gapPct != null ? ((scan.gap.gapPct > 0 ? '+' : '') + Number(scan.gap.gapPct).toFixed(2) + '%') : '--', color: '#f59e0b' },
               { label: 'Strategies', value: String(scan.learnedStrategies || 0), color: '#a78bfa' },
             ].map((m, i) => (
               <div key={i} style={{ background: '#0a0e15', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
