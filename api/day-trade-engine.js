@@ -1,8 +1,8 @@
 // ============================================================================
-// ANKUSHAI DAY TRADE ENGINE V3 â PREDICTION ENGINE
+// ANKUSHAI DAY TRADE ENGINE V3 Ã¢ÂÂ PREDICTION ENGINE
 // ============================================================================
 // Sources: wolffnbear (SSS 50%), rickyzcarroll (Strat/FTFC), liquid-trader (VWAP/Levels)
-// Data: Polygon.io real-time â Yahoo Finance fallback
+// Data: Polygon.io real-time Ã¢ÂÂ Yahoo Finance fallback
 // Output: Confluence-scored alerts with entry/stop/target/timeframe/risk grade
 //
 // ZERO mock data. Every number comes from real market data or real math.
@@ -37,6 +37,17 @@ async function polygonPrev(sym) {
   } catch (e) { return null; }
 }
 
+async function polygonSnapshot(sym) {
+  if (!POLYGON_KEY) return null;
+  try {
+    var r = await fetch('https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/' + sym + '?apiKey=' + POLYGON_KEY);
+    if (!r.ok) return null;
+    var d = await r.json();
+    if (!d.ticker) return null;
+    return { lastPrice: d.ticker.lastTrade ? d.ticker.lastTrade.p : null, todayOpen: d.ticker.day ? d.ticker.day.o : null, todayHigh: d.ticker.day ? d.ticker.day.h : null, todayLow: d.ticker.day ? d.ticker.day.l : null, todayClose: d.ticker.day ? d.ticker.day.c : null, todayVol: d.ticker.day ? d.ticker.day.v : null, prevClose: d.ticker.prevDay ? d.ticker.prevDay.c : null, prevHigh: d.ticker.prevDay ? d.ticker.prevDay.h : null, prevLow: d.ticker.prevDay ? d.ticker.prevDay.l : null };
+  } catch (e) { return null; }
+}
+
 async function yahooData(sym) {
   try {
     var r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1m&range=2d');
@@ -59,7 +70,7 @@ async function yahooData(sym) {
 }
 
 // ============================================================================
-// MATH PRIMITIVES â Real formulas, no approximations
+// MATH PRIMITIVES Ã¢ÂÂ Real formulas, no approximations
 // ============================================================================
 function ema(data, p) {
   if (!data || data.length < p) return [];
@@ -212,7 +223,7 @@ function calcVWAP(bars) {
 
 // ============================================================================
 // INDICATOR: Key Daily Percentage Levels (liquid-trader inspired)
-// How algos see the market â percentage levels from session open
+// How algos see the market Ã¢ÂÂ percentage levels from session open
 // ============================================================================
 function calcKeyLevels(sessionOpen, currentPrice, prevHigh, prevLow, prevClose) {
   if (!sessionOpen || !currentPrice) return null;
@@ -268,7 +279,7 @@ function stratBarType(curr, prev) {
 }
 
 // SSS 50% Rule State Machine (wolffnbear)
-// INVALID â STANDBY â ACTIVE â COMPLETE
+// INVALID Ã¢ÂÂ STANDBY Ã¢ÂÂ ACTIVE Ã¢ÂÂ COMPLETE
 function sss50Rule(curr, prev) {
   if (!curr || !prev) return { state: 'INVALID', reason: 'no data' };
   var midpoint = (prev.h + prev.l) / 2;
@@ -342,7 +353,7 @@ function detectStratCombo(bars) {
   return signal ? { combo: signal.combo, direction: signal.dir, description: signal.desc, fullCombo: combo } : { combo: combo, direction: t3 ? t3.dir : 'unknown', description: 'Pattern: ' + combo, fullCombo: combo };
 }
 
-// Full Timeframe Continuity (rickyzcarroll â 10 timeframes)
+// Full Timeframe Continuity (rickyzcarroll Ã¢ÂÂ 10 timeframes)
 function checkFTFC(barsByTF) {
   var tfs = Object.keys(barsByTF);
   var directions = {};
@@ -397,7 +408,7 @@ function calcGap(todayOpen, prevClose, prevHigh, prevLow) {
 }
 
 // ============================================================================
-// CONFLUENCE ENGINE â Weighted scoring across all layers
+// CONFLUENCE ENGINE Ã¢ÂÂ Weighted scoring across all layers
 // ============================================================================
 function scoreConfluence(data) {
   var bull = 0, bear = 0, reasons = [], maxScore = 0;
@@ -414,7 +425,7 @@ function scoreConfluence(data) {
     if (data.gap && data.gap.dir !== 'flat' && data.gap.fillTarget) {
       var gapBias = data.gap.dir === 'gap_up' ? 'bear' : 'bull';
       if (gapBias === 'bull') bull += 5; else bear += 5;
-      reasons.push('Unfilled gap â fill target $' + data.gap.fillTarget);
+      reasons.push('Unfilled gap Ã¢ÂÂ fill target $' + data.gap.fillTarget);
     }
   }
 
@@ -442,7 +453,7 @@ function scoreConfluence(data) {
       if (data.squeeze.dir === 'bull') bull += 12; else bear += 12;
       reasons.push('SQUEEZE FIRED ' + data.squeeze.dir.toUpperCase());
     } else if (data.squeeze.on) {
-      reasons.push('Squeeze ON â expansion imminent');
+      reasons.push('Squeeze ON Ã¢ÂÂ expansion imminent');
       bull += 3; bear += 3;
     }
   }
@@ -499,10 +510,10 @@ function scoreConfluence(data) {
 }
 
 // ============================================================================
-// ALERT GENERATOR â Specific entry/stop/target/timeframe
+// ALERT GENERATOR Ã¢ÂÂ Specific entry/stop/target/timeframe
 // ============================================================================
 function generateAlert(confluence, price, levels, adx, vwap) {
-  if (confluence.confluencePct < 55) return null; // Below threshold â no alert
+  if (confluence.confluencePct < 55) return null; // Below threshold Ã¢ÂÂ no alert
   var dir = confluence.bias;
   var entry = +price.toFixed(2);
   var atr = adx && adx.atr ? adx.atr : 0.50;
@@ -561,6 +572,7 @@ module.exports = async function handler(req, res) {
       var barsD = await polygonBars(sym, 1, 'day', 30);
       var barsW = await polygonBars(sym, 1, 'week', 12);
       var prev = await polygonPrev(sym);
+      var snap = await polygonSnapshot(sym);
 
       // Yahoo fallback if Polygon fails
       var yahooFallback = null;
@@ -570,10 +582,10 @@ module.exports = async function handler(req, res) {
       }
 
       // Current price
-      var price = bars1m && bars1m.length > 0 ? bars1m[bars1m.length - 1].c : (yahooFallback ? yahooFallback.price : null);
+      var price = (snap && snap.lastPrice) ? snap.lastPrice : (bars1m && bars1m.length > 0 ? bars1m[bars1m.length - 1].c : (yahooFallback ? yahooFallback.price : null));
       if (!price) return res.status(503).json({ error: 'No price data available', source: 'polygon+yahoo both failed' });
 
-      var prevDay = prev || (yahooFallback ? { h: yahooFallback.high, l: yahooFallback.low, c: yahooFallback.prevClose, o: yahooFallback.open } : null);
+      var prevDay = prev || (snap ? { h: snap.prevHigh, l: snap.prevLow, c: snap.prevClose, o: snap.todayOpen } : null) || (yahooFallback ? { h: yahooFallback.high, l: yahooFallback.low, c: yahooFallback.prevClose, o: yahooFallback.open } : null);
 
       // Extract close arrays for indicators
       var c1m = bars1m ? bars1m.map(function(b) { return b.c; }) : [];
@@ -644,7 +656,8 @@ module.exports = async function handler(req, res) {
 
       return res.json({
         symbol: sym, price: price, timestamp: new Date().toISOString(),
-        dataSource: bars1m && bars1m.length > 50 ? 'polygon' : 'yahoo_fallback',
+        dataSource: snap && snap.lastPrice ? 'polygon_snapshot' : (bars1m && bars1m.length > 50 ? 'polygon_bars' : 'yahoo_fallback'),
+        priceSource: snap && snap.lastPrice ? 'real-time tick' : 'last bar close',
         bars: { '1m': (bars1m || []).length, '5m': (bars5m || []).length, '15m': (bars15m || []).length, '1h': (bars1h || []).length, 'D': (barsD || []).length },
         confluence: confluence,
         alert: alert,
