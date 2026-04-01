@@ -1,11 +1,11 @@
-// src/pages/Sectors.jsx — AnkushAI Sector Heatmap v4
+// src/pages/Sectors.jsx â AnkushAI Sector Heatmap v4
 // Marcus Webb (Quant) + Jordan Hayes (Design) + Priya Nair (Product)
-// Constituent-basket composite sectors — equal-weight avg of named stocks
-// 12 sectors · hover for top movers · breadth bar · session-aware
+// Constituent-basket composite sectors â equal-weight avg of named stocks
+// 12 sectors  hover for top movers  breadth bar  session-aware
 
 import { useState, useEffect, useRef } from 'react'
 
-// ── US Market Holidays 2025-2027 (NYSE) ─────────────────────────────────────
+// ââ US Market Holidays 2025-2027 (NYSE) âââââââââââââââââââââââââââââââââââââ
 const MARKET_HOLIDAYS = new Set([
   '2025-01-01','2025-01-20','2025-02-17','2025-04-18','2025-05-26','2025-06-19',
   '2025-07-04','2025-09-01','2025-11-27','2025-12-25',
@@ -60,9 +60,9 @@ function useCountdown(session) {
 }
 
 function pct(v) {
-  if (v === undefined || v === null) return '—'
+  if (v === undefined || v === null) return 'â'
   const n = parseFloat(v)
-  if (isNaN(n)) return '—'
+  if (isNaN(n)) return 'â'
   return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'
 }
 
@@ -127,7 +127,7 @@ function SectorCard({ sector, session }) {
             <span>{sector.name}</span>
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>
-            {sector.stocksScored}/{sector.totalConstituents} stocks · {sector.advancers}↑ {sector.decliners}↓
+            {sector.stocksScored}/{sector.totalConstituents} stocks  {sector.advancers}â {sector.decliners}â
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -227,21 +227,21 @@ export default function Sectors() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
         <div>
-          <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>📊 Sector Heatmap</h1>
+          <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 3px' }}>ð Sector Heatmap</h1>
           <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
             {loading ? 'Loading...' : (
               <>
                 {session && session.session !== 'regular'
                   ? <><span style={{color:sessionColor,fontWeight:600}}>
-                      {session.session==='weekend'?'Weekend · Last Session':''}
-                      {session.session==='premarket'?'Pre-Market · vs Prior Close':''}
-                      {session.session==='postmarket'?'After Hours · vs Close':''}
-                    </span>{' · '}</>
+                      {session.session==='weekend'?'Weekend  Last Session':''}
+                      {session.session==='premarket'?'Pre-Market  vs Prior Close':''}
+                      {session.session==='postmarket'?'After Hours  vs Close':''}
+                    </span>{'  '}</>
                   : null
                 }
-                {advancing} sectors advancing · {declining} declining
-                {' · '}{totalAdv}/{totalStocks} stocks advancing
-                {' · '}Updated {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'}
+                {advancing} sectors advancing  {declining} declining
+                {'  '}{totalAdv}/{totalStocks} stocks advancing
+                {'  '}Updated {lastUpdated ? lastUpdated.toLocaleTimeString() : 'â'}
               </>
             )}
             {session && (
@@ -250,7 +250,7 @@ export default function Sectors() {
                 background: session.session==='regular'?'rgba(16,185,129,0.15)':session.session==='premarket'||session.session==='postmarket'?'rgba(245,158,11,0.15)':'rgba(100,116,139,0.15)',
                 color: sessionColor
               }}>
-                {session.session==='weekend' ? 'Weekend — Last Session' : session.label}
+                {session.session==='weekend' ? 'Weekend â Last Session' : session.label}
               </span>
             )}
           </div>
@@ -268,7 +268,7 @@ export default function Sectors() {
         </div>
       </div>
 
-      {/* Session banner — closed/weekend/pre/post */}
+      {/* Session banner â closed/weekend/pre/post */}
       {session && session.session !== 'regular' && (
         <div style={{
           margin: '12px 0 16px',
@@ -280,9 +280,9 @@ export default function Sectors() {
         }}>
           <div>
             <div style={{fontSize:12,fontWeight:700,color:session.session==='weekend'?'#64748b':'#f59e0b',marginBottom:2}}>
-              {session.session==='weekend' && '🔒 Market Closed — Showing Last Session'}
-              {session.session==='premarket' && '🌅 Pre-Market Trading · % Change vs Prior Close'}
-              {session.session==='postmarket' && '🌙 After-Hours Trading · % Change vs Close'}
+              {session.session==='weekend' && 'ð Market Closed â Showing Last Session'}
+              {session.session==='premarket' && 'ð Pre-Market Trading  % Change vs Prior Close'}
+              {session.session==='postmarket' && 'ð After-Hours Trading  % Change vs Close'}
             </div>
             {nextOpen && (session.session==='weekend') && (
               <div style={{fontSize:11,color:'var(--text-muted)'}}>Next session: {nextOpen.label}</div>
@@ -306,7 +306,7 @@ export default function Sectors() {
       {/* Error */}
       {error && (
         <div style={{background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:12,color:'#ef4444'}}>
-          ⚠️ {error} · <button onClick={loadData} style={{background:'none',border:'none',color:'#3b82f6',cursor:'pointer',fontSize:12}}>Retry</button>
+          â ï¸ {error}  <button onClick={loadData} style={{background:'none',border:'none',color:'#3b82f6',cursor:'pointer',fontSize:12}}>Retry</button>
         </div>
       )}
 
@@ -334,9 +334,9 @@ export default function Sectors() {
         const bot = [...sorted].sort((a,b) => (a.changePercent||0)-(b.changePercent||0))[0]
         return (
           <div style={{marginTop:16,padding:'10px 16px',borderRadius:10,background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)',fontSize:11,color:'var(--text-muted)',display:'flex',gap:20,flexWrap:'wrap'}}>
-            <span>🏆 <strong style={{color:'#10b981'}}>{top?.name}</strong> leading <span style={{color:'#10b981',fontFamily:'var(--font-mono)'}}>{pct(top?.changePercent)}</span></span>
-            <span>📉 <strong style={{color:'#ef4444'}}>{bot?.name}</strong> lagging <span style={{color:'#ef4444',fontFamily:'var(--font-mono)'}}>{pct(bot?.changePercent)}</span></span>
-            <span>📊 {totalAdv} of {totalStocks} stocks advancing ({totalStocks>0?Math.round(totalAdv/totalStocks*100):0}% breadth)</span>
+            <span>ð <strong style={{color:'#10b981'}}>{top?.name}</strong> leading <span style={{color:'#10b981',fontFamily:'var(--font-mono)'}}>{pct(top?.changePercent)}</span></span>
+            <span>ð <strong style={{color:'#ef4444'}}>{bot?.name}</strong> lagging <span style={{color:'#ef4444',fontFamily:'var(--font-mono)'}}>{pct(bot?.changePercent)}</span></span>
+            <span>ð {totalAdv} of {totalStocks} stocks advancing ({totalStocks>0?Math.round(totalAdv/totalStocks*100):0}% breadth)</span>
           </div>
         )
       })()}
