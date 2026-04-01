@@ -28,14 +28,14 @@ import AdminLogin from './pages/AdminLogin'
 import AuthCallback from './pages/AuthCallback'
 import LandingPage from './pages/LandingPage'
 
-// Priya Nair: Grouped nav ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Intelligence first, then Research, then My Trading
+// Priya Nair: Grouped nav ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Intelligence first, then Research, then My Trading
 const NAV_GROUPS = [
   {
     label: 'INTELLIGENCE',
     items: [
       { to: 'overview',   label: 'Overview',   badge: null },
       { to: 'predict',    label: 'Alpha',      badge: 'NEW' },
-      ,
+    { to: 'setups',     label: 'Top Setups', badge: 'HOT' },
     { to: 'daytrade',   label: 'DT Engine',  badge: 'HOT' },
     ]
   },
