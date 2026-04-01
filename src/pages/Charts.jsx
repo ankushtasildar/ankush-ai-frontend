@@ -449,6 +449,34 @@ export default function Charts() {
   const [tf, setTf] = useState('1D')
   const [mode, setMode] = useState('analysis') // 'analysis' | 'overlay' | 'none'
 
+
+  // Fetch fresh Polygon-computed levels for sidebar
+  async function fetchPredictLevels(sym) {
+    try {
+      setAnalysis(null); // Clear stale data while loading
+      var r = await fetch('/api/predict?symbol=' + (sym || 'SPY'));
+      if (!r.ok) { setAnalysis({ error: true, message: 'Analysis unavailable' }); return; }
+      var d = await r.json();
+      if (d.error) { setAnalysis({ error: true, message: d.error }); return; }
+      setAnalysis({
+        confidence: d.confidence || 0,
+        analysis: d.analysis || '',
+        resistance: d.resistance,
+        support: d.support,
+        setup: d.setup || 'Neutral',
+        entry: d.entry,
+        stop: d.stop,
+        t1: d.t1,
+        source: d.source || 'polygon_computed',
+        price: d.price,
+        rsi: d.rsi
+      });
+    } catch (e) { setAnalysis({ error: true, message: 'Failed to load analysis' }); }
+
+  // Auto-fetch predict levels on mount
+  useEffect(function() { fetchPredictLevels('SPY'); }, []);
+  }
+
   function go(s) { const v = (s||input).trim().toUpperCase(); if (!v) return; setSym(v); setInput(v) }
 
   return (
@@ -502,7 +530,7 @@ export default function Charts() {
         <div style={{ flex:1, minWidth:0, position:'relative', overflow:'hidden' }}>
           <TVChart symbol={sym} interval={tf} />
         </div>
-        {/* Right panel — 320px */}
+        {/* Right panel â 320px */}
         {mode === 'analysis' && (
           <div style={{ width:320, flexShrink:0, height:'100%', overflow:'hidden', background:'var(--bg-card)', borderLeft:'1px solid var(--border)' }}>
             <AITextPanel symbol={sym} />
