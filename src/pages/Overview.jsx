@@ -169,7 +169,7 @@ export default function Overview() {
               </div>
               <span style={{ fontSize:12, color:'var(--text-muted)' }}>{Math.max(0, 2-scanUsed)} free scan{2-scanUsed!==1?'s':''} remaining today</span>
             </div>
-            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited ÃÂ¢ÃÂÃÂ</a>
+            <a href="/billing" style={{ fontSize:11, color:'#3b82f6', fontWeight:600, textDecoration:'none' }}>Upgrade for unlimited </a>
           </div>
         )}
         
@@ -246,7 +246,7 @@ export default function Overview() {
                 {(portfolio.trades === 0 || portfolio.trades == null) && (
                   <div style={{ marginTop:10, padding:'8px 10px', background:'rgba(37,99,235,0.06)', borderRadius:7, border:'1px solid rgba(37,99,235,0.12)', textAlign:'center' }}>
                     <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Track your edge over time</div>
-                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade ÃÂ¢ÃÂÃÂ</a>
+                    <a href="/app/journal" style={{ fontSize:11, color:'var(--accent)', fontWeight:600, textDecoration:'none' }}>Log your first trade </a>
                   </div>
                 )}
               </div>
@@ -282,14 +282,14 @@ export default function Overview() {
         <div style={{background:"#0d1420",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <span style={{fontSize:10,fontWeight:700,color:"#ef4444",fontFamily:'"DM Mono",monospace'}}>DT ENGINE</span>
-            <button onClick={()=>navigate("/app/daytrade")} style={{padding:"3px 10px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:5,color:"#ef4444",fontSize:9,cursor:"pointer",fontFamily:'"DM Mono",monospace'}}>Full Dashboard \u2192</button>
+            <button onClick={()=>navigate("/app/daytrade")} style={{padding:"3px 10px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:5,color:"#ef4444",fontSize:9,cursor:"pointer",fontFamily:'"DM Mono",monospace'}}>Full Dashboard  -></button>
           </div>
           <div style={{fontSize:10,color:"#4a5c7a"}}>29 analysis functions across 5 timeframes. Run a live scan on the Day Trade Engine dashboard for full confluence, FTFC, MACD, ADX, gap analysis, key levels, and anchored VWAPs.</div>
         </div>
         <div style={{background:"#0d1420",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <span style={{fontSize:10,fontWeight:700,color:"#a78bfa",fontFamily:'"DM Mono",monospace'}}>LEARNING</span>
-            <button onClick={()=>navigate("/app/learn")} style={{padding:"3px 10px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:5,color:"#a78bfa",fontSize:9,cursor:"pointer",fontFamily:'"DM Mono",monospace'}}>Start Learning \u2192</button>
+            <button onClick={()=>navigate("/app/learn")} style={{padding:"3px 10px",background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:5,color:"#a78bfa",fontSize:9,cursor:"pointer",fontFamily:'"DM Mono",monospace'}}>Start Learning  -></button>
           </div>
           <div style={{fontSize:10,color:"#4a5c7a"}}>6 AI-curated courses with Quizlet-style flashcards. Master risk management, options, technical analysis, trading psychology, The Strat, and earnings strategies.</div>
         </div>
