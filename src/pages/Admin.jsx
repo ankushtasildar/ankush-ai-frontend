@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
-const SYS = `You are AnkushAI's Chief Investment Strategist â an institutional VP with 20+ years at Goldman Sachs, Citadel, and Two Sigma. Validate trading strategies with rigor: What is the edge? Is it durable? What kills it? Reference historical data. Distinguish true alpha from lagging indicators. Be direct and specific.`
+const SYS = `You are AnkushAI's Chief Investment Strategist Ã¢ÂÂ an institutional VP with 20+ years at Goldman Sachs, Citadel, and Two Sigma. Validate trading strategies with rigor: What is the edge? Is it durable? What kills it? Reference historical data. Distinguish true alpha from lagging indicators. Be direct and specific.`
 
 // Document Intelligence state
 function DocIntelSection() {
@@ -101,7 +101,7 @@ function DocIntelSection() {
 export default function Admin() {
   const { user, isAdmin } = useAuth()
   const [tab, setTab] = useState('strategy')
-  const [msgs, setMsgs] = useState([{role:'assistant',content:'Welcome to the Strategy Intelligence Lab.\n\nI am your institutional CIO. Share a market observation or strategy hypothesis and I will tell you if it has real edge.\n\nSuggested explorations:\nâ¢ NVDA leads QQQ 2-3 days before big moves â real or noise?\nâ¢ High VIX + SPY at 200 EMA = best spread entry window\nâ¢ What leading indicators predict sector rotation 2-4 weeks early?'}])
+  const [msgs, setMsgs] = useState([{role:'assistant',content:'Welcome to the Strategy Intelligence Lab.\n\nI am your institutional CIO. Share a market observation or strategy hypothesis and I will tell you if it has real edge.\n\nSuggested explorations:\nÃ¢ÂÂ¢ NVDA leads QQQ 2-3 days before big moves Ã¢ÂÂ real or noise?\nÃ¢ÂÂ¢ High VIX + SPY at 200 EMA = best spread entry window\nÃ¢ÂÂ¢ What leading indicators predict sector rotation 2-4 weeks early?'}])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [health, setHealth] = useState(null)
@@ -146,18 +146,18 @@ export default function Admin() {
   }
 
   if(!isAdmin) return <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'80vh',color:'var(--text-muted)',fontFamily:'var(--font)'}}>
-    <div style={{fontSize:40,marginBottom:8}}>ð</div><div>Admin only ({user?.email||'not logged in'})</div>
+    <div style={{fontSize:40,marginBottom:8}}>Ã°ÂÂÂ</div><div>Admin only ({user?.email||'not logged in'})</div>
   </div>
 
   const bg='var(--bg-base)',card='var(--bg-card)',brd='1px solid var(--border)'
 
-  const SUGG=['NVDA leads QQQ by 2-3 days before big moves â validate this edge','High VIX + SPY at 200 EMA = ideal spread entry â historical analysis','What IV rank threshold works best for pre-earnings plays?','How to identify institutional accumulation vs distribution in mega-cap tech?','Leading indicators that predict sector rotation 2-4 weeks early']
+  const SUGG=['NVDA leads QQQ by 2-3 days before big moves Ã¢ÂÂ validate this edge','High VIX + SPY at 200 EMA = ideal spread entry Ã¢ÂÂ historical analysis','What IV rank threshold works best for pre-earnings plays?','How to identify institutional accumulation vs distribution in mega-cap tech?','Leading indicators that predict sector rotation 2-4 weeks early']
 
   return <div style={{background:bg,minHeight:'100vh',display:'flex',flexDirection:'column',fontFamily:'var(--font)',color:'var(--text-primary)'}}>
     <div style={{padding:'14px 16px 0',borderBottom:brd}}>
-      <div style={{fontSize:20,fontWeight:700,marginBottom:10}}>ð§ Strategy Intelligence Lab</div>
+      <div style={{fontSize:20,fontWeight:700,marginBottom:10}}>Ã°ÂÂÂ§ Strategy Intelligence Lab</div>
       <div style={{display:'flex',gap:0}}>
-        {[['strategy','ð§  Strategy Chat'],['health','â¤ Health'],['patterns','ð Patterns']].map(([v,l])=>
+        {[['strategy','Ã°ÂÂ§Â  Strategy Chat'],['health','Ã¢ÂÂ¤ Health'],['patterns','Ã°ÂÂÂ Patterns']].map(([v,l])=>
           <button key={v} style={{padding:'8px 18px',cursor:'pointer',fontWeight:600,fontSize:13,border:'none',
             borderBottom:tab===v?'2px solid var(--accent)':'2px solid transparent',
             background:'transparent',color:tab===v?'var(--accent)':'var(--text-secondary)'}}
@@ -167,7 +167,7 @@ export default function Admin() {
 
     {tab==='strategy'&&<>
       {msgs.length<=1&&<div style={{padding:'10px 16px',display:'flex',flexDirection:'column',gap:5}}>
-        <div style={{fontSize:12,color:'var(--text-muted)',paddingBottom:4}}>ð¡ Strategy hypotheses to explore:</div>
+        <div style={{fontSize:12,color:'var(--text-muted)',paddingBottom:4}}>Ã°ÂÂÂ¡ Strategy hypotheses to explore:</div>
         {SUGG.map((s,i)=><button key={i} onClick={()=>setInput(s)}
           style={{textAlign:'left',background:card,border:brd,borderRadius:8,padding:'8px 12px',cursor:'pointer',fontSize:12,color:'var(--text-secondary)'}}>{s}</button>)}
       </div>}
@@ -176,7 +176,7 @@ export default function Admin() {
           background:m.role==='user'?'var(--accent)':card,border:m.role==='assistant'?brd:'none',
           borderRadius:12,padding:'11px 15px',fontSize:13.5,lineHeight:1.7,
           color:m.role==='user'?'#fff':'var(--text-primary)',whiteSpace:'pre-wrap'}}>{m.content}</div>)}
-        {loading&&<div style={{maxWidth:'82%',background:card,border:brd,borderRadius:12,padding:'11px 15px',fontSize:13.5,color:'var(--text-muted)'}}>â³ Analyzing with institutional rigor...</div>}
+        {loading&&<div style={{maxWidth:'82%',background:card,border:brd,borderRadius:12,padding:'11px 15px',fontSize:13.5,color:'var(--text-muted)'}}>Ã¢ÂÂ³ Analyzing with institutional rigor...</div>}
         <div ref={endRef}/>
       </div>
       <div style={{display:'flex',gap:8,padding:'8px 16px 14px',borderTop:brd}}>
@@ -191,12 +191,12 @@ export default function Admin() {
 
     {tab==='health'&&<>
       <div style={{display:'flex',gap:8,padding:'10px 16px',flexWrap:'wrap'}}>
-        <button onClick={forceScan} style={{padding:'9px 18px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13,border:'none',background:'var(--accent)',color:'#fff'}}>â¡ Force Rescan</button>
-        <button onClick={clearCache} style={{padding:'9px 18px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13,border:brd,background:'transparent',color:'var(--text-primary)'}}>ð Clear Cache</button>
-        <button onClick={loadHealth} style={{padding:'9px 18px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13,border:brd,background:'transparent',color:'var(--text-primary)'}}>âº Refresh</button>
+        <button onClick={forceScan} style={{padding:'9px 18px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13,border:'none',background:'var(--accent)',color:'#fff'}}>Ã¢ÂÂ¡ Force Rescan</button>
+        <button onClick={clearCache} style={{padding:'9px 18px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13,border:brd,background:'transparent',color:'var(--text-primary)'}}>Ã°ÂÂÂ Clear Cache</button>
+        <button onClick={loadHealth} style={{padding:'9px 18px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13,border:brd,background:'transparent',color:'var(--text-primary)'}}>Ã¢ÂÂº Refresh</button>
       </div>
       {health?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))',gap:10,padding:'0 16px'}}>
-        {[['Last Scan',health.lastScan?new Date(health.lastScan).toLocaleTimeString():'Never'],['Setups in Scan',health.lastSetups??'â'],['Total Tracked',health.total],['Win Rate',health.winRate],['Patterns',health.patterns]].map(([l,v])=>
+        {[['Last Scan',health.lastScan?new Date(health.lastScan).toLocaleTimeString():'Never'],['Setups in Scan',health.lastSetups??'Ã¢ÂÂ'],['Total Tracked',health.total],['Win Rate',health.winRate],['Patterns',health.patterns]].map(([l,v])=>
           <div key={l} style={{background:card,border:brd,borderRadius:10,padding:14}}>
             <div style={{fontSize:11,color:'var(--text-muted)',textTransform:'uppercase',marginBottom:4}}>{l}</div>
             <div style={{fontSize:20,fontWeight:700}}>{v}</div>
@@ -209,9 +209,20 @@ export default function Admin() {
       :patterns.map((p,i)=><div key={i} style={{background:card,border:brd,borderRadius:10,padding:'12px 14px',marginBottom:8}}>
         <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{p.pattern_name}</div>
         <div style={{fontSize:12,color:'var(--text-muted)'}}>Weight: {p.prompt_weight}</div>
-        {p.works_best_when&&<div style={{fontSize:12,color:'#10b981',marginTop:4}}>â {p.works_best_when}</div>}
-        {p.fails_when&&<div style={{fontSize:12,color:'#ef4444',marginTop:2}}>â  {p.fails_when}</div>}
+        {p.works_best_when&&<div style={{fontSize:12,color:'#10b981',marginTop:4}}>Ã¢ÂÂ {p.works_best_when}</div>}
+        {p.fails_when&&<div style={{fontSize:12,color:'#ef4444',marginTop:2}}>Ã¢ÂÂ  {p.fails_when}</div>}
       </div>)}
     </div>}
+
+
+      {/* Document Intelligence */}
+      <div style={{marginTop:20,padding:"16px 20px",background:"#0d1420",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <span style={{fontSize:16}}>{String.fromCodePoint(0x1F4C4)}</span>
+          <span style={{fontWeight:700,fontSize:15}}>Document Intelligence</span>
+        </div>
+        <DocIntelSection />
+      </div>
+
   </div>
 }
