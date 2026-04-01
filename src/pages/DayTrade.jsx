@@ -1,3 +1,44 @@
+
+      {/* V3 Alert Card + I'M IN Button */}
+      {scan && scan.alert && (
+        <div style={{marginTop:16,padding:'16px 20px',background:scan.alert.direction==='BULLISH'?'rgba(16,185,129,0.06)':'rgba(239,68,68,0.06)',border:'1px solid '+(scan.alert.direction==='BULLISH'?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'),borderRadius:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:18}}>{scan.alert.direction==='BULLISH'?'\u{1F7E2}':'\u{1F534}'}</span>
+              <span style={{fontFamily:'"DM Mono",monospace',fontSize:14,fontWeight:800,color:scan.alert.direction==='BULLISH'?'#10b981':'#ef4444'}}>{scan.alert.direction} ALERT</span>
+              <span style={{fontSize:11,fontFamily:'"DM Mono",monospace',color:'#4a5c7a'}}>{scan.alert.confluencePct}% Confluence</span>
+              <span style={{fontSize:10,padding:'2px 8px',background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.2)',borderRadius:4,color:'#a78bfa',fontWeight:700}}>Grade: {scan.alert.grade}</span>
+            </div>
+            <button onClick={function(){navigate('/app/command-center?entry='+scan.alert.entry+'&direction='+scan.alert.direction+'&stop='+scan.alert.stop+'&target1='+scan.alert.target1+'&target2='+(scan.alert.target2||''))}} style={{padding:'10px 24px',background:'linear-gradient(135deg,#ef4444,#a78bfa)',border:'none',borderRadius:8,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:800,letterSpacing:'0.5px'}}>I'M IN \u{1F3AF}</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,fontSize:10,fontFamily:'"DM Mono",monospace'}}>
+            <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}>
+              <div style={{color:'#4a5c7a',fontSize:8}}>ENTRY</div>
+              <div style={{fontWeight:700}}>${scan.alert.entry}</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}>
+              <div style={{color:'#ef4444',fontSize:8}}>STOP</div>
+              <div style={{fontWeight:700,color:'#ef4444'}}>${scan.alert.stop}</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}>
+              <div style={{color:'#10b981',fontSize:8}}>TARGET 1</div>
+              <div style={{fontWeight:700,color:'#10b981'}}>${scan.alert.target1} ({scan.alert.target1_rr}:1)</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}>
+              <div style={{color:'#4a5c7a',fontSize:8}}>RISK</div>
+              <div style={{fontWeight:700}}>${scan.alert.risk} ({scan.alert.riskPct}%)</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.03)',padding:'6px 10px',borderRadius:6}}>
+              <div style={{color:'#4a5c7a',fontSize:8}}>TIMEFRAME</div>
+              <div style={{fontWeight:700}}>{scan.alert.timeframe}</div>
+            </div>
+          </div>
+          {scan.alert.reasons && scan.alert.reasons.length > 0 && (
+            <div style={{marginTop:8,fontSize:10,color:'#6b7a90',lineHeight:1.6}}>{scan.alert.reasons.slice(0,5).join(' \u00B7 ')}</div>
+          )}
+        </div>
+      )}
+
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -37,7 +78,7 @@ export default function DayTrade() {
 
   return (
     <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#080c14', color: '#f0f6ff', fontFamily: '"DM Sans",sans-serif' }}>
-      {/* Header â always visible */}
+      {/* Header Ã¢ÂÂ always visible */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 20, fontWeight: 800, margin: '0 0 2px' }}>Day Trade Engine</h1>
