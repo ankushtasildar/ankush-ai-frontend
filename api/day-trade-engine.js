@@ -674,33 +674,34 @@ module.exports = async function handler(req, res) {
       var adx5m = calcADX(h5m, l5m, c5m, 14);
       var squeeze1m = calcSqueeze(h1m, l1m, c1m, 20);
       var squeeze5m = calcSqueeze(h5m, l5m, c5m, 20);
-      var vwap = calcVWAP(todayBars1m.length > 0 ? todayBars1m : bars1m);
+      var vwap = calcVWAP(bars1m);
       // Buy/sell volume differential (liquid-trader Tape concept)
       var buyVol = 0, sellVol = 0;
       if (bars1m && bars1m.length > 20) {
         bars1m.slice(-20).forEach(function(b) { if (b.c > b.o) buyVol += b.v; else sellVol += b.v; });
       }
       var volumeBias = buyVol + sellVol > 0 ? { buyPct: Math.round(buyVol / (buyVol + sellVol) * 100), sellPct: Math.round(sellVol / (buyVol + sellVol) * 100), bias: buyVol > sellVol ? 'buying' : 'selling' } : null;
-      // Find today's session open (first bar after 9:30 AM ET / 14:30 UTC)
+      // Find today's session open (9:30 AM ET = 13:30 UTC, or 14:30 UTC during DST)
       var sessionOpen = null;
+      var todayBars1m = bars1m || [];
       if (bars1m && bars1m.length > 0) {
-        var todayStart = new Date();
-        todayStart.setUTCHours(14, 30, 0, 0); // 9:30 AM ET
-        if (todayStart.getTime() > Date.now()) todayStart.setDate(todayStart.getDate() - 1);
-        var todayStartMs = todayStart.getTime();
-        for (var bi = 0; bi < bars1m.length; bi++) {
-          if (bars1m[bi].t >= todayStartMs) { sessionOpen = bars1m[bi].o; break; }
+        // Market opens 9:30 AM ET. In UTC: 13:30 (EST) or 14:30 (EDT)
+        // Use today at 00:00 UTC as baseline, find bars from today only
+        var nowMs = Date.now();
+        var todayMidnight = new Date(nowMs);
+        todayMidnight.setUTCHours(0, 0, 0, 0);
+        var todayMs = todayMidnight.getTime();
+        todayBars1m = bars1m.filter(function(b) { return b.t >= todayMs; });
+        if (todayBars1m.length > 0) {
+          sessionOpen = todayBars1m[0].o;
+        } else {
+          // No today bars yet — use Yahoo open or last bar
+          sessionOpen = (yahooRT && yahooRT.open) ? yahooRT.open : bars1m[bars1m.length - 1].o;
+          todayBars1m = bars1m;
         }
-        if (!sessionOpen) sessionOpen = bars1m[bars1m.length - 1].o;
       }
-      // Also get today-only bars for Opening Range calc
-      var todayBars1m = [];
-      if (bars1m && bars1m.length > 0) {
-        var tdStart = new Date();
-        tdStart.setUTCHours(14, 30, 0, 0);
-        if (tdStart.getTime() > Date.now()) tdStart.setDate(tdStart.getDate() - 1);
-        todayBars1m = bars1m.filter(function(b) { return b.t >= tdStart.getTime(); });
-      }
+      // VWAP uses today-only bars (resets daily)
+      vwap = todayBars1m.length > 0 ? calcVWAP(todayBars1m) : vwap;
       var levels = calcKeyLevels(sessionOpen, price, prevDay ? prevDay.h : null, prevDay ? prevDay.l : null, prevDay ? prevDay.c : null);
       var gap = calcGap(sessionOpen, prevDay ? prevDay.c : null, prevDay ? prevDay.h : null, prevDay ? prevDay.l : null);
       var or5 = calcOpeningRange(todayBars1m, 5);
