@@ -1,8 +1,8 @@
 // ============================================================================
-// ANKUSHAI DAY TRADE ENGINE V3 Ã¢ÂÂ PREDICTION ENGINE
+// ANKUSHAI DAY TRADE ENGINE V3 ÃÂ¢ÃÂÃÂ PREDICTION ENGINE
 // ============================================================================
 // Sources: wolffnbear (SSS 50%), rickyzcarroll (Strat/FTFC), liquid-trader (VWAP/Levels)
-// Data: Polygon.io real-time Ã¢ÂÂ Yahoo Finance fallback
+// Data: Polygon.io real-time ÃÂ¢ÃÂÃÂ Yahoo Finance fallback
 // Output: Confluence-scored alerts with entry/stop/target/timeframe/risk grade
 //
 // ZERO mock data. Every number comes from real market data or real math.
@@ -70,7 +70,7 @@ async function yahooData(sym) {
 }
 
 // ============================================================================
-// MATH PRIMITIVES Ã¢ÂÂ Real formulas, no approximations
+// MATH PRIMITIVES ÃÂ¢ÃÂÃÂ Real formulas, no approximations
 // ============================================================================
 function ema(data, p) {
   if (!data || data.length < p) return [];
@@ -223,7 +223,7 @@ function calcVWAP(bars) {
 
 // ============================================================================
 // INDICATOR: Key Daily Percentage Levels (liquid-trader inspired)
-// How algos see the market Ã¢ÂÂ percentage levels from session open
+// How algos see the market ÃÂ¢ÃÂÃÂ percentage levels from session open
 // ============================================================================
 function calcKeyLevels(sessionOpen, currentPrice, prevHigh, prevLow, prevClose) {
   if (!sessionOpen || !currentPrice) return null;
@@ -279,7 +279,7 @@ function stratBarType(curr, prev) {
 }
 
 // SSS 50% Rule State Machine (wolffnbear)
-// INVALID Ã¢ÂÂ STANDBY Ã¢ÂÂ ACTIVE Ã¢ÂÂ COMPLETE
+// INVALID ÃÂ¢ÃÂÃÂ STANDBY ÃÂ¢ÃÂÃÂ ACTIVE ÃÂ¢ÃÂÃÂ COMPLETE
 function sss50Rule(curr, prev) {
   if (!curr || !prev) return { state: 'INVALID', reason: 'no data' };
   var midpoint = (prev.h + prev.l) / 2;
@@ -353,7 +353,7 @@ function detectStratCombo(bars) {
   return signal ? { combo: signal.combo, direction: signal.dir, description: signal.desc, fullCombo: combo } : { combo: combo, direction: t3 ? t3.dir : 'unknown', description: 'Pattern: ' + combo, fullCombo: combo };
 }
 
-// Full Timeframe Continuity (rickyzcarroll Ã¢ÂÂ 10 timeframes)
+// Full Timeframe Continuity (rickyzcarroll ÃÂ¢ÃÂÃÂ 10 timeframes)
 function checkFTFC(barsByTF) {
   var tfs = Object.keys(barsByTF);
   var directions = {};
@@ -408,7 +408,7 @@ function calcGap(todayOpen, prevClose, prevHigh, prevLow) {
 }
 
 // ============================================================================
-// CONFLUENCE ENGINE Ã¢ÂÂ Weighted scoring across all layers
+// CONFLUENCE ENGINE ÃÂ¢ÃÂÃÂ Weighted scoring across all layers
 // ============================================================================
 function scoreConfluence(data) {
   var bull = 0, bear = 0, reasons = [], maxScore = 0;
@@ -425,7 +425,7 @@ function scoreConfluence(data) {
     if (data.gap && data.gap.dir !== 'flat' && data.gap.fillTarget) {
       var gapBias = data.gap.dir === 'gap_up' ? 'bear' : 'bull';
       if (gapBias === 'bull') bull += 5; else bear += 5;
-      reasons.push('Unfilled gap Ã¢ÂÂ fill target $' + data.gap.fillTarget);
+      reasons.push('Unfilled gap ÃÂ¢ÃÂÃÂ fill target $' + data.gap.fillTarget);
     }
   }
 
@@ -453,7 +453,7 @@ function scoreConfluence(data) {
       if (data.squeeze.dir === 'bull') bull += 12; else bear += 12;
       reasons.push('SQUEEZE FIRED ' + data.squeeze.dir.toUpperCase());
     } else if (data.squeeze.on) {
-      reasons.push('Squeeze ON Ã¢ÂÂ expansion imminent');
+      reasons.push('Squeeze ON ÃÂ¢ÃÂÃÂ expansion imminent');
       bull += 3; bear += 3;
     }
   }
@@ -510,10 +510,10 @@ function scoreConfluence(data) {
 }
 
 // ============================================================================
-// ALERT GENERATOR Ã¢ÂÂ Specific entry/stop/target/timeframe
+// ALERT GENERATOR ÃÂ¢ÃÂÃÂ Specific entry/stop/target/timeframe
 // ============================================================================
 function generateAlert(confluence, price, levels, adx, vwap) {
-  if (confluence.confluencePct < 55) return null; // Below threshold Ã¢ÂÂ no alert
+  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂ¢ÃÂÃÂ no alert
   var dir = confluence.bias;
   var entry = +price.toFixed(2);
   var atr = adx && adx.atr ? adx.atr : 0.50;
@@ -549,6 +549,76 @@ function generateAlert(confluence, price, levels, adx, vwap) {
   };
 }
 
+
+// ============================================================================
+// OPTIONS CONTRACT RECOMMENDER
+// ============================================================================
+function recommendContract(alert, price, sym) {
+  if (!alert || !price) return null;
+  var dir = alert.direction;
+  var now = new Date();
+  var dayOfWeek = now.getDay(); // 0=Sun, 5=Fri
+  
+  // Determine expiration based on timeframe
+  var tf = alert.timeframe || '15-30 minutes';
+  var daysToExp = 0;
+  if (tf.indexOf('5-15') >= 0) daysToExp = 0; // 0DTE
+  else if (tf.indexOf('15-30') >= 0) daysToExp = 0; // 0DTE
+  else if (tf.indexOf('30-60') >= 0) daysToExp = Math.max(0, 5 - dayOfWeek); // This week Friday
+  else daysToExp = 7; // Next week
+  
+  var expDate = new Date(now.getTime() + daysToExp * 86400000);
+  // Skip weekends
+  if (expDate.getDay() === 0) expDate.setDate(expDate.getDate() + 1);
+  if (expDate.getDay() === 6) expDate.setDate(expDate.getDate() + 2);
+  var expStr = expDate.toISOString().split('T')[0];
+  
+  // Select strike: ATM or 1 strike OTM
+  var strikeWidth = price > 400 ? 5 : price > 100 ? 1 : 0.5;
+  var atmStrike = Math.round(price / strikeWidth) * strikeWidth;
+  var otm1Strike = dir === 'BULLISH' ? atmStrike + strikeWidth : atmStrike - strikeWidth;
+  
+  // Estimate premium (rough: ATR * delta * 100)
+  var atr = alert.risk || 1.0;
+  var estPremiumATM = +(atr * 0.5 * 1.2).toFixed(2); // ~50 delta, slight IV markup
+  var estPremiumOTM = +(atr * 0.35 * 1.1).toFixed(2); // ~35 delta
+  
+  // Contract symbol format
+  var type = dir === 'BULLISH' ? 'Call' : 'Put';
+  var contractATM = sym + ' ' + expStr.replace(/-/g, '').substring(2) + (dir === 'BULLISH' ? 'C' : 'P') + (atmStrike * 1000).toString().padStart(8, '0');
+  
+  // Position sizing (risk-based)
+  var maxRiskPerContract = Math.abs(estPremiumATM * 100); // Total premium per contract
+  var suggestedContracts = alert.grade === 'A+' || alert.grade === 'A' ? 2 : 1;
+  
+  return {
+    primary: {
+      type: type,
+      strike: atmStrike,
+      expiration: expStr,
+      daysToExp: daysToExp,
+      estPremium: estPremiumATM,
+      delta: '~0.50',
+      contracts: suggestedContracts,
+      maxRisk: '$' + (estPremiumATM * 100 * suggestedContracts).toFixed(0),
+      displayName: sym + ' ' + expStr + ' $' + atmStrike + ' ' + type
+    },
+    aggressive: {
+      type: type,
+      strike: otm1Strike,
+      expiration: expStr,
+      daysToExp: daysToExp,
+      estPremium: estPremiumOTM,
+      delta: '~0.35',
+      contracts: suggestedContracts,
+      maxRisk: '$' + (estPremiumOTM * 100 * suggestedContracts).toFixed(0),
+      displayName: sym + ' ' + expStr + ' $' + otm1Strike + ' ' + type
+    },
+    note: daysToExp === 0 ? '0DTE — high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term — theta decay accelerating' : 'Weekly — more room for thesis to play out',
+    strategy: dir === 'BULLISH' ? 'Long Call' : 'Long Put'
+  };
+}
+
 // ============================================================================
 // MAIN HANDLER
 // ============================================================================
@@ -577,12 +647,14 @@ module.exports = async function handler(req, res) {
       // Yahoo fallback if Polygon fails
       var yahooFallback = null;
       if (!bars1m || bars1m.length < 10) {
-        yahooFallback = await yahooData(sym);
+        var yahooFallback = yahooRT || await yahooData(sym);
         if (yahooFallback && yahooFallback.bars) bars1m = yahooFallback.bars;
       }
 
       // Current price
-      var price = (snap && snap.lastPrice) ? snap.lastPrice : (bars1m && bars1m.length > 0 ? bars1m[bars1m.length - 1].c : (yahooFallback ? yahooFallback.price : null));
+      // Always fetch Yahoo for real-time price during market hours
+      var yahooRT = await yahooData(sym);
+      var price = (snap && snap.lastPrice) ? snap.lastPrice : (yahooRT && yahooRT.price) ? yahooRT.price : (bars1m && bars1m.length > 0 ? bars1m[bars1m.length - 1].c : null);
       if (!price) return res.status(503).json({ error: 'No price data available', source: 'polygon+yahoo both failed' });
 
       var prevDay = prev || (snap ? { h: snap.prevHigh, l: snap.prevLow, c: snap.prevClose, o: snap.todayOpen } : null) || (yahooFallback ? { h: yahooFallback.high, l: yahooFallback.low, c: yahooFallback.prevClose, o: yahooFallback.open } : null);
@@ -653,14 +725,16 @@ module.exports = async function handler(req, res) {
 
       // GENERATE ALERT if confluence is high enough
       var alert = generateAlert(confluence, price, levels, adx5m || adx1m, vwap);
+      var optionsRec = alert ? recommendContract(alert, price, sym) : null;
 
       return res.json({
         symbol: sym, price: price, timestamp: new Date().toISOString(),
         dataSource: snap && snap.lastPrice ? 'polygon_snapshot' : (bars1m && bars1m.length > 50 ? 'polygon_bars' : 'yahoo_fallback'),
-        priceSource: snap && snap.lastPrice ? 'real-time tick' : 'last bar close',
+        priceSource: (snap && snap.lastPrice) ? 'polygon_snapshot' : (yahooRT && yahooRT.price) ? 'yahoo_realtime' : 'polygon_bar_close',
         bars: { '1m': (bars1m || []).length, '5m': (bars5m || []).length, '15m': (bars15m || []).length, '1h': (bars1h || []).length, 'D': (barsD || []).length },
         confluence: confluence,
         alert: alert,
+        options: optionsRec,
         indicators: {
           macd_1m: macd1m, macd_5m: macd5m,
           adx_1m: adx1m, adx_5m: adx5m,
