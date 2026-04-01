@@ -1,8 +1,8 @@
 // ============================================================================
-// ANKUSHAI DAY TRADE ENGINE V3 — PREDICTION ENGINE
+// ANKUSHAI DAY TRADE ENGINE V3 â PREDICTION ENGINE
 // ============================================================================
 // Sources: wolffnbear (SSS 50%), rickyzcarroll (Strat/FTFC), liquid-trader (VWAP/Levels)
-// Data: Polygon.io real-time → Yahoo Finance fallback
+// Data: Polygon.io real-time â Yahoo Finance fallback
 // Output: Confluence-scored alerts with entry/stop/target/timeframe/risk grade
 //
 // ZERO mock data. Every number comes from real market data or real math.
@@ -59,7 +59,7 @@ async function yahooData(sym) {
 }
 
 // ============================================================================
-// MATH PRIMITIVES — Real formulas, no approximations
+// MATH PRIMITIVES â Real formulas, no approximations
 // ============================================================================
 function ema(data, p) {
   if (!data || data.length < p) return [];
@@ -212,7 +212,7 @@ function calcVWAP(bars) {
 
 // ============================================================================
 // INDICATOR: Key Daily Percentage Levels (liquid-trader inspired)
-// How algos see the market — percentage levels from session open
+// How algos see the market â percentage levels from session open
 // ============================================================================
 function calcKeyLevels(sessionOpen, currentPrice, prevHigh, prevLow, prevClose) {
   if (!sessionOpen || !currentPrice) return null;
@@ -268,7 +268,7 @@ function stratBarType(curr, prev) {
 }
 
 // SSS 50% Rule State Machine (wolffnbear)
-// INVALID → STANDBY → ACTIVE → COMPLETE
+// INVALID â STANDBY â ACTIVE â COMPLETE
 function sss50Rule(curr, prev) {
   if (!curr || !prev) return { state: 'INVALID', reason: 'no data' };
   var midpoint = (prev.h + prev.l) / 2;
@@ -342,7 +342,7 @@ function detectStratCombo(bars) {
   return signal ? { combo: signal.combo, direction: signal.dir, description: signal.desc, fullCombo: combo } : { combo: combo, direction: t3 ? t3.dir : 'unknown', description: 'Pattern: ' + combo, fullCombo: combo };
 }
 
-// Full Timeframe Continuity (rickyzcarroll — 10 timeframes)
+// Full Timeframe Continuity (rickyzcarroll â 10 timeframes)
 function checkFTFC(barsByTF) {
   var tfs = Object.keys(barsByTF);
   var directions = {};
@@ -397,7 +397,7 @@ function calcGap(todayOpen, prevClose, prevHigh, prevLow) {
 }
 
 // ============================================================================
-// CONFLUENCE ENGINE — Weighted scoring across all layers
+// CONFLUENCE ENGINE â Weighted scoring across all layers
 // ============================================================================
 function scoreConfluence(data) {
   var bull = 0, bear = 0, reasons = [], maxScore = 0;
@@ -414,7 +414,7 @@ function scoreConfluence(data) {
     if (data.gap && data.gap.dir !== 'flat' && data.gap.fillTarget) {
       var gapBias = data.gap.dir === 'gap_up' ? 'bear' : 'bull';
       if (gapBias === 'bull') bull += 5; else bear += 5;
-      reasons.push('Unfilled gap → fill target $' + data.gap.fillTarget);
+      reasons.push('Unfilled gap â fill target $' + data.gap.fillTarget);
     }
   }
 
@@ -442,14 +442,19 @@ function scoreConfluence(data) {
       if (data.squeeze.dir === 'bull') bull += 12; else bear += 12;
       reasons.push('SQUEEZE FIRED ' + data.squeeze.dir.toUpperCase());
     } else if (data.squeeze.on) {
-      reasons.push('Squeeze ON — expansion imminent');
+      reasons.push('Squeeze ON â expansion imminent');
       bull += 3; bear += 3;
     }
   }
 
   // LAYER 4: PATTERN (25 points max)
   maxScore += 25;
-  if (data.sss50) {
+  if (data.sss50_daily && data.sss50_daily.state === 'ACTIVE') {
+      var s50dDir = data.sss50_daily.direction === 'bullish';
+      if (s50dDir) bull += 15; else bear += 15;
+      reasons.push('SSS50 DAILY ACTIVE: ' + data.sss50_daily.reason);
+    }
+    if (data.sss50) {
     if (data.sss50.state === 'ACTIVE') {
       var s50dir = data.sss50.direction === 'bullish';
       if (s50dir) bull += 12; else bear += 12;
@@ -494,10 +499,10 @@ function scoreConfluence(data) {
 }
 
 // ============================================================================
-// ALERT GENERATOR — Specific entry/stop/target/timeframe
+// ALERT GENERATOR â Specific entry/stop/target/timeframe
 // ============================================================================
 function generateAlert(confluence, price, levels, adx, vwap) {
-  if (confluence.confluencePct < 55) return null; // Below threshold — no alert
+  if (confluence.confluencePct < 55) return null; // Below threshold â no alert
   var dir = confluence.bias;
   var entry = +price.toFixed(2);
   var atr = adx && adx.atr ? adx.atr : 0.50;
@@ -554,6 +559,7 @@ module.exports = async function handler(req, res) {
       var bars15m = await polygonBars(sym, 15, 'minute', 100);
       var bars1h = await polygonBars(sym, 1, 'hour', 50);
       var barsD = await polygonBars(sym, 1, 'day', 30);
+      var barsW = await polygonBars(sym, 1, 'week', 12);
       var prev = await polygonPrev(sym);
 
       // Yahoo fallback if Polygon fails
@@ -585,6 +591,12 @@ module.exports = async function handler(req, res) {
       var squeeze1m = calcSqueeze(h1m, l1m, c1m, 20);
       var squeeze5m = calcSqueeze(h5m, l5m, c5m, 20);
       var vwap = calcVWAP(bars1m);
+      // Buy/sell volume differential (liquid-trader Tape concept)
+      var buyVol = 0, sellVol = 0;
+      if (bars1m && bars1m.length > 20) {
+        bars1m.slice(-20).forEach(function(b) { if (b.c > b.o) buyVol += b.v; else sellVol += b.v; });
+      }
+      var volumeBias = buyVol + sellVol > 0 ? { buyPct: Math.round(buyVol / (buyVol + sellVol) * 100), sellPct: Math.round(sellVol / (buyVol + sellVol) * 100), bias: buyVol > sellVol ? 'buying' : 'selling' } : null;
       var sessionOpen = bars1m && bars1m.length > 0 ? bars1m[0].o : null;
       var levels = calcKeyLevels(sessionOpen, price, prevDay ? prevDay.h : null, prevDay ? prevDay.l : null, prevDay ? prevDay.c : null);
       var gap = calcGap(sessionOpen, prevDay ? prevDay.c : null, prevDay ? prevDay.h : null, prevDay ? prevDay.l : null);
@@ -593,6 +605,8 @@ module.exports = async function handler(req, res) {
 
       // Strat analysis on 5m (primary day trade timeframe)
       var sss50 = bars5m && bars5m.length >= 2 ? sss50Rule(bars5m[bars5m.length - 1], bars5m[bars5m.length - 2]) : null;
+      var sss50_daily = barsD && barsD.length >= 2 ? sss50Rule(barsD[barsD.length - 1], barsD[barsD.length - 2]) : null;
+      var sss50_weekly = barsW && barsW.length >= 2 ? sss50Rule(barsW[barsW.length - 1], barsW[barsW.length - 2]) : null;
       var hammer = bars5m && bars5m.length >= 1 ? detectHammerShooter(bars5m[bars5m.length - 1]) : null;
       var stratCombo = detectStratCombo(bars5m);
 
@@ -603,6 +617,7 @@ module.exports = async function handler(req, res) {
       if (bars15m && bars15m.length > 0) ftfcData['15m'] = bars15m;
       if (bars1h && bars1h.length > 0) ftfcData['1h'] = bars1h;
       if (barsD && barsD.length > 0) ftfcData['D'] = barsD;
+      if (barsW && barsW.length > 0) ftfcData['W'] = barsW;
       var ftfc = checkFTFC(ftfcData);
 
       // EMA alignment (8/21 on 1m and 5m)
@@ -620,7 +635,7 @@ module.exports = async function handler(req, res) {
         levels: levels, vwap: vwap, gap: gap,
         macd: macd5m || macd1m, adx: adx5m || adx1m,
         squeeze: squeeze5m || squeeze1m,
-        sss50: sss50, hammer: hammer, stratCombo: stratCombo,
+        sss50: sss50, sss50_daily: sss50_daily, hammer: hammer, stratCombo: stratCombo,
         or5: or5, ftfc: ftfc
       });
 
@@ -640,7 +655,8 @@ module.exports = async function handler(req, res) {
           vwap: vwap, emaAlignment: emaAlign
         },
         structure: { levels: levels, gap: gap, or5: or5, or15: or15 },
-        strat: { sss50: sss50, hammer: hammer, combo: stratCombo, ftfc: ftfc },
+        strat: { sss50: sss50, sss50_daily: sss50_daily, sss50_weekly: sss50_weekly, hammer: hammer, combo: stratCombo, ftfc: ftfc },
+        volumeFlow: volumeBias,
         perTimeframe: {
           '1m': { bars: (bars1m || []).length, macd: macd1m, adx: adx1m, squeeze: squeeze1m, ema: emaAlign['1m'] },
           '5m': { bars: (bars5m || []).length, macd: macd5m, adx: adx5m, squeeze: squeeze5m, ema: emaAlign['5m'], sss50: sss50, hammer: hammer, combo: stratCombo },
