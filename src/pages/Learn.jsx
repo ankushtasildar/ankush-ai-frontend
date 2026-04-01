@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-// Course catalog Ã¢ÂÂ AI will personalize order based on user data
+// Course catalog ÃÂ¢ÃÂÃÂ AI will personalize order based on user data
 const COURSES = [
   { id: 'risk_101', title: 'Risk Management Fundamentals', category: 'Core', difficulty: 'Beginner', lessons: 8, icon: '\u{1F6E1}', color: '#10b981', description: 'Position sizing, stop losses, and the Kelly Criterion', prereq: null,
     cards: [
@@ -180,7 +180,7 @@ export default function Learn() {
             </div>
             {quizAnswer && (
               <button onClick={nextQuestion} style={{ marginTop: 20, width: '100%', padding: '12px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 10, color: '#a78bfa', fontSize: 13, cursor: 'pointer', fontWeight: 600, fontFamily: '"DM Sans",sans-serif' }}>
-                {quizIdx < selectedCourse.cards.length - 1 ? 'Next Question \u2192' : 'Finish \u2014 ' + (quizScore.correct + (quizAnswer === card.a ? 1 : 0)) + '/' + (quizScore.total + 1) + ' correct'}
+                {quizIdx < selectedCourse.cards.length - 1 ? 'Next Question →' : 'Finish \u2014 ' + (quizScore.correct + (quizAnswer === card.a ? 1 : 0)) + '/' + (quizScore.total + 1) + ' correct'}
               </button>
             )}
           </div>
@@ -195,7 +195,7 @@ export default function Learn() {
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 2px' }}>Learning Center</h1>
-        <div style={{ color: '#3d4e62', fontSize: 11 }}>AI-curated courses Â· Quizlet-style flashcards Â· Personalized to your trading</div>
+        <div style={{ color: '#3d4e62', fontSize: 11 }}>AI-curated courses ÃÂ· Quizlet-style flashcards ÃÂ· Personalized to your trading</div>
       </div>
 
       {/* Stats */}
@@ -295,7 +295,7 @@ export default function Learn() {
         </div>
         <div style={{ fontSize: 11, color: '#6b7a90', lineHeight: 1.6 }}>
           Hire expert trading coaches. Get AI-matched to the perfect coach for your style. Browse by specialty, view ratings, and join private learning groups.</div>
-        <button onClick={() => navigate('/app/coaches')} style={{ marginTop: 10, padding: '8px 20px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, color: '#a78bfa', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>Browse Coaches \u2192</button>
+        <button onClick={() => navigate('/app/coaches')} style={{ marginTop: 10, padding: '8px 20px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, color: '#a78bfa', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>Browse Coaches →</button>
         <div style={{ fontSize: 11, color: '#6b7a90', lineHeight: 1.6, display: 'none' }}>
         </div>
       </div>
