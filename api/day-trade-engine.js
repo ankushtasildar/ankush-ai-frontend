@@ -1,8 +1,8 @@
 // ============================================================================
-// ANKUSHAI DAY TRADE ENGINE V3 ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ PREDICTION ENGINE
+// ANKUSHAI DAY TRADE ENGINE V3 ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ PREDICTION ENGINE
 // ============================================================================
 // Sources: wolffnbear (SSS 50%), rickyzcarroll (Strat/FTFC), liquid-trader (VWAP/Levels)
-// Data: Polygon.io real-time ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Yahoo Finance fallback
+// Data: Polygon.io real-time ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Yahoo Finance fallback
 // Output: Confluence-scored alerts with entry/stop/target/timeframe/risk grade
 //
 // ZERO mock data. Every number comes from real market data or real math.
@@ -70,7 +70,7 @@ async function yahooData(sym) {
 }
 
 // ============================================================================
-// MATH PRIMITIVES ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Real formulas, no approximations
+// MATH PRIMITIVES ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Real formulas, no approximations
 // ============================================================================
 function ema(data, p) {
   if (!data || data.length < p) return [];
@@ -223,7 +223,7 @@ function calcVWAP(bars) {
 
 // ============================================================================
 // INDICATOR: Key Daily Percentage Levels (liquid-trader inspired)
-// How algos see the market ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ percentage levels from session open
+// How algos see the market ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ percentage levels from session open
 // ============================================================================
 function calcKeyLevels(sessionOpen, currentPrice, prevHigh, prevLow, prevClose) {
   if (!sessionOpen || !currentPrice) return null;
@@ -279,7 +279,7 @@ function stratBarType(curr, prev) {
 }
 
 // SSS 50% Rule State Machine (wolffnbear)
-// INVALID ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ STANDBY ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ACTIVE ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ COMPLETE
+// INVALID ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ STANDBY ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ACTIVE ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ COMPLETE
 function sss50Rule(curr, prev) {
   if (!curr || !prev) return { state: 'INVALID', reason: 'no data' };
   var midpoint = (prev.h + prev.l) / 2;
@@ -353,7 +353,7 @@ function detectStratCombo(bars) {
   return signal ? { combo: signal.combo, direction: signal.dir, description: signal.desc, fullCombo: combo } : { combo: combo, direction: t3 ? t3.dir : 'unknown', description: 'Pattern: ' + combo, fullCombo: combo };
 }
 
-// Full Timeframe Continuity (rickyzcarroll ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ 10 timeframes)
+// Full Timeframe Continuity (rickyzcarroll ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ 10 timeframes)
 function checkFTFC(barsByTF) {
   var tfs = Object.keys(barsByTF);
   var directions = {};
@@ -408,7 +408,7 @@ function calcGap(todayOpen, prevClose, prevHigh, prevLow) {
 }
 
 // ============================================================================
-// CONFLUENCE ENGINE ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Weighted scoring across all layers
+// CONFLUENCE ENGINE ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Weighted scoring across all layers
 // ============================================================================
 function scoreConfluence(data) {
   var bull = 0, bear = 0, reasons = [], maxScore = 0;
@@ -425,7 +425,7 @@ function scoreConfluence(data) {
     if (data.gap && data.gap.dir !== 'flat' && data.gap.fillTarget) {
       var gapBias = data.gap.dir === 'gap_up' ? 'bear' : 'bull';
       if (gapBias === 'bull') bull += 5; else bear += 5;
-      reasons.push('Unfilled gap ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fill target $' + data.gap.fillTarget);
+      reasons.push('Unfilled gap ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fill target $' + data.gap.fillTarget);
     }
   }
 
@@ -453,7 +453,7 @@ function scoreConfluence(data) {
       if (data.squeeze.dir === 'bull') bull += 12; else bear += 12;
       reasons.push('SQUEEZE FIRED ' + data.squeeze.dir.toUpperCase());
     } else if (data.squeeze.on) {
-      reasons.push('Squeeze ON ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ expansion imminent');
+      reasons.push('Squeeze ON ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ expansion imminent');
       bull += 3; bear += 3;
     }
   }
@@ -489,6 +489,20 @@ function scoreConfluence(data) {
     if (comboDir) bull += 5; else bear += 5;
     reasons.push('Strat ' + data.stratCombo.combo + ': ' + data.stratCombo.description);
   }
+  // PATTERN scoring
+  if (data.patterns && data.patterns.candlestick) {
+    data.patterns.candlestick.forEach(function(p) {
+      if (p.direction === 'bullish') { bull += 4; reasons.push('Candle: ' + p.pattern); }
+      if (p.direction === 'bearish') { bear += 4; reasons.push('Candle: ' + p.pattern); }
+    });
+  }
+  if (data.patterns && data.patterns.chart) {
+    data.patterns.chart.forEach(function(p) {
+      if (p.direction === 'bullish') { bull += 5; reasons.push('Chart: ' + p.pattern + ' — ' + p.signal); }
+      if (p.direction === 'bearish') { bear += 5; reasons.push('Chart: ' + p.pattern + ' — ' + p.signal); }
+    });
+  }
+
   if (data.or5) {
     if (data.or5.status === 'breakout') { bull += 5; reasons.push('5-min OR breakout $' + data.or5.high); }
     if (data.or5.status === 'breakdown') { bear += 5; reasons.push('5-min OR breakdown $' + data.or5.low); }
@@ -510,10 +524,10 @@ function scoreConfluence(data) {
 }
 
 // ============================================================================
-// ALERT GENERATOR ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Specific entry/stop/target/timeframe
+// ALERT GENERATOR ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Specific entry/stop/target/timeframe
 // ============================================================================
 function generateAlert(confluence, price, levels, adx, vwap) {
-  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no alert
+  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no alert
   var dir = confluence.bias;
   var entry = +price.toFixed(2);
   var atr = adx && adx.atr ? adx.atr : 0.50;
@@ -614,7 +628,7 @@ function recommendContract(alert, price, sym) {
       maxRisk: '$' + (estPremiumOTM * 100 * suggestedContracts).toFixed(0),
       displayName: sym + ' ' + expStr + ' $' + otm1Strike + ' ' + type
     },
-    note: daysToExp === 0 ? '0DTE Ã¢ÂÂ high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term Ã¢ÂÂ theta decay accelerating' : 'Weekly Ã¢ÂÂ more room for thesis to play out',
+    note: daysToExp === 0 ? '0DTE ÃÂ¢ÃÂÃÂ high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term ÃÂ¢ÃÂÃÂ theta decay accelerating' : 'Weekly ÃÂ¢ÃÂÃÂ more room for thesis to play out',
     strategy: dir === 'BULLISH' ? 'Long Call' : 'Long Put'
   };
 }
@@ -635,6 +649,84 @@ function aggregateBars(bars1m, minutesPerBar) {
     result.push(agg);
   }
   return result;
+}
+
+
+// ============================================================================
+// PATTERN ENGINE — Candlestick + Chart Patterns (inline)
+// ============================================================================
+function pBodySize(b) { return Math.abs(b.c - b.o); }
+function pRange(b) { return b.h - b.l; }
+function pUpperWick(b) { return b.h - Math.max(b.o, b.c); }
+function pLowerWick(b) { return Math.min(b.o, b.c) - b.l; }
+
+function scanCandlestickPatterns(bars) {
+  if (!bars || bars.length < 3) return [];
+  var patterns = [];
+  var c = bars[bars.length - 1], p = bars[bars.length - 2];
+  var last3 = bars.slice(-3);
+  var r = pRange(c);
+  if (r < 0.01) return patterns;
+  var bodyPct = pBodySize(c) / r;
+  var uwPct = pUpperWick(c) / r;
+  var lwPct = pLowerWick(c) / r;
+  // Doji
+  if (bodyPct < 0.1) patterns.push({ pattern: 'Doji', signal: 'indecision', direction: 'neutral' });
+  // Marubozu
+  if (bodyPct > 0.9) patterns.push({ pattern: 'Marubozu', signal: c.c > c.o ? 'strong_buying' : 'strong_selling', direction: c.c > c.o ? 'bullish' : 'bearish' });
+  // Spinning Top
+  if (bodyPct > 0.1 && bodyPct < 0.35 && uwPct > 0.25 && lwPct > 0.25) patterns.push({ pattern: 'Spinning Top', signal: 'indecision', direction: 'neutral' });
+  // Bullish Engulfing
+  if (p.c < p.o && c.c > c.o && c.o <= p.c && c.c >= p.o) patterns.push({ pattern: 'Bullish Engulfing', signal: 'reversal_up', direction: 'bullish' });
+  // Bearish Engulfing
+  if (p.c > p.o && c.c < c.o && c.o >= p.c && c.c <= p.o) patterns.push({ pattern: 'Bearish Engulfing', signal: 'reversal_down', direction: 'bearish' });
+  // Morning Star (3-bar)
+  var a3 = last3[0], b3 = last3[1], c3 = last3[2];
+  if (a3.c < a3.o && pBodySize(b3) < pBodySize(a3) * 0.4 && c3.c > c3.o && c3.c > (a3.h + a3.l) / 2) patterns.push({ pattern: 'Morning Star', signal: 'strong_reversal_up', direction: 'bullish' });
+  // Evening Star (3-bar)
+  if (a3.c > a3.o && pBodySize(b3) < pBodySize(a3) * 0.4 && c3.c < c3.o && c3.c < (a3.h + a3.l) / 2) patterns.push({ pattern: 'Evening Star', signal: 'strong_reversal_down', direction: 'bearish' });
+  // Three White Soldiers
+  if (a3.c > a3.o && b3.c > b3.o && c3.c > c3.o && b3.c > a3.c && c3.c > b3.c) patterns.push({ pattern: 'Three White Soldiers', signal: 'continuation_up', direction: 'bullish' });
+  // Three Black Crows
+  if (a3.c < a3.o && b3.c < b3.o && c3.c < c3.o && b3.c < a3.c && c3.c < b3.c) patterns.push({ pattern: 'Three Black Crows', signal: 'continuation_down', direction: 'bearish' });
+  // Tweezer Top
+  if (Math.abs(c.h - p.h) < r * 0.05 && p.c > p.o && c.c < c.o) patterns.push({ pattern: 'Tweezer Top', signal: 'reversal_down', direction: 'bearish' });
+  // Tweezer Bottom
+  if (Math.abs(c.l - p.l) < r * 0.05 && p.c < p.o && c.c > c.o) patterns.push({ pattern: 'Tweezer Bottom', signal: 'reversal_up', direction: 'bullish' });
+  return patterns;
+}
+
+function scanChartPatterns(bars) {
+  if (!bars || bars.length < 20) return [];
+  var patterns = [];
+  var price = bars[bars.length - 1].c;
+  // Find swing points (lookback 5)
+  var swingH = [], swingL = [];
+  for (var i = 5; i < bars.length - 5; i++) {
+    var isH = true, isL = true;
+    for (var j = i - 5; j <= i + 5; j++) { if (j !== i) { if (bars[j].h >= bars[i].h) isH = false; if (bars[j].l <= bars[i].l) isL = false; } }
+    if (isH) swingH.push({ idx: i, price: bars[i].h });
+    if (isL) swingL.push({ idx: i, price: bars[i].l });
+  }
+  // Trend: HH+HL or LH+LL
+  if (swingH.length >= 2 && swingL.length >= 2) {
+    var h = swingH.slice(-2), l = swingL.slice(-2);
+    if (h[1].price > h[0].price && l[1].price > l[0].price) patterns.push({ pattern: 'Uptrend', signal: 'HH+HL structure', direction: 'bullish' });
+    if (h[1].price < h[0].price && l[1].price < l[0].price) patterns.push({ pattern: 'Downtrend', signal: 'LH+LL structure', direction: 'bearish' });
+  }
+  // Double Top
+  if (swingH.length >= 2) { var s1 = swingH[swingH.length - 2], s2 = swingH[swingH.length - 1]; if (Math.abs(s1.price - s2.price) < price * 0.005 && s2.idx - s1.idx >= 5) patterns.push({ pattern: 'Double Top', signal: 'Resistance at $' + s2.price.toFixed(2), direction: 'bearish', level: +s2.price.toFixed(2) }); }
+  // Double Bottom
+  if (swingL.length >= 2) { var q1 = swingL[swingL.length - 2], q2 = swingL[swingL.length - 1]; if (Math.abs(q1.price - q2.price) < price * 0.005 && q2.idx - q1.idx >= 5) patterns.push({ pattern: 'Double Bottom', signal: 'Support at $' + q2.price.toFixed(2), direction: 'bullish', level: +q2.price.toFixed(2) }); }
+  // Consolidation
+  var recent = bars.slice(-20); var first10 = recent.slice(0, 10), last10 = recent.slice(10);
+  var r1 = Math.max.apply(null, first10.map(function(b){return b.h})) - Math.min.apply(null, first10.map(function(b){return b.l}));
+  var r2 = Math.max.apply(null, last10.map(function(b){return b.h})) - Math.min.apply(null, last10.map(function(b){return b.l}));
+  if (r2 < r1 * 0.6) patterns.push({ pattern: 'Consolidation', signal: 'Range narrowing, expansion imminent', direction: 'neutral' });
+  // Breakout/Breakdown
+  if (swingH.length >= 1 && price > swingH[swingH.length - 1].price) patterns.push({ pattern: 'Breakout', signal: 'Above swing high $' + swingH[swingH.length - 1].price.toFixed(2), direction: 'bullish' });
+  if (swingL.length >= 1 && price < swingL[swingL.length - 1].price) patterns.push({ pattern: 'Breakdown', signal: 'Below swing low $' + swingL[swingL.length - 1].price.toFixed(2), direction: 'bearish' });
+  return patterns;
 }
 
 module.exports = async function handler(req, res) {
@@ -713,7 +805,7 @@ module.exports = async function handler(req, res) {
         if (todayBars1m.length > 0) {
           sessionOpen = todayBars1m[0].o;
         } else {
-          // No today bars yet â use Yahoo open or last bar
+          // No today bars yet Ã¢ÂÂ use Yahoo open or last bar
           sessionOpen = (yahooRT && yahooRT.open) ? yahooRT.open : bars1m[bars1m.length - 1].o;
           todayBars1m = bars1m;
         }
@@ -726,6 +818,10 @@ module.exports = async function handler(req, res) {
       var or15 = calcOpeningRange(todayBars1m, 15);
 
       // Strat analysis on 5m (primary day trade timeframe)
+      // Pattern analysis on 1m and 5m bars
+      var candlePatterns1m = bars1m && bars1m.length >= 3 ? scanCandlestickPatterns(bars1m) : [];
+      var chartPatterns1m = bars1m && bars1m.length >= 20 ? scanChartPatterns(bars1m) : [];
+
       var sss50 = bars5m && bars5m.length >= 2 ? sss50Rule(bars5m[bars5m.length - 1], bars5m[bars5m.length - 2]) : null;
       var sss50_daily = barsD && barsD.length >= 2 ? sss50Rule(barsD[barsD.length - 1], barsD[barsD.length - 2]) : null;
       var sss50_weekly = barsW && barsW.length >= 2 ? sss50Rule(barsW[barsW.length - 1], barsW[barsW.length - 2]) : null;
@@ -758,6 +854,7 @@ module.exports = async function handler(req, res) {
         macd: macd5m || macd1m, adx: adx5m || adx1m,
         squeeze: squeeze5m || squeeze1m,
         sss50: sss50, sss50_daily: sss50_daily, hammer: hammer, stratCombo: stratCombo,
+        patterns: { candlestick: candlePatterns1m, chart: chartPatterns1m },
         or5: or5, ftfc: ftfc
       });
 
@@ -780,6 +877,7 @@ module.exports = async function handler(req, res) {
           vwap: vwap, emaAlignment: emaAlign
         },
         structure: { levels: levels, gap: gap, or5: or5, or15: or15 },
+        patterns: { candlestick: candlePatterns1m, chart: chartPatterns1m, total: candlePatterns1m.length + chartPatterns1m.length },
         strat: { sss50: sss50, sss50_daily: sss50_daily, sss50_weekly: sss50_weekly, hammer: hammer, combo: stratCombo, ftfc: ftfc },
         volumeFlow: volumeBias,
         perTimeframe: {
