@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-// Course catalog â AI will personalize order based on user data
+// Course catalog Ã¢ÂÂ AI will personalize order based on user data
 const COURSES = [
   { id: 'risk_101', title: 'Risk Management Fundamentals', category: 'Core', difficulty: 'Beginner', lessons: 8, icon: '\u{1F6E1}', color: '#10b981', description: 'Position sizing, stop losses, and the Kelly Criterion', prereq: null,
     cards: [
@@ -55,6 +56,7 @@ const COURSES = [
 const CATEGORIES = ['All', 'Core', 'Technical', 'Options', 'Psychology', 'Advanced']
 
 export default function Learn() {
+  const navigate = useNavigate()
   const [selectedCourse, setSelectedCourse] = useState(null)
   const [filter, setFilter] = useState('All')
   const [quizActive, setQuizActive] = useState(false)
@@ -193,7 +195,7 @@ export default function Learn() {
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontFamily: '"Syne",sans-serif', fontSize: 22, fontWeight: 800, margin: '0 0 2px' }}>Learning Center</h1>
-        <div style={{ color: '#3d4e62', fontSize: 11 }}>AI-curated courses · Quizlet-style flashcards · Personalized to your trading</div>
+        <div style={{ color: '#3d4e62', fontSize: 11 }}>AI-curated courses Â· Quizlet-style flashcards Â· Personalized to your trading</div>
       </div>
 
       {/* Stats */}
@@ -289,10 +291,12 @@ export default function Learn() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 18 }}>{'\u{1F393}'}</span>
           <span style={{ fontWeight: 700, fontSize: 14 }}>Coaching Marketplace</span>
-          <span style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 4, padding: '1px 6px', color: '#a78bfa', fontSize: 8, fontFamily: '"DM Mono",monospace', fontWeight: 700 }}>COMING SOON</span>
+          <span style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 4, padding: '1px 6px', color: '#a78bfa', fontSize: 8, fontFamily: '"DM Mono",monospace', fontWeight: 700 }}>LIVE</span>
         </div>
         <div style={{ fontSize: 11, color: '#6b7a90', lineHeight: 1.6 }}>
-          Hire expert trading coaches. Learn their strategies in private Discord-style channels. Coaches post alerts, lessons, and trade ideas. AI learns from every interaction to make your experience smarter.
+          Hire expert trading coaches. Get AI-matched to the perfect coach for your style. Browse by specialty, view ratings, and join private learning groups.</div>
+        <button onClick={() => navigate('/app/coaches')} style={{ marginTop: 10, padding: '8px 20px', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, color: '#a78bfa', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>Browse Coaches \u2192</button>
+        <div style={{ fontSize: 11, color: '#6b7a90', lineHeight: 1.6, display: 'none' }}>
         </div>
       </div>
     </div>
