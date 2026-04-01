@@ -1,8 +1,8 @@
 // ============================================================================
-// ANKUSHAI DAY TRADE ENGINE V3 ÃÂ¢ÃÂÃÂ PREDICTION ENGINE
+// ANKUSHAI DAY TRADE ENGINE V3 ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ PREDICTION ENGINE
 // ============================================================================
 // Sources: wolffnbear (SSS 50%), rickyzcarroll (Strat/FTFC), liquid-trader (VWAP/Levels)
-// Data: Polygon.io real-time ÃÂ¢ÃÂÃÂ Yahoo Finance fallback
+// Data: Polygon.io real-time ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Yahoo Finance fallback
 // Output: Confluence-scored alerts with entry/stop/target/timeframe/risk grade
 //
 // ZERO mock data. Every number comes from real market data or real math.
@@ -70,7 +70,7 @@ async function yahooData(sym) {
 }
 
 // ============================================================================
-// MATH PRIMITIVES ÃÂ¢ÃÂÃÂ Real formulas, no approximations
+// MATH PRIMITIVES ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Real formulas, no approximations
 // ============================================================================
 function ema(data, p) {
   if (!data || data.length < p) return [];
@@ -223,7 +223,7 @@ function calcVWAP(bars) {
 
 // ============================================================================
 // INDICATOR: Key Daily Percentage Levels (liquid-trader inspired)
-// How algos see the market ÃÂ¢ÃÂÃÂ percentage levels from session open
+// How algos see the market ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ percentage levels from session open
 // ============================================================================
 function calcKeyLevels(sessionOpen, currentPrice, prevHigh, prevLow, prevClose) {
   if (!sessionOpen || !currentPrice) return null;
@@ -279,7 +279,7 @@ function stratBarType(curr, prev) {
 }
 
 // SSS 50% Rule State Machine (wolffnbear)
-// INVALID ÃÂ¢ÃÂÃÂ STANDBY ÃÂ¢ÃÂÃÂ ACTIVE ÃÂ¢ÃÂÃÂ COMPLETE
+// INVALID ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ STANDBY ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ACTIVE ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ COMPLETE
 function sss50Rule(curr, prev) {
   if (!curr || !prev) return { state: 'INVALID', reason: 'no data' };
   var midpoint = (prev.h + prev.l) / 2;
@@ -353,7 +353,7 @@ function detectStratCombo(bars) {
   return signal ? { combo: signal.combo, direction: signal.dir, description: signal.desc, fullCombo: combo } : { combo: combo, direction: t3 ? t3.dir : 'unknown', description: 'Pattern: ' + combo, fullCombo: combo };
 }
 
-// Full Timeframe Continuity (rickyzcarroll ÃÂ¢ÃÂÃÂ 10 timeframes)
+// Full Timeframe Continuity (rickyzcarroll ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ 10 timeframes)
 function checkFTFC(barsByTF) {
   var tfs = Object.keys(barsByTF);
   var directions = {};
@@ -408,7 +408,7 @@ function calcGap(todayOpen, prevClose, prevHigh, prevLow) {
 }
 
 // ============================================================================
-// CONFLUENCE ENGINE ÃÂ¢ÃÂÃÂ Weighted scoring across all layers
+// CONFLUENCE ENGINE ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Weighted scoring across all layers
 // ============================================================================
 function scoreConfluence(data) {
   var bull = 0, bear = 0, reasons = [], maxScore = 0;
@@ -425,7 +425,7 @@ function scoreConfluence(data) {
     if (data.gap && data.gap.dir !== 'flat' && data.gap.fillTarget) {
       var gapBias = data.gap.dir === 'gap_up' ? 'bear' : 'bull';
       if (gapBias === 'bull') bull += 5; else bear += 5;
-      reasons.push('Unfilled gap ÃÂ¢ÃÂÃÂ fill target $' + data.gap.fillTarget);
+      reasons.push('Unfilled gap ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ fill target $' + data.gap.fillTarget);
     }
   }
 
@@ -453,7 +453,7 @@ function scoreConfluence(data) {
       if (data.squeeze.dir === 'bull') bull += 12; else bear += 12;
       reasons.push('SQUEEZE FIRED ' + data.squeeze.dir.toUpperCase());
     } else if (data.squeeze.on) {
-      reasons.push('Squeeze ON ÃÂ¢ÃÂÃÂ expansion imminent');
+      reasons.push('Squeeze ON ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ expansion imminent');
       bull += 3; bear += 3;
     }
   }
@@ -510,10 +510,10 @@ function scoreConfluence(data) {
 }
 
 // ============================================================================
-// ALERT GENERATOR ÃÂ¢ÃÂÃÂ Specific entry/stop/target/timeframe
+// ALERT GENERATOR ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Specific entry/stop/target/timeframe
 // ============================================================================
 function generateAlert(confluence, price, levels, adx, vwap) {
-  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂ¢ÃÂÃÂ no alert
+  if (confluence.confluencePct < 55) return null; // Below threshold ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no alert
   var dir = confluence.bias;
   var entry = +price.toFixed(2);
   var atr = adx && adx.atr ? adx.atr : 0.50;
@@ -614,7 +614,7 @@ function recommendContract(alert, price, sym) {
       maxRisk: '$' + (estPremiumOTM * 100 * suggestedContracts).toFixed(0),
       displayName: sym + ' ' + expStr + ' $' + otm1Strike + ' ' + type
     },
-    note: daysToExp === 0 ? '0DTE — high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term — theta decay accelerating' : 'Weekly — more room for thesis to play out',
+    note: daysToExp === 0 ? '0DTE â high gamma, fast moves, manage actively' : daysToExp <= 2 ? 'Near-term â theta decay accelerating' : 'Weekly â more room for thesis to play out',
     strategy: dir === 'BULLISH' ? 'Long Call' : 'Long Put'
   };
 }
@@ -674,18 +674,37 @@ module.exports = async function handler(req, res) {
       var adx5m = calcADX(h5m, l5m, c5m, 14);
       var squeeze1m = calcSqueeze(h1m, l1m, c1m, 20);
       var squeeze5m = calcSqueeze(h5m, l5m, c5m, 20);
-      var vwap = calcVWAP(bars1m);
+      var vwap = calcVWAP(todayBars1m.length > 0 ? todayBars1m : bars1m);
       // Buy/sell volume differential (liquid-trader Tape concept)
       var buyVol = 0, sellVol = 0;
       if (bars1m && bars1m.length > 20) {
         bars1m.slice(-20).forEach(function(b) { if (b.c > b.o) buyVol += b.v; else sellVol += b.v; });
       }
       var volumeBias = buyVol + sellVol > 0 ? { buyPct: Math.round(buyVol / (buyVol + sellVol) * 100), sellPct: Math.round(sellVol / (buyVol + sellVol) * 100), bias: buyVol > sellVol ? 'buying' : 'selling' } : null;
-      var sessionOpen = bars1m && bars1m.length > 0 ? bars1m[0].o : null;
+      // Find today's session open (first bar after 9:30 AM ET / 14:30 UTC)
+      var sessionOpen = null;
+      if (bars1m && bars1m.length > 0) {
+        var todayStart = new Date();
+        todayStart.setUTCHours(14, 30, 0, 0); // 9:30 AM ET
+        if (todayStart.getTime() > Date.now()) todayStart.setDate(todayStart.getDate() - 1);
+        var todayStartMs = todayStart.getTime();
+        for (var bi = 0; bi < bars1m.length; bi++) {
+          if (bars1m[bi].t >= todayStartMs) { sessionOpen = bars1m[bi].o; break; }
+        }
+        if (!sessionOpen) sessionOpen = bars1m[bars1m.length - 1].o;
+      }
+      // Also get today-only bars for Opening Range calc
+      var todayBars1m = [];
+      if (bars1m && bars1m.length > 0) {
+        var tdStart = new Date();
+        tdStart.setUTCHours(14, 30, 0, 0);
+        if (tdStart.getTime() > Date.now()) tdStart.setDate(tdStart.getDate() - 1);
+        todayBars1m = bars1m.filter(function(b) { return b.t >= tdStart.getTime(); });
+      }
       var levels = calcKeyLevels(sessionOpen, price, prevDay ? prevDay.h : null, prevDay ? prevDay.l : null, prevDay ? prevDay.c : null);
       var gap = calcGap(sessionOpen, prevDay ? prevDay.c : null, prevDay ? prevDay.h : null, prevDay ? prevDay.l : null);
-      var or5 = calcOpeningRange(bars1m, 5);
-      var or15 = calcOpeningRange(bars1m, 15);
+      var or5 = calcOpeningRange(todayBars1m, 5);
+      var or15 = calcOpeningRange(todayBars1m, 15);
 
       // Strat analysis on 5m (primary day trade timeframe)
       var sss50 = bars5m && bars5m.length >= 2 ? sss50Rule(bars5m[bars5m.length - 1], bars5m[bars5m.length - 2]) : null;
