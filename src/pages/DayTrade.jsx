@@ -1,4 +1,26 @@
-import { useState, useEffect, useRef } from 'react'
+
+      {/* Detected Patterns */}
+      {scan && scan.patterns && (scan.patterns.candlestick.length > 0 || scan.patterns.chart.length > 0) && (
+        <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ fontFamily: '"DM Mono",monospace', fontSize: 10, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Pattern Detection ({scan.patterns.total} found)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {scan.patterns.candlestick.map(function(p, i) { return (
+              <div key={'c'+i} style={{ background: p.direction === 'bullish' ? 'rgba(16,185,129,0.08)' : p.direction === 'bearish' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.03)', border: '1px solid ' + (p.direction === 'bullish' ? 'rgba(16,185,129,0.2)' : p.direction === 'bearish' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)'), borderRadius: 6, padding: '4px 8px' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: p.direction === 'bullish' ? '#10b981' : p.direction === 'bearish' ? '#ef4444' : '#8892a4' }}>{p.pattern}</span>
+                <span style={{ fontSize: 9, color: '#4a5c7a', marginLeft: 4 }}>{p.signal}</span>
+              </div>
+            ) })}
+            {scan.patterns.chart.map(function(p, i) { return (
+              <div key={'h'+i} style={{ background: p.direction === 'bullish' ? 'rgba(16,185,129,0.08)' : p.direction === 'bearish' ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)', border: '1px solid ' + (p.direction === 'bullish' ? 'rgba(16,185,129,0.2)' : p.direction === 'bearish' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'), borderRadius: 6, padding: '4px 8px' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: p.direction === 'bullish' ? '#10b981' : p.direction === 'bearish' ? '#ef4444' : '#f59e0b' }}>{p.pattern}</span>
+                <span style={{ fontSize: 9, color: '#4a5c7a', marginLeft: 4 }}>{p.signal}</span>
+              </div>
+            ) })}
+          </div>
+        </div>
+      )}
+
+      import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function DayTrade() {
