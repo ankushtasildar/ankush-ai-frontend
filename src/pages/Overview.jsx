@@ -278,7 +278,7 @@ export default function Overview() {
                       <span style={{ fontSize:10, fontWeight:700, padding:'1px 5px', borderRadius:3, background:'var(--yellow-dim)', color:'var(--yellow)', textTransform:'uppercase' }}>{ev.event_type||'EVT'}</span>
                       <span style={{ fontSize:12, color:'var(--text-secondary)' }}>{ev.title||ev.event_name}</span>
                     </div>
-                    {d!=null && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{d===0?'Today':d===1?'Tomorrow':'in '+d+'d'}</span>}
+                    {d!=null && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{d===0?'Today':d===1?'Tomorrow':d<0?Math.abs(d)+'d ago':'in '+d+'d'}</span>}
                   </div>
                 )
               })}
