@@ -31,7 +31,7 @@ export default function DayTrade() {
   var [lastScanTime, setLastScanTime] = useState(null)
   var [scanLog, setScanLog] = useState([])
   var [marketScan, setMarketScan] = useState(null)
-  var [deepAlert, setDeepAlert] = useState(null);
+  var [deepAlert, setDeepAlert] = useState(null)
   var intervalRef = useRef(null)
   var mktRef = useRef(null)
   var logRef = useRef([])
@@ -137,13 +137,13 @@ export default function DayTrade() {
       if (!r.ok) return
       var d = await r.json()
       setMarketScan(d)
-          // P1: Auto deep-scan top opportunity through V3 engine
+          // Auto deep-scan top opportunity through V3 engine
           if (data && data.opportunities && data.opportunities.length > 0) {
-            var topSym = data.opportunities[0].symbol;
+            var topSym = data.opportunities[0].symbol
             fetch('/api/day-trade-engine?action=predict&symbol=' + topSym)
-              .then(function(r2) { return r2.json(); })
-              .then(function(v3) { setDeepAlert(v3); })
-              .catch(function() { setDeepAlert(null); });
+              .then(function(r2) { return r2.json() })
+              .then(function(v3) { setDeepAlert(v3) })
+              .catch(function() { setDeepAlert(null) })
           }
       if (d.opportunities && d.opportunities.length > 0) {
         var top = d.opportunities[0]
@@ -315,16 +315,8 @@ export default function DayTrade() {
         </div>
       </div>
 
-      {/* Market-wide opportunities */}
-      {marketScan && marketScan.opportunities && marketScan.opportunities.length > 0 && (
-        <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={S({ color: '#f59e0b', marginBottom: 0 })}>Market Opportunities ({marketScan.qualified} of {marketScan.scanned} qualified)</div>
-            <span style={{ fontSize: 9, color: '#2a3441' }}>{marketScan.totalTimeMs}ms</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
 
-        {/* P1: V3 Deep Scan Alert for top opportunity */}
+        {/* V3 Deep Scan Alert for top opportunity */}
         {deepAlert && deepAlert.alert && (
           <div style={{background: deepAlert.alert.direction === "BULLISH" ? "#0f3d0f" : "#3d0f0f", borderRadius: 12, padding: "16px 20px", marginBottom: 16, border: "1px solid " + (deepAlert.alert.direction === "BULLISH" ? "#1a6b1a" : "#6b1a1a")}}>
             <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8}}>
@@ -340,6 +332,16 @@ export default function DayTrade() {
             <div style={{marginTop: 8, fontSize: 11, color: "#9ca3af"}}>{deepAlert.alert.timeframe} | {deepAlert.alert.reasons && deepAlert.alert.reasons.slice(0, 3).join(" | ")}</div>
           </div>
         )}
+
+      {/* Market-wide opportunities */}
+      {marketScan && marketScan.opportunities && marketScan.opportunities.length > 0 && (
+        <div style={{ background: '#0d1420', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={S({ color: '#f59e0b', marginBottom: 0 })}>Market Opportunities ({marketScan.qualified} of {marketScan.scanned} qualified)</div>
+            <span style={{ fontSize: 9, color: '#2a3441' }}>{marketScan.totalTimeMs}ms</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
+
 
             {marketScan.opportunities.slice(0, 8).map(function(opp) { return (
               <div key={opp.symbol} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid ' + (opp.direction === 'BULLISH' ? 'rgba(16,185,129,0.2)' : opp.direction === 'BEARISH' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'), borderRadius: 8, padding: '8px 10px' }}>
