@@ -31,6 +31,7 @@ export default function DayTrade() {
   var [lastScanTime, setLastScanTime] = useState(null)
   var [scanLog, setScanLog] = useState([])
   var [marketScan, setMarketScan] = useState(null)
+  var [deepAlert, setDeepAlert] = useState(null);
   var intervalRef = useRef(null)
   var mktRef = useRef(null)
   var logRef = useRef([])
@@ -136,6 +137,14 @@ export default function DayTrade() {
       if (!r.ok) return
       var d = await r.json()
       setMarketScan(d)
+          // P1: Auto deep-scan top opportunity through V3 engine
+          if (data && data.opportunities && data.opportunities.length > 0) {
+            var topSym = data.opportunities[0].symbol;
+            fetch('/api/day-trade-engine?action=predict&symbol=' + topSym)
+              .then(function(r2) { return r2.json(); })
+              .then(function(v3) { setDeepAlert(v3); })
+              .catch(function() { setDeepAlert(null); });
+          }
       if (d.opportunities && d.opportunities.length > 0) {
         var top = d.opportunities[0]
         addLog('MARKET: ' + d.scanned + ' tickers scanned. Top: ' + top.symbol + ' ' + (top.change > 0 ? '+' : '') + top.change + '% (Score ' + top.score + ') -- ' + (top.signals && top.signals[0] ? top.signals[0] : ''), 'market')
@@ -314,6 +323,24 @@ export default function DayTrade() {
             <span style={{ fontSize: 9, color: '#2a3441' }}>{marketScan.totalTimeMs}ms</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
+
+        {/* P1: V3 Deep Scan Alert for top opportunity */}
+        {deepAlert && deepAlert.alert && (
+          <div style={{background: deepAlert.alert.direction === "BULLISH" ? "#0f3d0f" : "#3d0f0f", borderRadius: 12, padding: "16px 20px", marginBottom: 16, border: "1px solid " + (deepAlert.alert.direction === "BULLISH" ? "#1a6b1a" : "#6b1a1a")}}>
+            <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8}}>
+              <span style={{fontWeight: 700, fontSize: 16, color: deepAlert.alert.direction === "BULLISH" ? "#4ade80" : "#f87171"}}>{deepAlert.alert.direction === "BULLISH" ? "BULL" : "BEAR"} ALERT: {deepAlert.symbol}</span>
+              <span style={{background: deepAlert.alert.grade === "A+" || deepAlert.alert.grade === "A" ? "#166534" : "#854d0e", color: "#fff", padding: "2px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600}}>Grade {deepAlert.alert.grade} | {deepAlert.alert.confluencePct}%</span>
+            </div>
+            <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: 13}}>
+              <div><span style={{color: "#9ca3af"}}>Entry</span><br/><span style={{color: "#fff", fontWeight: 600}}>${deepAlert.alert.entry}</span></div>
+              <div><span style={{color: "#9ca3af"}}>Stop</span><br/><span style={{color: "#f87171", fontWeight: 600}}>${deepAlert.alert.stop}</span></div>
+              <div><span style={{color: "#9ca3af"}}>Target</span><br/><span style={{color: "#4ade80", fontWeight: 600}}>${deepAlert.alert.target1}</span></div>
+              <div><span style={{color: "#9ca3af"}}>R:R</span><br/><span style={{color: "#fbbf24", fontWeight: 600}}>{deepAlert.alert.target1_rr}:1</span></div>
+            </div>
+            <div style={{marginTop: 8, fontSize: 11, color: "#9ca3af"}}>{deepAlert.alert.timeframe} | {deepAlert.alert.reasons && deepAlert.alert.reasons.slice(0, 3).join(" | ")}</div>
+          </div>
+        )}
+
             {marketScan.opportunities.slice(0, 8).map(function(opp) { return (
               <div key={opp.symbol} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid ' + (opp.direction === 'BULLISH' ? 'rgba(16,185,129,0.2)' : opp.direction === 'BEARISH' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'), borderRadius: 8, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
