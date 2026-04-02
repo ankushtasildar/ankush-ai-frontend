@@ -72,7 +72,6 @@ export default function Overview() {
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const [scanResults, setScanResults] = useState(null);
-  const [scanLoading, setScanLoading] = useState(false);
 
   // Auto-scan market on mount
   useEffect(function() {
