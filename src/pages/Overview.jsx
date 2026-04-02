@@ -72,7 +72,6 @@ export default function Overview() {
   const [lastUpdate, setLastUpdate] = useState(null)
 
   const [scanResults, setScanResults] = useState(null);
-  const [deepAlert, setDeepAlert] = useState(null);
 
   // Auto-scan market on mount
   useEffect(function() {
@@ -81,14 +80,6 @@ export default function Overview() {
       .then(function(r) { return r.json(); })
       .then(function(d) { setScanResults(d); setScanLoading(false); })
       .catch(function() { setScanLoading(false); });
-        // P1: Auto deep-scan top opportunity through V3 engine
-        if (d.opportunities && d.opportunities.length > 0) {
-          var topSym = d.opportunities[0].symbol;
-          fetch('/api/day-trade-engine?action=predict&symbol=' + topSym)
-            .then(function(r2) { return r2.json(); })
-            .then(function(v3) { setDeepAlert(v3); })
-            .catch(function() { setDeepAlert(null); });
-        }
   }, []);
 
   const load = useCallback(async () => {
@@ -240,24 +231,6 @@ export default function Overview() {
             {loading ? [...Array(3)].map((_,i)=>(<div key={i} style={{ height:52, background:'var(--bg-elevated)', borderRadius:7, marginBottom:4 }} />)) : setups.length===0 ? (
               <div style={{ textAlign:'center', padding:'16px 0' }}>
                 <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:4 }}>{scanLoading ? 'Scanning 40 tickers...' : scanResults && scanResults.opportunities ? scanResults.qualified + ' of ' + scanResults.scanned + ' qualified' : 'No setups found'}</div>
-
-      {/* P1: V3 Deep Scan Alert for top opportunity */}
-      {deepAlert && deepAlert.alert && (
-        <div style={{background: deepAlert.alert.direction === "BULLISH" ? "#0f3d0f" : "#3d0f0f", borderRadius: 12, padding: "16px 20px", marginBottom: 16, border: "1px solid " + (deepAlert.alert.direction === "BULLISH" ? "#1a6b1a" : "#6b1a1a")}}>
-          <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8}}>
-            <span style={{fontWeight: 700, fontSize: 16, color: deepAlert.alert.direction === "BULLISH" ? "#4ade80" : "#f87171"}}>{deepAlert.alert.direction === "BULLISH" ? "BULL" : "BEAR"} ALERT: {deepAlert.symbol}</span>
-            <span style={{background: deepAlert.alert.grade === "A+" || deepAlert.alert.grade === "A" ? "#166534" : "#854d0e", color: "#fff", padding: "2px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600}}>Grade {deepAlert.alert.grade} | {deepAlert.alert.confluencePct}%</span>
-          </div>
-          <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: 13}}>
-            <div><span style={{color: "#9ca3af"}}>Entry</span><br/><span style={{color: "#fff", fontWeight: 600}}>${deepAlert.alert.entry}</span></div>
-            <div><span style={{color: "#9ca3af"}}>Stop</span><br/><span style={{color: "#f87171", fontWeight: 600}}>${deepAlert.alert.stop}</span></div>
-            <div><span style={{color: "#9ca3af"}}>Target</span><br/><span style={{color: "#4ade80", fontWeight: 600}}>${deepAlert.alert.target1}</span></div>
-            <div><span style={{color: "#9ca3af"}}>R:R</span><br/><span style={{color: "#fbbf24", fontWeight: 600}}>{deepAlert.alert.target1_rr}:1</span></div>
-          </div>
-          <div style={{marginTop: 8, fontSize: 11, color: "#9ca3af"}}>{deepAlert.alert.timeframe} | {deepAlert.alert.reasons && deepAlert.alert.reasons.slice(0, 3).join(" | ")}</div>
-        </div>
-      )}
-
                 <div style={{ fontSize:11, color:'var(--text-dim)', marginBottom:12, opacity:0.7 }}>{scanResults && scanResults.opportunities && scanResults.opportunities.length > 0 ? scanResults.opportunities.slice(0, 3).map(function(o) { return o.symbol + ' ' + (o.change > 0 ? '+' : '') + o.change + '%'; }).join(' | ') : 'AI scans 40+ tickers'}</div>
                 <button onClick={runScan} disabled={scanLoading} style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', border:'none', borderRadius:8, padding:'10px 22px', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 12px rgba(37,99,235,0.35)' }}>
                   {scanLoading ? 'Scanning...' : 'Run Scan'}
