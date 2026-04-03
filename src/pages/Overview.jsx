@@ -71,17 +71,6 @@ export default function Overview() {
   const [isPro, setIsPro] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(null)
 
-  const [scanResults, setScanResults] = useState(null);
-
-  // Auto-scan market on mount
-  useEffect(function() {
-    setScanLoading(true);
-    fetch('/api/market-scanner?action=scan')
-      .then(function(r) { return r.json(); })
-      .then(function(d) { setScanResults(d); setScanLoading(false); })
-      .catch(function() { setScanLoading(false); });
-  }, []);
-
   const load = useCallback(async () => {
     try {
       const [mktR, qqR, iwR, cacheR, openR, eventsR] = await Promise.allSettled([
@@ -230,8 +219,8 @@ export default function Overview() {
             </div>
             {loading ? [...Array(3)].map((_,i)=>(<div key={i} style={{ height:52, background:'var(--bg-elevated)', borderRadius:7, marginBottom:4 }} />)) : setups.length===0 ? (
               <div style={{ textAlign:'center', padding:'16px 0' }}>
-                <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:4 }}>{scanLoading ? 'Scanning 40 tickers...' : scanResults && scanResults.opportunities ? scanResults.qualified + ' of ' + scanResults.scanned + ' qualified' : 'No setups found'}</div>
-                <div style={{ fontSize:11, color:'var(--text-dim)', marginBottom:12, opacity:0.7 }}>{scanResults && scanResults.opportunities && scanResults.opportunities.length > 0 ? scanResults.opportunities.slice(0, 3).map(function(o) { return o.symbol + ' ' + (o.change > 0 ? '+' : '') + o.change + '%'; }).join(' | ') : 'AI scans 40+ tickers'}</div>
+                <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:4 }}>No setups scanned yet</div>
+                <div style={{ fontSize:11, color:'var(--text-dim)', marginBottom:12, opacity:0.7 }}>AI scans 40+ tickers for institutional setups</div>
                 <button onClick={runScan} disabled={scanLoading} style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', border:'none', borderRadius:8, padding:'10px 22px', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 12px rgba(37,99,235,0.35)' }}>
                   {scanLoading ? 'Scanning...' : 'Run Scan'}
                 </button>
@@ -277,7 +266,7 @@ export default function Overview() {
                       <span style={{ fontSize:10, fontWeight:700, padding:'1px 5px', borderRadius:3, background:'var(--yellow-dim)', color:'var(--yellow)', textTransform:'uppercase' }}>{ev.event_type||'EVT'}</span>
                       <span style={{ fontSize:12, color:'var(--text-secondary)' }}>{ev.title||ev.event_name}</span>
                     </div>
-                    {d!=null && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{d===0?'Today':d===1?'Tomorrow':d<0?Math.abs(d)+'d ago':'in '+d+'d'}</span>}
+                    {d!=null && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{d===0?'Today':d===1?'Tomorrow':'in '+d+'d'}</span>}
                   </div>
                 )
               })}
