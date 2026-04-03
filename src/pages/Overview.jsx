@@ -244,9 +244,9 @@ export default function Overview() {
                 <span style={{background: "#166534", color: "#fff", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600}}>Grade {deepAlert.alert.grade} | {deepAlert.alert.confluencePct}%</span>
               </div>
               <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12}}>
-                <div><span style={{color: "#9ca3af"}}>Entry </span><span style={{color: "#fff", fontWeight: 600}}>${deepAlert.alert.entry}</span></div>
-                <div><span style={{color: "#9ca3af"}}>Stop </span><span style={{color: "#f87171", fontWeight: 600}}>${deepAlert.alert.stop}</span></div>
-                <div><span style={{color: "#9ca3af"}}>Target </span><span style={{color: "#4ade80", fontWeight: 600}}>${deepAlert.alert.target1}</span></div>
+                <div><span style={{color: "#9ca3af"}}>Entry </span><span style={{color: "#fff", fontWeight: 600}}>{deepAlert.alert.entry}</span></div>
+                <div><span style={{color: "#9ca3af"}}>Stop </span><span style={{color: "#f87171", fontWeight: 600}}>{deepAlert.alert.stop}</span></div>
+                <div><span style={{color: "#9ca3af"}}>Target </span><span style={{color: "#4ade80", fontWeight: 600}}>{deepAlert.alert.target1}</span></div>
                 <div><span style={{color: "#9ca3af"}}>R:R </span><span style={{color: "#fbbf24", fontWeight: 600}}>{deepAlert.alert.target1_rr}:1</span></div>
               </div>
               <div style={{marginTop: 6, fontSize: 10, color: "#6b7280"}}>{deepAlert.alert.timeframe}</div>
