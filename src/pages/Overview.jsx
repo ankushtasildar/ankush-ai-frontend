@@ -70,6 +70,8 @@ export default function Overview() {
   const [scanUsed, setScanUsed] = useState(0)
   const [isPro, setIsPro] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(null)
+  const [scanResults, setScanResults] = useState(null);
+  const [deepAlert, setDeepAlert] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +120,23 @@ export default function Overview() {
     await load(); setScanLoading(false)
   }
 
+
+  // P1: Auto-scan market and deep-scan top opportunity
+  useEffect(() => {
+    fetch('/api/market-scanner?action=scan')
+      .then(r => r.json())
+      .then(data => {
+        setScanResults(data);
+        if (data && data.opportunities && data.opportunities.length > 0) {
+          const topSym = data.opportunities[0].symbol;
+          fetch('/api/day-trade-engine?action=predict&symbol=' + topSym)
+            .then(r2 => r2.json())
+            .then(v3 => setDeepAlert(v3))
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
   const sp = mkt?.spy
   const qq = mkt?.qqq
   const iw = mkt?.iwm
@@ -217,18 +236,36 @@ export default function Overview() {
               <div style={ST}>Top Setups {setups.length>0 && <span style={{color:'var(--green)'}}>{setups.length}</span>}</div>
               <button style={LA} onClick={()=>nav('/app/setups')}>View all</button>
             </div>
-            {loading ? [...Array(3)].map((_,i)=>(<div key={i} style={{ height:52, background:'var(--bg-elevated)', borderRadius:7, marginBottom:4 }} />)) : setups.length===0 ? (
-              <div style={{ textAlign:'center', padding:'16px 0' }}>
-                <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:4 }}>No setups scanned yet</div>
-                <div style={{ fontSize:11, color:'var(--text-dim)', marginBottom:12, opacity:0.7 }}>AI scans 40+ tickers for institutional setups</div>
-                <button onClick={runScan} disabled={scanLoading} style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', border:'none', borderRadius:8, padding:'10px 22px', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 12px rgba(37,99,235,0.35)' }}>
-                  {scanLoading ? 'Scanning...' : 'Run Scan'}
-                </button>
+          {/* P1: Scanner Results + V3 Deep Scan Alert */}
+          {deepAlert && deepAlert.alert ? (
+            <div style={{background: deepAlert.alert.direction === "BULLISH" ? "#0f3d0f" : "#3d0f0f", borderRadius: 12, padding: "14px 16px", marginBottom: 10, border: "1px solid " + (deepAlert.alert.direction === "BULLISH" ? "#1a6b1a" : "#6b1a1a")}}>
+              <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6}}>
+                <span style={{fontWeight: 700, fontSize: 15, color: deepAlert.alert.direction === "BULLISH" ? "#4ade80" : "#f87171"}}>{deepAlert.alert.direction === "BULLISH" ? "BULL" : "BEAR"} {deepAlert.symbol}</span>
+                <span style={{background: "#166534", color: "#fff", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600}}>Grade {deepAlert.alert.grade} | {deepAlert.alert.confluencePct}%</span>
               </div>
-            ) : setups.slice(0,5).map((s,i)=>(
-              <SetupRow key={i} setup={s} onClick={()=>nav('/app/setups')} />
-            ))}
-          </div>
+              <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12}}>
+                <div><span style={{color: "#9ca3af"}}>Entry </span><span style={{color: "#fff", fontWeight: 600}}>${deepAlert.alert.entry}</span></div>
+                <div><span style={{color: "#9ca3af"}}>Stop </span><span style={{color: "#f87171", fontWeight: 600}}>${deepAlert.alert.stop}</span></div>
+                <div><span style={{color: "#9ca3af"}}>Target </span><span style={{color: "#4ade80", fontWeight: 600}}>${deepAlert.alert.target1}</span></div>
+                <div><span style={{color: "#9ca3af"}}>R:R </span><span style={{color: "#fbbf24", fontWeight: 600}}>{deepAlert.alert.target1_rr}:1</span></div>
+              </div>
+              <div style={{marginTop: 6, fontSize: 10, color: "#6b7280"}}>{deepAlert.alert.timeframe}</div>
+            </div>
+          ) : scanResults && scanResults.opportunities && scanResults.opportunities.length > 0 ? (
+            <div style={{fontSize: 13}}>
+              {scanResults.opportunities.slice(0, 3).map((op, idx) => (
+                <div key={idx} style={{display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #222"}}>
+                  <span style={{color: "#fff", fontWeight: 600}}>{op.symbol}</span>
+                  <span style={{color: op.direction === "BULLISH" ? "#4ade80" : "#f87171", fontSize: 12}}>{op.direction} {op.score}%</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{textAlign: "center", padding: "20px 0"}}>
+              <div style={{color: "#6b7280", fontSize: 14, marginBottom: 8}}>Scanning market...</div>
+              <div style={{color: "#4b5563", fontSize: 12}}>AI scans 40+ tickers for setups</div>
+            </div>
+          )}
           {/* Portfolio + Calendar */}
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <div style={C}>
